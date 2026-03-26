@@ -1,21 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
-import path from 'path'
-import fs from 'fs'
-import db from '@/lib/db'
+import { supabase } from '@/lib/supabase'
 
-const UPLOADS_DIR = path.join(process.cwd(), 'uploads')
+const BUCKET = 'laudos'
 
 export async function GET() {
-  const laudos = db.prepare('SELECT * FROM laudos ORDER BY created_at DESC').all()
-  return NextResponse.json(laudos)
+  const { data, error } = await supabase
+    .from('laudos')
+    .select('*')
+    .order('created_at', { ascending: false })
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json(data)
 }
 
 export async function POST(request: NextRequest) {
-  if (!fs.existsSync(UPLOADS_DIR)) {
-    fs.mkdirSync(UPLOADS_DIR, { recursive: true })
-  }
-
   let formData: FormData
   try {
     formData = await request.formData()
@@ -39,19 +38,31 @@ export async function POST(request: NextRequest) {
 
   const token = uuidv4()
   const filename = `${token}.pdf`
-  const filePath = path.join(UPLOADS_DIR, filename)
-
   const buffer = Buffer.from(await file.arrayBuffer())
-  fs.writeFileSync(filePath, buffer)
 
-  const result = db
-    .prepare(
-      `INSERT INTO laudos (nome_pet, especie, tutor, telefone, token, filename, original_name)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
-    )
-    .run(nomePet, especie, tutor, telefone, token, filename, file.name)
+  const { error: uploadError } = await supabase.storage
+    .from(BUCKET)
+    .upload(filename, buffer, { contentType: 'application/pdf' })
 
-  const laudo = db.prepare('SELECT * FROM laudos WHERE id = ?').get(result.lastInsertRowid)
+  if (uploadError) {
+    return NextResponse.json({ error: `Erro ao salvar arquivo: ${uploadError.message}` }, { status: 500 })
+  }
 
-  return NextResponse.json(laudo, { status: 201 })
+  const { data, error } = await supabase
+    .from('laudos')
+    .insert({
+      nome_pet: nomePet,
+      especie,
+      tutor,
+      telefone,
+      token,
+      filename,
+      original_name: file.name,
+      tipo: 'upload',
+    })
+    .select()
+    .single()
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json(data, { status: 201 })
 }

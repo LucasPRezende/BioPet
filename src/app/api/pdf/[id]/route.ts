@@ -1,40 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server'
-import path from 'path'
-import fs from 'fs'
-import db from '@/lib/db'
+import { supabase } from '@/lib/supabase'
 
-interface Laudo {
-  filename: string
-  original_name: string
-}
+const BUCKET = 'laudos'
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const laudo = db
-    .prepare('SELECT filename, original_name FROM laudos WHERE id = ?')
-    .get(params.id) as Laudo | undefined
+  const { data: laudo, error } = await supabase
+    .from('laudos')
+    .select('filename, original_name')
+    .eq('id', params.id)
+    .single()
 
-  if (!laudo) {
+  if (error || !laudo) {
     return NextResponse.json({ error: 'Laudo não encontrado.' }, { status: 404 })
   }
 
-  const filePath = path.join(process.cwd(), 'uploads', laudo.filename)
+  const { data: { publicUrl } } = supabase.storage.from(BUCKET).getPublicUrl(laudo.filename)
 
-  if (!fs.existsSync(filePath)) {
-    return NextResponse.json({ error: 'Arquivo não encontrado no servidor.' }, { status: 404 })
-  }
-
-  const fileBuffer = fs.readFileSync(filePath)
   const isDownload = request.nextUrl.searchParams.get('download') === '1'
 
-  return new NextResponse(fileBuffer, {
+  if (!isDownload) {
+    return NextResponse.redirect(publicUrl)
+  }
+
+  // For download: proxy the file so we can set the correct filename
+  const res = await fetch(publicUrl)
+  if (!res.ok) {
+    return NextResponse.json({ error: 'Arquivo não encontrado no storage.' }, { status: 404 })
+  }
+
+  const buffer = Buffer.from(await res.arrayBuffer())
+  return new NextResponse(buffer, {
     headers: {
       'Content-Type': 'application/pdf',
-      'Content-Disposition': isDownload
-        ? `attachment; filename="${laudo.original_name}"`
-        : `inline; filename="${laudo.original_name}"`,
+      'Content-Disposition': `attachment; filename="${laudo.original_name}"`,
       'Cache-Control': 'private, max-age=3600',
     },
   })

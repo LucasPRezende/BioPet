@@ -1,22 +1,13 @@
 import { notFound } from 'next/navigation'
 import Image from 'next/image'
-import db from '@/lib/db'
+import { supabase } from '@/lib/supabase'
 
-interface Laudo {
-  id: number
-  nome_pet: string
-  especie: string
-  tutor: string
-  telefone: string
-  token: string
-  original_name: string
-  created_at: string
-}
-
-export default function LaudoPage({ params }: { params: { token: string } }) {
-  const laudo = db
-    .prepare('SELECT * FROM laudos WHERE token = ?')
-    .get(params.token) as Laudo | undefined
+export default async function LaudoPage({ params }: { params: { token: string } }) {
+  const { data: laudo } = await supabase
+    .from('laudos')
+    .select('*')
+    .eq('token', params.token)
+    .single()
 
   if (!laudo) notFound()
 

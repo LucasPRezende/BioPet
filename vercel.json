@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "src/app/api/laudos/gerar/route.ts": {
+      "maxDuration": 60
+    }
+  }
+}
