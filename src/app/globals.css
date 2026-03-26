@@ -1,0 +1,38 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  .bg-gold-grad   { background: linear-gradient(135deg, #6b5328 0%, #c4a35a 50%, #8a6e36 100%); }
+  .bg-gold-stripe { background: linear-gradient(to right, #8a6e36, #c4a35a, #8a6e36); }
+}
+
+/* ── Editor de texto rico (Tiptap / ProseMirror) ── */
+.rte-content {
+  outline: none;
+  min-height: 220px;
+  padding: 14px 16px;
+  font-size: 0.9rem;
+  line-height: 1.75;
+  color: #111;
+}
+
+.rte-content p          { margin: 0 0 0.4em; }
+.rte-content p:last-child { margin-bottom: 0; }
+.rte-content h2         { font-size: 1.18em; font-weight: 700; margin: 0.8em 0 0.3em; color: #19202d; }
+.rte-content h3         { font-size: 1.04em; font-weight: 700; margin: 0.6em 0 0.2em; color: #19202d; }
+.rte-content strong     { font-weight: 700; }
+.rte-content em         { font-style: italic; }
+.rte-content u          { text-decoration: underline; }
+.rte-content ul         { padding-left: 1.5em; margin: 0.3em 0; list-style: disc; }
+.rte-content ol         { padding-left: 1.5em; margin: 0.3em 0; list-style: decimal; }
+.rte-content li         { margin: 0.15em 0; }
+
+/* Placeholder quando vazio */
+.rte-content p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: #aaa;
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
