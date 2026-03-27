@@ -41,8 +41,8 @@ export default function LoginPage() {
           </div>
           <div className="text-center">
             <h1 className="text-3xl font-bold text-white tracking-wider">BioPet</h1>
-            <p className="text-[#c4a35a] text-xs mt-1 tracking-widest uppercase">
-              Medicina Veterinária
+            <p className="text-[#c4a35a] text-xs mt-1 tracking-wide text-center leading-relaxed">
+              Laboratório Veterinário de Análises Clínicas<br />e Diagnóstico por Imagem
             </p>
           </div>
           {/* Faixa dourada separadora */}

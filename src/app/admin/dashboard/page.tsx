@@ -80,8 +80,8 @@ export default function DashboardPage() {
             </div>
             <div>
               <span className="font-bold text-xl tracking-wide">BioPet</span>
-              <span className="text-[#c4a35a] text-[10px] block leading-none tracking-widest uppercase">
-                Medicina Veterinária
+              <span className="text-[#c4a35a] text-[10px] block leading-tight tracking-wide">
+                Lab. Veterinário de Análises Clínicas e Diagnóstico por Imagem
               </span>
             </div>
           </div>

@@ -26,7 +26,9 @@ export default async function LaudoPage({ params }: { params: { token: string } 
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-wide">BioPet</h1>
-            <p className="text-[#c4a35a] text-xs tracking-widest uppercase">Medicina Veterinária</p>
+            <p className="text-[#c4a35a] text-xs tracking-wide leading-relaxed">
+              Laboratório Veterinário de Análises Clínicas e Diagnóstico por Imagem
+            </p>
           </div>
         </div>
         <div className="max-w-3xl mx-auto px-4 pb-3">
