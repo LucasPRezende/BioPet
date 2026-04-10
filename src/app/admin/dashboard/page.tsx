@@ -1,243 +1,267 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import Image from 'next/image'
 
-interface Laudo {
-  id: number
-  nome_pet: string
-  especie: string
-  tutor: string
-  telefone: string
-  token: string
-  tipo: string
-  created_at: string
+
+interface Stats {
+  total: number
+  receita: number
+  custo: number
+  comissao: number
+  lucro: number
+  porTipo: {
+    tipo_exame: string
+    quantidade: number
+    receita: number
+    custo: number
+    comissao: number
+    lucro: number
+    percentual: number
+  }[]
+  porDia: { data: string; quantidade: number }[]
+  porVet: { nome: string; recebe_comissao: boolean; quantidade: number; receita: number; comissao: number; lucro: number }[]
 }
 
-function whatsappLink(telefone: string, laudoUrl: string, nomePet: string): string {
-  const digits = telefone.replace(/\D/g, '')
-  const number = digits.startsWith('55') && digits.length >= 12 ? digits : `55${digits}`
-  const msg = encodeURIComponent(
-    `Olá! O laudo do *${nomePet}* já está disponível. Acesse pelo link abaixo:\n${laudoUrl}`
+type Periodo = 'hoje' | 'semana' | 'mes' | 'personalizado'
+
+function formatBRL(n: number) {
+  return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
+
+function formatDate(d: string) {
+  const [, m, day] = d.split('-')
+  return `${day}/${m}`
+}
+
+function getRange(periodo: Periodo, inicio: string, fim: string) {
+  const now = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const toISO = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+  if (periodo === 'hoje') { const t = toISO(now); return { inicio: t, fim: t } }
+  if (periodo === 'semana') { const dom = new Date(now); dom.setDate(now.getDate() - now.getDay()); return { inicio: toISO(dom), fim: toISO(now) } }
+  if (periodo === 'mes') { return { inicio: toISO(new Date(now.getFullYear(), now.getMonth(), 1)), fim: toISO(now) } }
+  return { inicio, fim }
+}
+
+function BarChart({ data }: { data: { data: string; quantidade: number }[] }) {
+  if (data.length === 0) return (
+    <div className="flex items-center justify-center h-32 text-gray-300 text-sm">Sem dados no período</div>
   )
-  return `https://wa.me/${number}?text=${msg}`
-}
-
-export default function DashboardPage() {
-  const [laudos, setLaudos]   = useState<Laudo[]>([])
-  const [loading, setLoading] = useState(true)
-  const [copied, setCopied]   = useState<number | null>(null)
-  const [search, setSearch]   = useState('')
-  const router = useRouter()
-
-  const fetchLaudos = useCallback(async () => {
-    const res = await fetch('/api/laudos')
-    if (res.status === 401) { router.push('/admin/login'); return }
-    if (res.ok) setLaudos(await res.json())
-    setLoading(false)
-  }, [router])
-
-  useEffect(() => { fetchLaudos() }, [fetchLaudos])
-
-  async function handleLogout() {
-    await fetch('/api/auth', { method: 'DELETE' })
-    router.push('/admin/login')
-  }
-
-  function copyLink(laudo: Laudo) {
-    navigator.clipboard.writeText(`${window.location.origin}/laudo/${laudo.token}`)
-    setCopied(laudo.id)
-    setTimeout(() => setCopied(null), 2500)
-  }
-
-  function formatDate(d: string) {
-    return new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
-  }
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    if (!q) return laudos
-    return laudos.filter(
-      l =>
-        l.nome_pet.toLowerCase().includes(q) ||
-        l.tutor.toLowerCase().includes(q) ||
-        l.telefone.replace(/\D/g, '').includes(q.replace(/\D/g, ''))
-    )
-  }, [laudos, search])
-
+  const max  = Math.max(...data.map(d => d.quantidade), 1)
+  const barW = Math.max(8, Math.min(40, Math.floor(560 / data.length) - 4))
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-[#19202d] text-white shadow-lg">
-        <div className="h-1 bg-gold-stripe" />
-        <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            {/* Logo maior no header */}
-            <div className="relative w-14 h-14 shrink-0">
-              <Image src="/logo.png" alt="BioPet" fill className="object-contain" />
-            </div>
-            <div>
-              <span className="font-bold text-xl tracking-wide">BioPet</span>
-              <span className="text-[#c4a35a] text-[10px] block leading-tight tracking-wide">
-                Lab. Veterinário de Análises Clínicas e Diagnóstico por Imagem
-              </span>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <Link
-              href="/admin/novo"
-              className="bg-white hover:bg-gray-100 font-semibold px-4 py-2 rounded-lg transition text-sm text-[#19202d] shadow"
-            >
-              + Novo Laudo
-            </Link>
-            <button onClick={handleLogout} className="text-gray-400 hover:text-white transition text-sm">
-              Sair
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-6xl mx-auto px-4 py-8">
-        {/* Título + busca */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-          <h2 className="text-xl font-bold text-[#19202d]">
-            Laudos Cadastrados
-            {!loading && (
-              <span className="ml-2 text-sm font-normal text-gray-400">
-                ({filtered.length}{search ? ` de ${laudos.length}` : ''})
-              </span>
-            )}
-          </h2>
-
-          <div className="relative w-full sm:w-72">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm select-none">🔍</span>
-            <input
-              type="text"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Pet, tutor ou telefone..."
-              className="w-full pl-8 pr-8 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#8a6e36] bg-white"
-            />
-            {search && (
-              <button onClick={() => setSearch('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs">
-                ✕
-              </button>
-            )}
-          </div>
-        </div>
-
-        {loading ? (
-          <div className="text-center py-16 text-gray-400">Carregando...</div>
-        ) : laudos.length === 0 ? (
-          <div className="text-center py-16 bg-white rounded-xl shadow-sm border">
-            <div className="text-5xl mb-4">📋</div>
-            <p className="text-gray-500 text-lg mb-4">Nenhum laudo cadastrado ainda.</p>
-            <Link href="/admin/novo"
-              className="inline-block bg-gold-grad text-white font-semibold px-6 py-2 rounded-lg hover:brightness-110 transition">
-              Cadastrar primeiro laudo
-            </Link>
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="text-center py-16 bg-white rounded-xl shadow-sm border">
-            <div className="text-4xl mb-3">🔍</div>
-            <p className="text-gray-500">Nenhum resultado para &quot;{search}&quot;</p>
-            <button onClick={() => setSearch('')} className="mt-3 text-[#8a6e36] hover:underline text-sm">
-              Limpar busca
-            </button>
-          </div>
-        ) : (
-          <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-            {/* Faixa dourada topo da tabela */}
-            <div className="h-1 bg-gold-stripe" />
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b">
-                <tr>
-                  {['Pet', 'Espécie', 'Tutor', 'Telefone', 'Data', 'Ações'].map(h => (
-                    <th key={h} className="text-left px-5 py-3 text-xs font-bold text-[#19202d] uppercase tracking-wide">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {filtered.map(laudo => {
-                  const url = typeof window !== 'undefined'
-                    ? `${window.location.origin}/laudo/${laudo.token}` : ''
-                  return (
-                    <tr key={laudo.id} className="hover:bg-amber-50/30 transition">
-                      <td className="px-5 py-4">
-                        <span className="font-semibold text-[#19202d]">
-                          <Highlight text={laudo.nome_pet} query={search} />
-                        </span>
-                        {laudo.tipo === 'gerado' && (
-                          <span className="ml-2 text-[10px] bg-amber-50 text-[#8a6e36] border border-[#8a6e36]/20 px-1.5 py-0.5 rounded">
-                            Gerado
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-5 py-4 text-gray-500 text-sm">{laudo.especie}</td>
-                      <td className="px-5 py-4 text-gray-700">
-                        <Highlight text={laudo.tutor} query={search} />
-                      </td>
-                      <td className="px-5 py-4 text-gray-500 text-sm">
-                        <Highlight text={laudo.telefone} query={search} />
-                      </td>
-                      <td className="px-5 py-4 text-gray-400 text-sm">{formatDate(laudo.created_at)}</td>
-                      <td className="px-5 py-4">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <button
-                            onClick={() => copyLink(laudo)}
-                            className={`text-xs px-3 py-1.5 rounded-lg font-medium transition border ${
-                              copied === laudo.id
-                                ? 'bg-green-50 text-green-700 border-green-200'
-                                : 'bg-amber-50 text-[#8a6e36] border-[#8a6e36]/20 hover:bg-amber-100'
-                            }`}
-                          >
-                            {copied === laudo.id ? '✓ Copiado!' : '🔗 Copiar'}
-                          </button>
-                          <a
-                            href={whatsappLink(laudo.telefone, url, laudo.nome_pet)}
-                            target="_blank" rel="noreferrer"
-                            className="text-xs px-3 py-1.5 rounded-lg bg-green-500 hover:bg-green-600 text-white font-medium transition"
-                          >
-                            WhatsApp
-                          </a>
-                          <a
-                            href={`/laudo/${laudo.token}`}
-                            target="_blank" rel="noreferrer"
-                            className="text-xs px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition"
-                          >
-                            Ver
-                          </a>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </main>
+    <div className="overflow-x-auto">
+      <svg viewBox={`0 0 ${Math.max(600, data.length * (barW + 4))} 110`} className="w-full" style={{ minHeight: 110 }}>
+        {data.map((d, i) => {
+          const barH = Math.max(4, Math.round((d.quantidade / max) * 80))
+          const x = i * (barW + 4)
+          return (
+            <g key={d.data}>
+              <rect x={x} y={90 - barH} width={barW} height={barH} rx={3} fill="#c4a35a" opacity={0.85} />
+              <text x={x + barW / 2} y={88 - barH} textAnchor="middle" fontSize={9} fill="#8a6e36" fontWeight="600">
+                {d.quantidade > 0 ? d.quantidade : ''}
+              </text>
+              <text x={x + barW / 2} y={104} textAnchor="middle" fontSize={8} fill="#9ca3af">
+                {formatDate(d.data)}
+              </text>
+            </g>
+          )
+        })}
+      </svg>
     </div>
   )
 }
 
-function Highlight({ text, query }: { text: string; query: string }) {
-  const q = query.trim()
-  if (!q) return <>{text}</>
-  const idx = text.toLowerCase().indexOf(q.toLowerCase())
-  if (idx === -1) return <>{text}</>
+function Card({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
   return (
-    <>
-      {text.slice(0, idx)}
-      <mark className="bg-yellow-200 text-gray-900 rounded-sm px-0.5">
-        {text.slice(idx, idx + q.length)}
-      </mark>
-      {text.slice(idx + q.length)}
-    </>
+    <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+      <div className="h-1 bg-gold-stripe" />
+      <div className="p-5">
+        <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">{label}</p>
+        <p className={`text-2xl font-bold ${color ?? 'text-[#19202d]'}`}>{value}</p>
+        {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
+      </div>
+    </div>
+  )
+}
+
+export default function DashboardPage() {
+  const [stats, setStats]               = useState<Stats | null>(null)
+  const [loading, setLoading]           = useState(true)
+  const [periodo, setPeriodo]           = useState<Periodo>('mes')
+  const [inicioCustom, setInicioCustom] = useState(() => {
+    const d = new Date(); d.setDate(d.getDate() - 30); return d.toLocaleDateString('en-CA')
+  })
+  const [fimCustom, setFimCustom] = useState(() => new Date().toLocaleDateString('en-CA'))
+  const router = useRouter()
+
+  const fetchStats = useCallback(async () => {
+    setLoading(true)
+    const { inicio, fim } = getRange(periodo, inicioCustom, fimCustom)
+    const res = await fetch(`/api/laudos/stats?inicio=${inicio}&fim=${fim}`)
+    if (res.status === 401 || res.status === 403) { router.push('/login'); return }
+    if (res.ok) setStats(await res.json())
+    setLoading(false)
+  }, [periodo, inicioCustom, fimCustom, router])
+
+  useEffect(() => { fetchStats() }, [fetchStats])
+
+  const { inicio, fim } = getRange(periodo, inicioCustom, fimCustom)
+  const fmtRange = inicio === fim
+    ? inicio.split('-').reverse().join('/')
+    : `${inicio.split('-').reverse().join('/')} — ${fim.split('-').reverse().join('/')}`
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+
+
+      <main className="max-w-6xl mx-auto px-4 py-8 space-y-6">
+
+        {/* Filtros */}
+        <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+          <div className="h-1 bg-gold-stripe" />
+          <div className="p-4 flex flex-wrap items-center gap-3">
+            <span className="text-xs font-bold text-gray-400 uppercase tracking-wide">Período:</span>
+            {(['hoje', 'semana', 'mes', 'personalizado'] as Periodo[]).map(p => (
+              <button key={p} onClick={() => setPeriodo(p)}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${periodo === p ? 'bg-[#19202d] text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                {p === 'hoje' ? 'Hoje' : p === 'semana' ? 'Esta semana' : p === 'mes' ? 'Este mês' : 'Personalizado'}
+              </button>
+            ))}
+            {periodo === 'personalizado' && (
+              <div className="flex items-center gap-2 ml-2">
+                <input type="date" value={inicioCustom} onChange={e => setInicioCustom(e.target.value)}
+                  className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#8a6e36]" />
+                <span className="text-gray-400 text-sm">até</span>
+                <input type="date" value={fimCustom} onChange={e => setFimCustom(e.target.value)}
+                  className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#8a6e36]" />
+              </div>
+            )}
+            <span className="text-xs text-gray-400 ml-auto">{fmtRange}</span>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="text-center py-16 text-gray-400">Carregando estatísticas...</div>
+        ) : stats ? (
+          <>
+            {/* Cards financeiros */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+              <Card label="Total de Laudos"  value={String(stats.total)} />
+              <Card label="Receita Bruta"    value={formatBRL(stats.receita)}  color="text-blue-700" />
+              <Card label="Custo"            value={formatBRL(stats.custo)}    color="text-red-500" />
+              <Card label="Comissões"        value={formatBRL(stats.comissao)} color="text-amber-600" sub="a pagar aos vets" />
+              <Card
+                label="Lucro BioPet"
+                value={formatBRL(stats.lucro)}
+                color={stats.lucro >= 0 ? 'text-green-600' : 'text-red-500'}
+                sub="receita − custo − comissão"
+              />
+            </div>
+
+            {/* Gráfico de laudos por dia */}
+            <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+              <div className="h-1 bg-gold-stripe" />
+              <div className="p-6">
+                <h3 className="text-sm font-bold text-[#19202d] uppercase tracking-wide mb-4">Laudos por Dia</h3>
+                <BarChart data={stats.porDia} />
+              </div>
+            </div>
+
+            {/* Tabela por tipo de exame */}
+            <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+              <div className="h-1 bg-gold-stripe" />
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-bold text-[#19202d] uppercase tracking-wide">Por Tipo de Exame</h3>
+                  <Link href="/admin/comissoes" className="text-xs text-[#8a6e36] hover:underline">Editar preços →</Link>
+                </div>
+                {stats.porTipo.length === 0 ? (
+                  <p className="text-gray-400 text-sm text-center py-4">Nenhum laudo com tipo de exame no período.</p>
+                ) : (
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b">
+                        {['Tipo', 'Qtd', '%', 'Receita', 'Custo', 'Comissão', 'Lucro'].map(h => (
+                          <th key={h} className="text-left py-2 px-3 text-xs font-bold text-gray-400 uppercase tracking-wide">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {stats.porTipo.map(row => (
+                        <tr key={row.tipo_exame} className="hover:bg-amber-50/20 transition">
+                          <td className="py-3 px-3 font-medium text-[#19202d] text-sm">{row.tipo_exame}</td>
+                          <td className="py-3 px-3 text-gray-600 text-sm">{row.quantidade}</td>
+                          <td className="py-3 px-3">
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-12 bg-gray-100 rounded-full h-1.5">
+                                <div className="bg-[#c4a35a] h-1.5 rounded-full" style={{ width: `${row.percentual}%` }} />
+                              </div>
+                              <span className="text-xs text-gray-500">{row.percentual}%</span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-3 text-blue-700 text-sm font-medium">{formatBRL(row.receita)}</td>
+                          <td className="py-3 px-3 text-red-500 text-sm">{formatBRL(row.custo)}</td>
+                          <td className="py-3 px-3 text-amber-600 text-sm">{formatBRL(row.comissao)}</td>
+                          <td className={`py-3 px-3 text-sm font-semibold ${row.lucro >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                            {formatBRL(row.lucro)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+
+            {/* Desempenho por usuário */}
+            <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+              <div className="h-1 bg-gold-stripe" />
+              <div className="p-6">
+                <h3 className="text-sm font-bold text-[#19202d] uppercase tracking-wide mb-4">Desempenho por Usuário</h3>
+                {stats.porVet.length === 0 ? (
+                  <p className="text-gray-400 text-sm text-center py-4">Nenhum laudo vinculado a usuários no período.</p>
+                ) : (
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b">
+                        {['Usuário', 'Laudos', 'Receita', 'Comissão a Pagar', 'Lucro Gerado'].map(h => (
+                          <th key={h} className="text-left py-2 px-3 text-xs font-bold text-gray-400 uppercase tracking-wide">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {stats.porVet.map(row => (
+                        <tr key={row.nome} className="hover:bg-amber-50/20 transition">
+                          <td className="py-3 px-3 font-semibold text-[#19202d]">{row.nome}</td>
+                          <td className="py-3 px-3 text-gray-600">{row.quantidade}</td>
+                          <td className="py-3 px-3 text-blue-700 font-medium">{formatBRL(row.receita)}</td>
+                          <td className="py-3 px-3">
+                            {row.recebe_comissao ? (
+                              <span className="bg-amber-50 text-[#8a6e36] border border-[#8a6e36]/20 px-2 py-1 rounded text-sm font-semibold">
+                                {formatBRL(row.comissao)}
+                              </span>
+                            ) : (
+                              <span className="bg-gray-100 text-gray-400 px-2 py-1 rounded text-xs">Salário fixo</span>
+                            )}
+                          </td>
+                          <td className={`py-3 px-3 font-semibold ${row.lucro >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                            {formatBRL(row.lucro)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="text-center py-16 text-gray-400">Erro ao carregar estatísticas.</div>
+        )}
+      </main>
+    </div>
   )
 }

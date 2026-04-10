@@ -46,6 +46,18 @@ interface Block {
   spaceAfter:  number
 }
 
+interface TableRow { cells: string[]; isHeader: boolean }
+
+interface TableBlock {
+  type:        'table'
+  rows:        TableRow[]
+  colWidths:   number[]   // absolute px for each column
+  spaceBefore: number
+  spaceAfter:  number
+}
+
+type AnyBlock = Block | TableBlock
+
 // ── Parser HTML → Blocos ─────────────────────────────────────────────────────
 function parseInline(node: ParsedEl, bold = false, italic = false): Segment[] {
   const segs: Segment[] = []
@@ -70,9 +82,35 @@ function parseInline(node: ParsedEl, bold = false, italic = false): Segment[] {
   return segs
 }
 
-function htmlToBlocks(html: string): Block[] {
-  const blocks: Block[] = []
+function htmlToBlocks(html: string): AnyBlock[] {
+  const blocks: AnyBlock[] = []
   const root = parseHtml(html)
+
+  function walkTableRows(node: ParsedEl): TableRow[] {
+    const rows: TableRow[] = []
+    for (const child of node.childNodes) {
+      if (child.nodeType !== 1) continue
+      const el  = child as ParsedEl
+      const tag = el.tagName?.toLowerCase() ?? ''
+      if (tag === 'tr') {
+        const cells: string[] = []
+        let isHeader = false
+        for (const cell of el.childNodes) {
+          if (cell.nodeType !== 1) continue
+          const cellEl  = cell as ParsedEl
+          const cellTag = cellEl.tagName?.toLowerCase()
+          if (cellTag === 'td' || cellTag === 'th') {
+            cells.push(cellEl.text.replace(/\s+/g, ' ').trim())
+            if (cellTag === 'th') isHeader = true
+          }
+        }
+        if (cells.length > 0) rows.push({ cells, isHeader })
+      } else {
+        rows.push(...walkTableRows(el))
+      }
+    }
+    return rows
+  }
 
   function walk(node: ParsedEl) {
     for (const child of node.childNodes) {
@@ -117,6 +155,18 @@ function htmlToBlocks(html: string): Block[] {
             spaceBefore: 0, spaceAfter: 3,
           })
         }
+      } else if (tag === 'table') {
+        const rows = walkTableRows(el)
+        if (rows.length === 0) continue
+        const maxCols  = Math.max(...rows.map(r => r.cells.length))
+        // Column widths for biochemistry table (4 cols: name, result, unit, status)
+        const colWidths = maxCols === 4
+          ? [CW * 0.42, CW * 0.20, CW * 0.20, CW * 0.18]
+          : Array(maxCols).fill(CW / maxCols)
+        blocks.push({
+          type: 'table', rows, colWidths,
+          spaceBefore: 6, spaceAfter: 8,
+        })
       } else {
         walk(el)
       }
@@ -264,6 +314,72 @@ export async function generateLaudoPDF(
     return boxY - 14
   }
 
+  // ── Renderiza tabela no PDF ────────────────────────────────────────────────
+  function drawTableBlock(
+    page: PDFPage, block: TableBlock, startY: number,
+  ): [PDFPage, number] {
+    let curPage = page
+    let curY    = startY - block.spaceBefore
+
+    const ROW_H    = 17
+    const CELL_PAD = 5
+    const FS       = 9
+
+    for (const row of block.rows) {
+      if (curY - ROW_H < USABLE_BOT) {
+        curPage = doc.addPage([PW, PH])
+        drawHeader(curPage)
+        drawFooter(curPage)
+        curY = USABLE_TOP
+      }
+
+      // Background: header rows get gold tint, odd data rows get light grey
+      const rowIndex = block.rows.indexOf(row)
+      if (row.isHeader) {
+        curPage.drawRectangle({
+          x: MG, y: curY - ROW_H + 3,
+          width: CW, height: ROW_H,
+          color: C_BG_CARD,
+        })
+      } else if (rowIndex % 2 === 0) {
+        curPage.drawRectangle({
+          x: MG, y: curY - ROW_H + 3,
+          width: CW, height: ROW_H,
+          color: rgb(0.98, 0.98, 0.98),
+        })
+      }
+
+      // Draw cells
+      let cellX = MG
+      for (let i = 0; i < row.cells.length; i++) {
+        const text = row.cells[i] ?? ''
+        if (text) {
+          curPage.drawText(text, {
+            x: cellX + CELL_PAD,
+            y: curY - ROW_H + 6,
+            font: row.isHeader ? fonts.bold : fonts.reg,
+            size: FS,
+            color: C_BODY,
+            maxWidth: (block.colWidths[i] ?? CW) - CELL_PAD * 2,
+          })
+        }
+        cellX += block.colWidths[i] ?? CW
+      }
+
+      // Bottom border
+      curPage.drawLine({
+        start: { x: MG, y: curY - ROW_H + 3 },
+        end:   { x: MG + CW, y: curY - ROW_H + 3 },
+        thickness: 0.4,
+        color: C_BORDER,
+      })
+
+      curY -= ROW_H
+    }
+
+    return [curPage, curY - block.spaceAfter]
+  }
+
   // ── Renderiza bloco no PDF, retornando [página atual, Y atual] ────────────
   function drawBlock(
     page: PDFPage, block: Block, startY: number,
@@ -321,7 +437,11 @@ export async function generateLaudoPDF(
   // ── Texto do laudo (HTML → blocos) ────────────────────────────────────────
   const blocks = htmlToBlocks(data.texto)
   for (const block of blocks) {
-    ;[page, curY] = drawBlock(page, block, curY)
+    if ('type' in block && block.type === 'table') {
+      ;[page, curY] = drawTableBlock(page, block as TableBlock, curY)
+    } else {
+      ;[page, curY] = drawBlock(page, block as Block, curY)
+    }
   }
 
   // ── Imagens ────────────────────────────────────────────────────────────────

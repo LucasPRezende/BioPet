@@ -1,6 +1,7 @@
 'use client'
 
 import { useEditor, EditorContent } from '@tiptap/react'
+import { useEffect, useRef } from 'react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 
@@ -11,6 +12,8 @@ interface Props {
 }
 
 export default function RichTextEditor({ value, onChange, placeholder }: Props) {
+  const externalUpdate = useRef(false)
+
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
@@ -25,9 +28,19 @@ export default function RichTextEditor({ value, onChange, placeholder }: Props) 
       },
     },
     onUpdate({ editor }) {
+      if (externalUpdate.current) return // ignora update causado por setContent externo
       onChange(editor.getHTML())
     },
   })
+
+  // Sincroniza quando `value` muda externamente (ex: AI review)
+  useEffect(() => {
+    if (!editor) return
+    if (value === editor.getHTML()) return // nada mudou
+    externalUpdate.current = true
+    editor.commands.setContent(value, false) // false = não emite onUpdate
+    externalUpdate.current = false
+  }, [value, editor])
 
   if (!editor) return null
 

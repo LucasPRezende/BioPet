@@ -1,27 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { verifyPassword, getSessionToken } from '@/lib/auth'
-
-export async function POST(request: NextRequest) {
-  const { password } = await request.json()
-
-  if (!verifyPassword(password)) {
-    return NextResponse.json({ error: 'Senha incorreta' }, { status: 401 })
-  }
-
-  const response = NextResponse.json({ success: true })
-  response.cookies.set('session', getSessionToken(), {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge: 60 * 60 * 24 * 7, // 7 dias
-    path: '/',
-  })
-
-  return response
-}
+// Mantido por compatibilidade — redireciona para as novas rotas.
+// Login: POST /api/auth/login
+// Logout: POST /api/auth/logout
+import { NextResponse } from 'next/server'
+import { SESSION_COOKIE_NAME } from '@/lib/system-auth'
 
 export async function DELETE() {
   const response = NextResponse.json({ success: true })
+  response.cookies.delete(SESSION_COOKIE_NAME)
   response.cookies.delete('session')
   return response
 }

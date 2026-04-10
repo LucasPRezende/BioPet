@@ -1,30 +1,77 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { parseVetSession } from '@/lib/vet-auth'
+import { parseSystemSession } from '@/lib/system-auth'
+import { parseClinicaSession } from '@/lib/clinica-auth'
 
-/**
- * Middleware roda na Edge Runtime (sem acesso a Node.js crypto).
- * Usa Web Crypto API (crypto.subtle) para derivar o mesmo token que lib/auth.ts.
- */
+// Rotas /admin que exigem role 'admin'
+const ADMIN_ONLY = ['/admin/dashboard', '/admin/usuarios', '/admin/comissoes']
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Protege /admin/*, exceto /admin/login
-  if (pathname.startsWith('/admin') && !pathname.startsWith('/admin/login')) {
-    const session = request.cookies.get('session')?.value
+  // ── Redireciona /admin/login para /login ──────────────────────────────────
+  if (pathname === '/admin/login') {
+    return NextResponse.redirect(new URL('/login', request.url))
+  }
 
-    if (!session) {
-      return NextResponse.redirect(new URL('/admin/login', request.url))
+  // ── Rotas /admin/* ────────────────────────────────────────────────────────
+  if (pathname.startsWith('/admin')) {
+    const cookie = request.cookies.get('sys_session')?.value
+    if (!cookie) {
+      return NextResponse.redirect(new URL('/login', request.url))
     }
+    const session = await parseSystemSession(cookie)
+    if (!session) {
+      return NextResponse.redirect(new URL('/login', request.url))
+    }
+    // Troca de senha obrigatória antes de acessar qualquer rota admin
+    if (session.primeiraSSenha) {
+      return NextResponse.redirect(new URL('/troca-senha', request.url))
+    }
+    // Rotas exclusivas de admin
+    if (ADMIN_ONLY.some(r => pathname.startsWith(r)) && session.role !== 'admin') {
+      return NextResponse.redirect(new URL('/admin/laudos', request.url))
+    }
+  }
 
-    const password = process.env.ADMIN_PASSWORD ?? 'vet123'
-    const secret = process.env.AUTH_SECRET ?? 'mude-esta-chave-secreta-2024'
-    const data = new TextEncoder().encode(password + secret)
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data)
-    const expected = Array.from(new Uint8Array(hashBuffer))
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('')
+  // ── /troca-senha ──────────────────────────────────────────────────────────
+  if (pathname.startsWith('/troca-senha')) {
+    const cookie = request.cookies.get('sys_session')?.value
+    if (!cookie) return NextResponse.redirect(new URL('/login', request.url))
+    const session = await parseSystemSession(cookie)
+    if (!session) return NextResponse.redirect(new URL('/login', request.url))
+  }
 
-    if (session !== expected) {
-      return NextResponse.redirect(new URL('/admin/login', request.url))
+  // ── Rotas /vet/* ──────────────────────────────────────────────────────────
+  if (
+    pathname.startsWith('/vet') &&
+    !pathname.startsWith('/vet/login') &&
+    !pathname.startsWith('/vet/cadastro') &&
+    !pathname.startsWith('/vet/recuperar')
+  ) {
+    const session = request.cookies.get('vet_session')?.value
+    if (!session) {
+      return NextResponse.redirect(new URL('/vet/login', request.url))
+    }
+    const vetId = await parseVetSession(session)
+    if (!vetId) {
+      return NextResponse.redirect(new URL('/vet/login', request.url))
+    }
+  }
+
+  // ── Rotas /clinica/* ──────────────────────────────────────────────────────
+  if (
+    pathname.startsWith('/clinica') &&
+    !pathname.startsWith('/clinica/login') &&
+    !pathname.startsWith('/clinica/cadastro')
+  ) {
+    const session = request.cookies.get('clinica_session')?.value
+    if (!session) {
+      return NextResponse.redirect(new URL('/clinica/login', request.url))
+    }
+    const data = await parseClinicaSession(session)
+    if (!data) {
+      return NextResponse.redirect(new URL('/clinica/login', request.url))
     }
   }
 
@@ -32,5 +79,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/admin/:path*'],
+  matcher: ['/admin/:path*', '/vet/:path*', '/clinica/:path*', '/troca-senha'],
 }
