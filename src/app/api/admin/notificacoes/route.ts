@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
 
+const TIPOS_REQUER_ATENCAO = new Set([
+  'ia_travou', 'pergunta_laudo', 'pergunta_tecnica', 'erro_tecnico',
+])
+
 export async function GET(request: NextRequest) {
   const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value
   if (!cookie) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 })
@@ -17,6 +21,12 @@ export async function GET(request: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  const naoVisualizadas = (data ?? []).filter(n => !n.visualizado).length
+  // Badge conta apenas "Requer atenção" não visualizadas
+  // (tipo_evento nulo = notificação antiga, também conta)
+  const naoVisualizadas = (data ?? []).filter(n =>
+    !n.visualizado &&
+    (n.tipo_evento === null || n.tipo_evento === undefined || TIPOS_REQUER_ATENCAO.has(n.tipo_evento))
+  ).length
+
   return NextResponse.json({ notificacoes: data ?? [], nao_visualizadas: naoVisualizadas })
 }

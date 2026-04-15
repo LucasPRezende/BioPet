@@ -171,7 +171,7 @@ export default function LaudosPage() {
             <table className="w-full">
               <thead className="bg-gray-50 border-b">
                 <tr>
-                  {['Data', 'Pet', 'Tutor', 'Telefone', 'Veterinário', isAdmin ? 'Emitido por' : null, 'Tipo Exame', 'Ações']
+                  {['Data', 'Pet', 'Resp. Legal', 'Telefone', 'Veterinário', isAdmin ? 'Emitido por' : null, 'Tipo Exame', 'Ações']
                     .filter(Boolean).map(h => (
                     <th key={h!} className="text-left px-4 py-3 text-xs font-bold text-[#19202d] uppercase tracking-wide whitespace-nowrap">
                       {h}

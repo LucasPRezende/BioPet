@@ -137,7 +137,7 @@ export default function VetDashboard() {
             <table className="w-full">
               <thead className="bg-gray-50 border-b">
                 <tr>
-                  {['Pet', 'Espécie', 'Tutor', 'Tipo', 'Data', 'Ações'].map(h => (
+                  {['Pet', 'Espécie', 'Resp. Legal', 'Tipo', 'Data', 'Ações'].map(h => (
                     <th key={h} className="text-left px-5 py-3 text-xs font-bold text-[#19202d] uppercase tracking-wide">
                       {h}
                     </th>

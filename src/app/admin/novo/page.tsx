@@ -275,16 +275,31 @@ function NovoVetModal({ onClose, onCreated }: {
 
 // ── Modal configuração IA ─────────────────────────────────────────────────────
 function AiConfigModal({ onClose }: { onClose: () => void }) {
-  const [key,      setKey]      = useState(() => localStorage.getItem('ai_review_key')      ?? '')
-  const [endpoint, setEndpoint] = useState(() => localStorage.getItem('ai_review_endpoint') ?? 'https://api.anthropic.com/v1/messages')
-  const [sysMsg,   setSysMsg]   = useState(() => localStorage.getItem('ai_review_system')   ?? 'Você é um assistente médico veterinário. Revise o laudo abaixo, corrija erros gramaticais, melhore a clareza e retorne apenas o texto revisado, sem comentários adicionais.')
+  const [tab, setTab] = useState<'anthropic' | 'gemini'>(
+    () => (localStorage.getItem('ai_review_model') as 'anthropic' | 'gemini') ?? 'anthropic'
+  )
+
+  // Claude
+  const [claudeKey,      setClaudeKey]      = useState(() => localStorage.getItem('ai_review_key')      ?? '')
+  const [claudeEndpoint, setClaudeEndpoint] = useState(() => localStorage.getItem('ai_review_endpoint') ?? '')
+  const [claudeSys,      setClaudeSys]      = useState(() => localStorage.getItem('ai_review_system')   ?? '')
+
+  // Gemini
+  const [geminiKey, setGeminiKey] = useState(() => localStorage.getItem('ai_review_gemini_key') ?? '')
+  const [geminiSys, setGeminiSys] = useState(() => localStorage.getItem('ai_review_gemini_system') ?? '')
 
   function save() {
-    localStorage.setItem('ai_review_key',      key.trim())
-    localStorage.setItem('ai_review_endpoint', endpoint.trim() || 'https://api.anthropic.com/v1/messages')
-    localStorage.setItem('ai_review_system',   sysMsg.trim() || 'Revise o texto do laudo veterinário, corrigindo erros e melhorando a clareza. Retorne apenas o texto revisado.')
+    localStorage.setItem('ai_review_model', tab)
+    localStorage.setItem('ai_review_key',         claudeKey.trim())
+    localStorage.setItem('ai_review_endpoint',    claudeEndpoint.trim())
+    localStorage.setItem('ai_review_system',      claudeSys.trim())
+    localStorage.setItem('ai_review_gemini_key',  geminiKey.trim())
+    localStorage.setItem('ai_review_gemini_system', geminiSys.trim())
     onClose()
   }
+
+  const TAB = (active: boolean) =>
+    `flex-1 py-2 text-xs font-semibold rounded-lg transition ${active ? 'bg-[#19202d] text-white' : 'text-gray-500 hover:bg-gray-100'}`
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4">
@@ -297,23 +312,62 @@ function AiConfigModal({ onClose }: { onClose: () => void }) {
           <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl leading-none">×</button>
         </div>
         <div className="p-6 space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
-              Chave de API <span className="text-red-400">*</span>
-            </label>
-            <input type="password" value={key} onChange={e => setKey(e.target.value)}
-              placeholder="sk-ant-..." className={INPUT} />
+          {/* Seletor de modelo */}
+          <div className="flex gap-1 p-1 bg-gray-100 rounded-lg">
+            <button type="button" className={TAB(tab === 'anthropic')} onClick={() => setTab('anthropic')}>
+              Claude (Anthropic)
+            </button>
+            <button type="button" className={TAB(tab === 'gemini')} onClick={() => setTab('gemini')}>
+              Gemini (Google)
+            </button>
           </div>
-          <div>
-            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Endpoint</label>
-            <input type="text" value={endpoint} onChange={e => setEndpoint(e.target.value)}
-              placeholder="https://api.anthropic.com/v1/messages" className={INPUT} />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">System prompt</label>
-            <textarea value={sysMsg} onChange={e => setSysMsg(e.target.value)} rows={4}
-              className={INPUT + ' resize-none'} />
-          </div>
+
+          {tab === 'anthropic' ? (
+            <>
+              <div>
+                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+                  Chave de API <span className="text-red-400">*</span>
+                </label>
+                <input type="password" value={claudeKey} onChange={e => setClaudeKey(e.target.value)}
+                  placeholder="sk-ant-..." className={INPUT} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+                  Endpoint <span className="text-gray-300 font-normal">(opcional)</span>
+                </label>
+                <input type="text" value={claudeEndpoint} onChange={e => setClaudeEndpoint(e.target.value)}
+                  placeholder="https://api.anthropic.com/v1/messages" className={INPUT} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+                  System prompt <span className="text-gray-300 font-normal">(opcional)</span>
+                </label>
+                <textarea value={claudeSys} onChange={e => setClaudeSys(e.target.value)} rows={3}
+                  placeholder="Você é um assistente médico veterinário..." className={INPUT + ' resize-none'} />
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+                  Chave de API Gemini <span className="text-red-400">*</span>
+                </label>
+                <input type="password" value={geminiKey} onChange={e => setGeminiKey(e.target.value)}
+                  placeholder="AIza..." className={INPUT} />
+              </div>
+              <div className="text-xs text-gray-400 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+                Os PDFs da pasta <code className="font-mono">context-pdfs/</code> serão enviados como referência de estilo e estrutura.
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+                  System prompt <span className="text-gray-300 font-normal">(opcional)</span>
+                </label>
+                <textarea value={geminiSys} onChange={e => setGeminiSys(e.target.value)} rows={3}
+                  placeholder="Você é um assistente médico veterinário especializado..." className={INPUT + ' resize-none'} />
+              </div>
+            </>
+          )}
+
           <div className="flex gap-3 pt-1">
             <button type="button" onClick={onClose}
               className="flex-1 border border-gray-200 text-gray-500 py-2.5 rounded-lg text-sm hover:bg-gray-50 transition">
@@ -361,6 +415,9 @@ export default function NovoLaudoPage() {
   const [aiLoading,    setAiLoading]    = useState(false)
   const [aiError,      setAiError]      = useState('')
   const [aiConfigOpen, setAiConfigOpen] = useState(false)
+  const [aiModel,      setAiModel]      = useState<'anthropic' | 'gemini'>(() =>
+    (typeof window !== 'undefined' ? localStorage.getItem('ai_review_model') as 'anthropic' | 'gemini' : null) ?? 'anthropic'
+  )
 
   // Tutor/pet vinculado manualmente
   const [tutorId, setTutorId] = useState<number | null>(null)
@@ -408,6 +465,7 @@ export default function NovoLaudoPage() {
           telefone:   ag.tutores?.telefone ?? prev.telefone,
           tipo_exame: ag.tipo_exame ?? prev.tipo_exame,
         }))
+        if (ag.veterinario_id) setVetId(ag.veterinario_id)
         setAgendamentoRef({
           agendamento_id: ag.id,
           tutor_id:       ag.tutor_id ?? ag.tutores?.id ?? null,
@@ -441,29 +499,30 @@ export default function NovoLaudoPage() {
   }
 
   async function reviewWithAI() {
-    console.log('[AI] botão clicado, texto:', texto.length, 'chars')
     if (!texto.trim()) { setAiError('Escreva o texto do laudo antes de revisar.'); return }
-    const apiKey       = localStorage.getItem('ai_review_key') ?? ''
-    const endpoint     = localStorage.getItem('ai_review_endpoint') ?? ''
-    const systemPrompt = localStorage.getItem('ai_review_system') ?? ''
-    console.log('[AI] apiKey presente:', !!apiKey, '| endpoint:', endpoint || '(padrão)')
+    const activeModel  = aiModel
+    const isGemini     = activeModel === 'gemini'
+    const apiKey       = isGemini
+      ? (localStorage.getItem('ai_review_gemini_key') ?? '')
+      : (localStorage.getItem('ai_review_key') ?? '')
+    const systemPrompt = isGemini
+      ? (localStorage.getItem('ai_review_gemini_system') ?? '')
+      : (localStorage.getItem('ai_review_system') ?? '')
+    const endpoint     = isGemini ? '' : (localStorage.getItem('ai_review_endpoint') ?? '')
+
     if (!apiKey) { setAiConfigOpen(true); return }
     setAiLoading(true); setAiError('')
     try {
-      console.log('[AI] chamando /api/admin/ai-review...')
       const res = await fetch('/api/admin/ai-review', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ texto, apiKey, endpoint, systemPrompt }),
+        body: JSON.stringify({ texto, apiKey, endpoint, systemPrompt, model: activeModel }),
       })
-      console.log('[AI] status HTTP:', res.status)
       const d = await res.json()
-      console.log('[AI] resposta:', d)
       if (!res.ok) setAiError(d.error ?? `Erro ${res.status}`)
       else if (d.texto) setTexto(markdownToHtml(d.texto))
       else setAiError('Resposta inválida da IA.')
     } catch (e: unknown) {
-      console.error('[AI] erro catch:', e)
       setAiError(e instanceof Error ? e.message : 'Erro de rede.')
     }
     setAiLoading(false)
@@ -637,7 +696,7 @@ export default function NovoLaudoPage() {
           </div>
           <p className="text-center text-xs text-gray-400 pb-3 px-4">
             {modo === 'upload'
-              ? 'Anexe um PDF já pronto para compartilhar com o tutor.'
+              ? 'Anexe um PDF já pronto para compartilhar com o responsável legal.'
               : 'Preencha o laudo e gere o PDF automaticamente com a identidade BioPet.'}
           </p>
         </div>
@@ -783,6 +842,16 @@ export default function NovoLaudoPage() {
                       Texto do Laudo <span className="text-red-400 normal-case font-normal">*</span>
                     </h3>
                     <div className="flex items-center gap-2">
+                      {/* Toggle de modelo */}
+                      <div className="flex text-[11px] rounded-lg overflow-hidden border border-gray-200">
+                        {(['anthropic', 'gemini'] as const).map(m => (
+                          <button key={m} type="button"
+                            onClick={() => { localStorage.setItem('ai_review_model', m); setAiModel(m); setAiError('') }}
+                            className={`px-2.5 py-1 font-medium transition ${aiModel === m ? 'bg-violet-600 text-white' : 'text-gray-500 hover:bg-gray-100'}`}>
+                            {m === 'anthropic' ? 'Claude' : 'Gemini'}
+                          </button>
+                        ))}
+                      </div>
                       <button type="button" onClick={() => setAiConfigOpen(true)}
                         className="text-xs text-gray-400 hover:text-gray-600 transition" title="Configurar IA">
                         ⚙️

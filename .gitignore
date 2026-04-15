@@ -5,3 +5,6 @@ uploads/
 .env.local
 
 .vercel
+
+# Cache do Gemini File Manager (gerado automaticamente)
+context-pdfs/.gemini-cache.json

@@ -23,6 +23,8 @@ interface Vet {
   convite_aceito: boolean
 }
 
+interface ExamePermitido { tipo_exame: string; permitido: boolean }
+
 const emptyForm = { nome: '', email: '', telefone: '', endereco: '' }
 
 export default function ClinicasPage() {
@@ -34,6 +36,8 @@ export default function ClinicasPage() {
   const [editando,  setEditando]  = useState<Clinica | null>(null)
   const [form,      setForm]      = useState(emptyForm)
   const [vetIds,    setVetIds]    = useState<number[]>([])
+  const [examesInfo,  setExamesInfo]  = useState<ExamePermitido[]>([])
+  const [examesSel,   setExamesSel]   = useState<Set<string>>(new Set())
   const [saving,    setSaving]    = useState(false)
   const [formError, setFormError] = useState('')
   const router = useRouter()
@@ -63,9 +67,18 @@ export default function ClinicasPage() {
     setForm({ nome: c.nome, email: c.email, telefone: c.telefone ?? '', endereco: c.endereco ?? '' })
     setFormError('')
     setEditando(c)
-    // Busca vets da clínica
     const vetsClinica = vets.filter(v => v.clinica_id === c.id).map(v => v.id)
     setVetIds(vetsClinica)
+    // Busca exames permitidos
+    const res = await fetch(`/api/admin/clinicas/${c.id}/exames`)
+    if (res.ok) {
+      const d = await res.json()
+      setExamesInfo(d.exames ?? [])
+      setExamesSel(new Set((d.exames as ExamePermitido[]).filter(e => e.permitido).map(e => e.tipo_exame)))
+    } else {
+      setExamesInfo([])
+      setExamesSel(new Set())
+    }
     setModal('editar')
   }
 
@@ -88,16 +101,23 @@ export default function ClinicasPage() {
         setFormError(err.error ?? 'Erro ao criar clínica.')
       }
     } else if (modal === 'editar' && editando) {
-      const res = await fetch(`/api/admin/clinicas/${editando.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, vet_ids: vetIds }),
-      })
-      if (res.ok) {
+      const [res, resEx] = await Promise.all([
+        fetch(`/api/admin/clinicas/${editando.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...form, vet_ids: vetIds }),
+        }),
+        fetch(`/api/admin/clinicas/${editando.id}/exames`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ exames: Array.from(examesSel) }),
+        }),
+      ])
+      if (res.ok && resEx.ok) {
         await load()
         setModal(null)
       } else {
-        const err = await res.json()
+        const err = await (res.ok ? resEx : res).json()
         setFormError(err.error ?? 'Erro ao atualizar clínica.')
       }
     }
@@ -324,6 +344,35 @@ export default function ClinicasPage() {
                     )}
                   </div>
                 </div>
+
+                {/* Exames permitidos — só aparece ao editar */}
+                {modal === 'editar' && examesInfo.length > 0 && (
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+                      Exames que a clínica pode agendar
+                    </label>
+                    <div className="border border-gray-200 rounded-lg overflow-hidden max-h-44 overflow-y-auto">
+                      {examesInfo.map(ex => (
+                        <label
+                          key={ex.tipo_exame}
+                          className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-gray-50 transition border-b border-gray-100 last:border-0"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={examesSel.has(ex.tipo_exame)}
+                            onChange={() => setExamesSel(prev => {
+                              const next = new Set(prev)
+                              next.has(ex.tipo_exame) ? next.delete(ex.tipo_exame) : next.add(ex.tipo_exame)
+                              return next
+                            })}
+                            className="accent-[#8a6e36]"
+                          />
+                          <span className="text-sm text-[#19202d]">{ex.tipo_exame}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {formError && (
                   <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{formError}</p>

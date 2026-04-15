@@ -31,7 +31,7 @@ const NAV: NavGroup[] = [
     title: 'ATENDIMENTO',
     items: [
       { icon: '📅', label: 'Agenda',   href: '/admin/agenda'   },
-      { icon: '🐾', label: 'Tutores',  href: '/admin/tutores'  },
+      { icon: '🐾', label: 'Resp. Legais', href: '/admin/tutores' },
     ],
   },
   {

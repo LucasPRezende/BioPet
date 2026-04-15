@@ -36,7 +36,7 @@ export async function PATCH(
   const body = await request.json().catch(() => null)
   const { status, observacoes, valor, forma_pagamento } = body ?? {}
 
-  const STATUSES = ['agendado', 'em atendimento', 'concluído', 'cancelado']
+  const STATUSES = ['pendente', 'agendado', 'em atendimento', 'concluído', 'cancelado']
 
   const update: Record<string, unknown> = {}
   if (status !== undefined) {

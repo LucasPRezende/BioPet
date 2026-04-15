@@ -50,6 +50,12 @@ export default function TutoresPage() {
   const [petSaving,    setPetSaving]    = useState(false)
   const [petError,     setPetError]     = useState('')
 
+  // Modal editar pet
+  const [editPet,      setEditPet]      = useState<Pet | null>(null)
+  const [editPetForm,  setEditPetForm]  = useState({ nome: '', especie: '', raca: '', sexo: '' })
+  const [editPetSaving, setEditPetSaving] = useState(false)
+  const [editPetError,  setEditPetError]  = useState('')
+
   const load = useCallback(async () => {
     const res = await fetch('/api/tutores')
     if (res.status === 401) { router.push('/login'); return }
@@ -118,6 +124,32 @@ export default function TutoresPage() {
     setEditTutorSaving(false)
   }
 
+  // ── Editar pet ────────────────────────────────────────────────────────────
+  function openEditPet(pet: Pet) {
+    setEditPet(pet)
+    setEditPetForm({ nome: pet.nome, especie: pet.especie ?? '', raca: pet.raca ?? '', sexo: pet.sexo ?? '' })
+    setEditPetError('')
+  }
+
+  async function handleEditPet(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editPet) return
+    setEditPetSaving(true); setEditPetError('')
+    const res = await fetch(`/api/pets/${editPet.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(editPetForm),
+    })
+    if (res.ok) {
+      await load()
+      setEditPet(null)
+    } else {
+      const d = await res.json()
+      setEditPetError(d.error ?? 'Erro ao salvar pet.')
+    }
+    setEditPetSaving(false)
+  }
+
   // ── Novo pet ──────────────────────────────────────────────────────────────
   function openNovoPet(t: Tutor) {
     setPetTutor(t)
@@ -152,7 +184,7 @@ export default function TutoresPage() {
         {!loading && (
           <div className="grid grid-cols-3 gap-4">
             {[
-              { label: 'Tutores',      value: tutores.length },
+              { label: 'Resp. Legais', value: tutores.length },
               { label: 'Pets',         value: totalPets },
               { label: 'Agendamentos', value: totalAgendamentos },
             ].map(c => (
@@ -182,7 +214,7 @@ export default function TutoresPage() {
               onClick={() => { setNovoTutorForm({ nome: '', telefone: '' }); setNovoTutorError(''); setNovoTutorModal(true) }}
               className="shrink-0 bg-[#c4a35a] hover:bg-[#a88a47] text-white font-bold px-4 py-2.5 rounded-lg text-sm transition"
             >
-              + Novo tutor
+              + Novo resp. legal
             </button>
           </div>
           {busca && (
@@ -194,13 +226,13 @@ export default function TutoresPage() {
 
         {/* Lista */}
         {loading ? (
-          <div className="text-center py-16 text-gray-400">Carregando tutores...</div>
+          <div className="text-center py-16 text-gray-400">Carregando...</div>
         ) : filtrados.length === 0 ? (
           <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
             <div className="h-1 bg-gold-stripe" />
             <div className="text-center py-16 text-gray-400">
               <p className="text-3xl mb-2">👤</p>
-              <p className="font-medium text-sm">{busca ? 'Nenhum resultado encontrado' : 'Nenhum tutor cadastrado ainda'}</p>
+              <p className="font-medium text-sm">{busca ? 'Nenhum resultado encontrado' : 'Nenhum responsável legal cadastrado ainda'}</p>
             </div>
           </div>
         ) : (
@@ -250,14 +282,16 @@ export default function TutoresPage() {
                       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Pets</p>
                       <div className="flex flex-wrap gap-2">
                         {tutor.pets.map(pet => (
-                          <div key={pet.id}
-                            className="flex items-center gap-1.5 bg-gray-50 border border-gray-100 px-3 py-1.5 rounded-full text-sm">
+                          <button key={pet.id}
+                            onClick={() => openEditPet(pet)}
+                            className="flex items-center gap-1.5 bg-gray-50 border border-gray-100 px-3 py-1.5 rounded-full text-sm hover:bg-amber-50 hover:border-[#8a6e36]/30 transition group">
                             <span>{especieIcon(pet.especie)}</span>
                             <span className="font-medium text-[#19202d]">{pet.nome}</span>
                             {pet.especie && <span className="text-gray-400 text-xs">· {pet.especie}</span>}
                             {pet.raca    && <span className="text-gray-400 text-xs">· {pet.raca}</span>}
                             {pet.sexo    && <span className="text-gray-400 text-xs">· {pet.sexo}</span>}
-                          </div>
+                            <span className="text-gray-300 group-hover:text-[#8a6e36] text-xs ml-0.5 transition">✏️</span>
+                          </button>
                         ))}
                       </div>
                     </div>
@@ -274,7 +308,7 @@ export default function TutoresPage() {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
             <div className="bg-[#19202d] px-6 py-4 flex items-center justify-between">
-              <h3 className="text-white font-bold">Novo tutor</h3>
+              <h3 className="text-white font-bold">Novo responsável legal</h3>
               <button onClick={() => setNovoTutorModal(false)} className="text-gray-400 hover:text-white text-xl leading-none">×</button>
             </div>
             <form onSubmit={handleNovoTutor} className="p-6 space-y-4">
@@ -313,7 +347,7 @@ export default function TutoresPage() {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
             <div className="bg-[#19202d] px-6 py-4 flex items-center justify-between">
-              <h3 className="text-white font-bold">Editar tutor</h3>
+              <h3 className="text-white font-bold">Editar responsável legal</h3>
               <button onClick={() => setEditTutor(null)} className="text-gray-400 hover:text-white text-xl leading-none">×</button>
             </div>
             <form onSubmit={handleEditTutor} className="p-6 space-y-4">
@@ -338,6 +372,62 @@ export default function TutoresPage() {
                 <button type="submit" disabled={editTutorSaving}
                   className="flex-1 bg-[#19202d] hover:bg-[#232d3f] text-white font-semibold py-2.5 rounded-lg text-sm transition disabled:opacity-60">
                   {editTutorSaving ? 'Salvando...' : 'Salvar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal editar pet */}
+      {editPet && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+            <div className="bg-[#19202d] px-6 py-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-white font-bold">Editar pet</h3>
+                <p className="text-gray-400 text-xs mt-0.5">{editPet.nome}</p>
+              </div>
+              <button onClick={() => setEditPet(null)} className="text-gray-400 hover:text-white text-xl leading-none">×</button>
+            </div>
+            <form onSubmit={handleEditPet} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+                  Nome <span className="text-red-400">*</span>
+                </label>
+                <input type="text" value={editPetForm.nome}
+                  onChange={e => setEditPetForm(p => ({ ...p, nome: e.target.value }))}
+                  placeholder="Ex: Thor" required className={INPUT} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Espécie</label>
+                <select value={editPetForm.especie} onChange={e => setEditPetForm(p => ({ ...p, especie: e.target.value }))} className={INPUT}>
+                  <option value="">—</option>
+                  {ESPECIES.map(s => <option key={s}>{s}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Raça</label>
+                <input type="text" value={editPetForm.raca}
+                  onChange={e => setEditPetForm(p => ({ ...p, raca: e.target.value }))}
+                  placeholder="Ex: Golden Retriever" className={INPUT} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Sexo</label>
+                <select value={editPetForm.sexo} onChange={e => setEditPetForm(p => ({ ...p, sexo: e.target.value }))} className={INPUT}>
+                  <option value="">—</option>
+                  {SEXOS.map(s => <option key={s}>{s}</option>)}
+                </select>
+              </div>
+              {editPetError && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{editPetError}</p>}
+              <div className="flex gap-3 pt-1">
+                <button type="button" onClick={() => setEditPet(null)}
+                  className="flex-1 border border-gray-200 text-gray-500 py-2.5 rounded-lg text-sm hover:bg-gray-50 transition">
+                  Cancelar
+                </button>
+                <button type="submit" disabled={editPetSaving}
+                  className="flex-1 bg-[#19202d] hover:bg-[#232d3f] text-white font-semibold py-2.5 rounded-lg text-sm transition disabled:opacity-60">
+                  {editPetSaving ? 'Salvando...' : 'Salvar'}
                 </button>
               </div>
             </form>

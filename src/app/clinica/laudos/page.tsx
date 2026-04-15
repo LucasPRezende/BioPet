@@ -26,7 +26,6 @@ export default function ClinicaLaudosPage() {
   const [loading, setLoading] = useState(true)
   const [busca,   setBusca]   = useState('')
   const [vetId,   setVetId]   = useState('')
-  const [tipo,    setTipo]    = useState('')
   const [dataIni, setDataIni] = useState('')
   const [dataFim, setDataFim] = useState('')
   const router = useRouter()
@@ -36,7 +35,6 @@ export default function ClinicaLaudosPage() {
     const params = new URLSearchParams()
     if (busca)   params.set('busca',    busca)
     if (vetId)   params.set('vet_id',   vetId)
-    if (tipo)    params.set('tipo',     tipo)
     if (dataIni) params.set('data_ini', dataIni)
     if (dataFim) params.set('data_fim', dataFim)
 
@@ -50,7 +48,7 @@ export default function ClinicaLaudosPage() {
     if (laudosRes.ok) setLaudos(await laudosRes.json())
     if (vetsRes.ok)   setVets(await vetsRes.json())
     setLoading(false)
-  }, [busca, vetId, tipo, dataIni, dataFim, router])
+  }, [busca, vetId, dataIni, dataFim, router])
 
   useEffect(() => { load() }, [load])
 
@@ -89,15 +87,6 @@ export default function ClinicaLaudosPage() {
           >
             <option value="">Todos os veterinários</option>
             {vets.map(v => <option key={v.id} value={v.id}>{v.nome}</option>)}
-          </select>
-          <select
-            value={tipo}
-            onChange={e => setTipo(e.target.value)}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8a6e36] text-gray-600"
-          >
-            <option value="">Todos os tipos</option>
-            <option value="gerado">Gerado</option>
-            <option value="upload">Upload</option>
           </select>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -140,7 +129,7 @@ export default function ClinicaLaudosPage() {
             <table className="w-full">
               <thead className="bg-gray-50 border-b">
                 <tr>
-                  {['Data', 'Pet', 'Tutor', 'Exame', 'Veterinário', 'Ações'].map(h => (
+                  {['Data', 'Pet', 'Resp. Legal', 'Veterinário', 'Ações'].map(h => (
                     <th key={h} className="text-left px-5 py-3 text-xs font-bold text-[#19202d] uppercase tracking-wide whitespace-nowrap">
                       {h}
                     </th>
@@ -155,15 +144,6 @@ export default function ClinicaLaudosPage() {
                       <td className="px-5 py-4 text-gray-400 text-sm whitespace-nowrap">{fmt(l.created_at)}</td>
                       <td className="px-5 py-4 font-semibold text-[#19202d]">{l.nome_pet}</td>
                       <td className="px-5 py-4 text-gray-700">{l.tutor}</td>
-                      <td className="px-5 py-4">
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${
-                          l.tipo === 'gerado'
-                            ? 'bg-amber-50 text-[#8a6e36] border border-[#8a6e36]/20'
-                            : 'bg-gray-100 text-gray-500'
-                        }`}>
-                          {l.tipo === 'gerado' ? 'Gerado' : 'Upload'}
-                        </span>
-                      </td>
                       <td className="px-5 py-4 text-gray-500 text-sm">{vet?.nome ?? '—'}</td>
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-2">

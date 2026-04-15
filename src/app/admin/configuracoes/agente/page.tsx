@@ -33,6 +33,19 @@ function formatTelefone(tel: string) {
   return tel
 }
 
+// Converte UTC para BRT (UTC-3) manualmente
+// Força interpretação como UTC adicionando 'Z' se a string não tiver indicador de timezone
+function formatExpiracao(isoUtc: string): string {
+  const utcStr = isoUtc.endsWith('Z') || isoUtc.includes('+') ? isoUtc : isoUtc + 'Z'
+  const utc  = new Date(utcStr)
+  const brt  = new Date(utc.getTime() - 3 * 60 * 60 * 1000)
+  const dd   = String(brt.getUTCDate()).padStart(2, '0')
+  const mm   = String(brt.getUTCMonth() + 1).padStart(2, '0')
+  const hh   = String(brt.getUTCHours()).padStart(2, '0')
+  const min  = String(brt.getUTCMinutes()).padStart(2, '0')
+  return `${dd}/${mm} às ${hh}h${min !== '00' ? min : ''}`
+}
+
 export default function ConfiguracaoAgentePage() {
   const router = useRouter()
   const [config,   setConfig]   = useState<Config>({ tempo_retorno_ia_horas: 2, numeros_bloqueados: [] })
@@ -226,10 +239,10 @@ export default function ConfiguracaoAgentePage() {
               <div className="p-6">
                 <h2 className="font-bold text-[#19202d] mb-1">IA bloqueada automaticamente</h2>
                 <p className="text-sm text-gray-500 mb-4">
-                  Tutores em que o bot parou de responder após solicitação de atendimento humano.
+                  Responsáveis legais em que o bot parou de responder após solicitação de atendimento humano.
                 </p>
                 {tutoresBloq.length === 0 ? (
-                  <p className="text-sm text-gray-400">Nenhum tutor com IA bloqueada.</p>
+                  <p className="text-sm text-gray-400">Nenhum responsável legal com IA bloqueada.</p>
                 ) : (
                   <div className="space-y-2">
                     {tutoresBloq.map(t => (
@@ -241,7 +254,7 @@ export default function ConfiguracaoAgentePage() {
                           )}
                           {t.atendimento_humano_ate && (
                             <p className="text-xs text-orange-500 mt-0.5">
-                              Bloqueado desde {new Date(t.atendimento_humano_ate).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })}
+                              Libera em {formatExpiracao(t.atendimento_humano_ate)}
                             </p>
                           )}
                         </div>

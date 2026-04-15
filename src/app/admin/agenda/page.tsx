@@ -17,26 +17,31 @@ interface Agendamento {
   forma_pagamento: string | null
   status:          string
   observacoes:     string | null
+  origem:          string | null
   tutores:         Tutor | null
   pets:            Pet | null
   system_users:    { nome: string } | null
+  clinicas:        { nome: string } | null
   laudos:          { id: number; token: string }[] | null
 }
 
 const STATUS_LABELS: Record<string, string> = {
+  'pendente':       'Pendente',
   'agendado':       'Agendado',
   'em atendimento': 'Em atendimento',
   'concluído':      'Concluído',
   'cancelado':      'Cancelado',
 }
 const STATUS_COLORS: Record<string, string> = {
+  'pendente':       'bg-yellow-100 text-yellow-700 border-yellow-200',
   'agendado':       'bg-blue-100 text-blue-700 border-blue-200',
   'em atendimento': 'bg-amber-100 text-amber-700 border-amber-200',
   'concluído':      'bg-green-100 text-green-700 border-green-200',
   'cancelado':      'bg-red-100 text-red-600 border-red-200',
 }
-// Transições permitidas — concluído e cancelado são estados finais
+// Transições permitidas
 const STATUS_TRANSITIONS: Record<string, string[]> = {
+  'pendente':       ['pendente', 'cancelado'],
   'agendado':       ['agendado', 'em atendimento', 'concluído', 'cancelado'],
   'em atendimento': ['agendado', 'em atendimento', 'concluído', 'cancelado'],
   'concluído':      ['concluído'],
@@ -389,7 +394,7 @@ function NovoAgendamentoModal({ dataPadrao, tiposExame, vets, comissoes, onClose
           {/* Tutor */}
           <div>
             <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
-              Telefone do tutor <span className="text-red-400">*</span>
+              Telefone do responsável legal <span className="text-red-400">*</span>
             </label>
             <div className="flex gap-2">
               <input type="tel" value={form.telefone}
@@ -404,14 +409,14 @@ function NovoAgendamentoModal({ dataPadrao, tiposExame, vets, comissoes, onClose
             {tutorInfo && (
               <p className={`text-xs mt-1.5 px-2 py-1 rounded ${tutorInfo.encontrado ? 'text-green-700 bg-green-50' : 'text-amber-700 bg-amber-50'}`}>
                 {tutorInfo.encontrado
-                  ? `✓ ${tutorInfo.nome ?? 'Tutor'} encontrado`
-                  : '✦ Tutor não cadastrado — será criado automaticamente'}
+                  ? `✓ ${tutorInfo.nome ?? 'Resp. legal'} encontrado`
+                  : '✦ Resp. legal não cadastrado — será criado automaticamente'}
               </p>
             )}
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Nome do tutor</label>
+            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Nome do responsável legal</label>
             <input type="text" value={form.tutor_nome} onChange={e => set('tutor_nome', e.target.value)}
               placeholder="Ex: Maria Souza" className={INPUT} />
           </div>
@@ -726,6 +731,8 @@ export default function AgendaPage() {
   const [tiposExame,      setTiposExame]              = useState<string[]>([])
   const [comissoes,       setComissoes]               = useState<Comissao[]>([])
   const [vets,            setVets]                    = useState<VetOpt[]>([])
+  const [confirming,      setConfirming]              = useState<Set<number>>(new Set())
+  const [refusing,        setRefusing]                = useState<Set<number>>(new Set())
 
   // Busca quais dias da semana têm agendamentos
   const fetchDias = useCallback(async () => {
@@ -772,6 +779,30 @@ export default function AgendaPage() {
 
   function handleStatusChange(id: number, s: string) {
     setStatusMap(prev => ({ ...prev, [id]: s }))
+  }
+
+  async function handleConfirmar(id: number) {
+    setConfirming(prev => new Set(prev).add(id))
+    const res = await fetch(`/api/admin/agendamentos/${id}/confirmar`, { method: 'POST' })
+    if (res.ok) {
+      setStatusMap(prev => ({ ...prev, [id]: 'agendado' }))
+    }
+    setConfirming(prev => { const s = new Set(prev); s.delete(id); return s })
+  }
+
+  async function handleRecusar(id: number) {
+    const motivo = window.prompt('Motivo da recusa (opcional):')
+    if (motivo === null) return // cancelou o prompt
+    setRefusing(prev => new Set(prev).add(id))
+    const res = await fetch(`/api/admin/agendamentos/${id}/recusar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ motivo: motivo.trim() || null }),
+    })
+    if (res.ok) {
+      setStatusMap(prev => ({ ...prev, [id]: 'cancelado' }))
+    }
+    setRefusing(prev => { const s = new Set(prev); s.delete(id); return s })
   }
 
   function getAg(ag: Agendamento): Agendamento {
@@ -893,7 +924,14 @@ export default function AgendaPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            {agendamentos.map(rawAg => {
+            {[...agendamentos]
+              .sort((a, b) => {
+                const aPendente = (statusMap[a.id] ?? a.status) === 'pendente' ? 0 : 1
+                const bPendente = (statusMap[b.id] ?? b.status) === 'pendente' ? 0 : 1
+                if (aPendente !== bPendente) return aPendente - bPendente
+                return a.data_hora.localeCompare(b.data_hora)
+              })
+              .map(rawAg => {
               const ag     = getAg(rawAg)
               const status = statusMap[ag.id] ?? ag.status
               return (
@@ -927,7 +965,7 @@ export default function AgendaPage() {
                         </div>
 
                         <p className="text-sm text-gray-600 mb-1.5">
-                          <span className="font-medium">{ag.tutores?.nome ?? 'Tutor não informado'}</span>
+                          <span className="font-medium">{ag.tutores?.nome ?? 'Resp. legal não informado'}</span>
                           {ag.tutores?.telefone && (
                             <span className="text-gray-400 ml-2 text-xs">{ag.tutores.telefone}</span>
                           )}
@@ -944,6 +982,11 @@ export default function AgendaPage() {
                           {ag.system_users && (
                             <span className="text-gray-400">por {ag.system_users.nome}</span>
                           )}
+                          {ag.origem === 'clinica' && ag.clinicas && (
+                            <span className="font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
+                              🏥 {ag.clinicas.nome}
+                            </span>
+                          )}
                         </div>
 
                         {ag.observacoes && (
@@ -956,7 +999,25 @@ export default function AgendaPage() {
                       {/* Ações */}
                       <div className="flex items-center gap-2 flex-wrap sm:flex-col sm:items-end shrink-0">
                         <StatusSelect id={ag.id} current={status} onChange={s => handleStatusChange(ag.id, s)} />
-                        {!ag.laudos?.length && status !== 'cancelado' ? (
+                        {status === 'pendente' && (
+                          <div className="flex gap-1.5">
+                            <button
+                              onClick={() => handleConfirmar(ag.id)}
+                              disabled={confirming.has(ag.id) || refusing.has(ag.id)}
+                              className="bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-3 py-2 rounded-lg transition whitespace-nowrap disabled:opacity-50"
+                            >
+                              {confirming.has(ag.id) ? '...' : '✅ Confirmar'}
+                            </button>
+                            <button
+                              onClick={() => handleRecusar(ag.id)}
+                              disabled={confirming.has(ag.id) || refusing.has(ag.id)}
+                              className="bg-red-500 hover:bg-red-600 text-white text-xs font-bold px-3 py-2 rounded-lg transition whitespace-nowrap disabled:opacity-50"
+                            >
+                              {refusing.has(ag.id) ? '...' : '❌ Recusar'}
+                            </button>
+                          </div>
+                        )}
+                        {!ag.laudos?.length && status !== 'cancelado' && status !== 'pendente' ? (
                           <Link
                             href={`/admin/novo?agendamento_id=${ag.id}`}
                             className="bg-[#c4a35a] hover:bg-[#b8944e] text-white text-xs font-bold px-3 py-2 rounded-lg transition whitespace-nowrap"

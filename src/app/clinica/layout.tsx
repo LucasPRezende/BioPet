@@ -5,10 +5,13 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 
+
 const NAV = [
-  { icon: '📋', label: 'Laudos',        href: '/clinica/laudos'       },
-  { icon: '🩺', label: 'Veterinários',  href: '/clinica/veterinarios' },
-  { icon: '👤', label: 'Perfil',        href: '/clinica/perfil'       },
+  { icon: '📅', label: 'Agendamentos',    href: '/clinica/agendamentos'       },
+  { icon: '➕', label: 'Novo agend.',     href: '/clinica/novo-agendamento'   },
+  { icon: '📋', label: 'Laudos',          href: '/clinica/laudos'             },
+  { icon: '🩺', label: 'Veterinários',    href: '/clinica/veterinarios'       },
+  { icon: '👤', label: 'Perfil',          href: '/clinica/perfil'             },
 ]
 
 function ClinicaSidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
@@ -93,6 +96,9 @@ function ClinicaSidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
 
 export default function ClinicaLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const pathname = usePathname()
+
+  if (pathname === '/clinica/login') return <>{children}</>
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
