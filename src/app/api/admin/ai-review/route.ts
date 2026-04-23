@@ -3,6 +3,23 @@ import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
 import { getContextFiles, invalidateCache } from '@/lib/gemini-files'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 
+async function callGemini(apiKey: string, sys: string, texto: string, forceReupload = false) {
+  const contextFiles = await getContextFiles(apiKey.trim(), forceReupload)
+
+  const genAI       = new GoogleGenerativeAI(apiKey.trim())
+  const geminiModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+
+  const parts: Parameters<typeof geminiModel.generateContent>[0] = [
+    ...contextFiles.map(f => ({
+      fileData: { mimeType: f.mimeType as 'application/pdf', fileUri: f.fileUri },
+    })),
+    { text: `${sys}\n\nTexto do laudo a revisar:\n\n${texto}` },
+  ]
+
+  const result = await geminiModel.generateContent(parts)
+  return { text: result.response.text(), contextFiles: contextFiles.length }
+}
+
 export async function POST(request: NextRequest) {
   const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value
   if (!cookie) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 })
@@ -19,25 +36,8 @@ export async function POST(request: NextRequest) {
     const sys = systemPrompt?.trim() ||
       'Você é um assistente médico veterinário especializado. Use os laudos de referência fornecidos como base de estilo e estrutura. Revise o laudo abaixo, corrija erros gramaticais, melhore a clareza e retorne apenas o texto revisado em formato limpo, sem comentários adicionais.'
 
-    async function callGemini(forceReupload = false) {
-      const contextFiles = await getContextFiles(apiKey.trim(), forceReupload)
-
-      const genAI       = new GoogleGenerativeAI(apiKey.trim())
-      const geminiModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
-
-      const parts: Parameters<typeof geminiModel.generateContent>[0] = [
-        ...contextFiles.map(f => ({
-          fileData: { mimeType: f.mimeType as 'application/pdf', fileUri: f.fileUri },
-        })),
-        { text: `${sys}\n\nTexto do laudo a revisar:\n\n${texto}` },
-      ]
-
-      const result = await geminiModel.generateContent(parts)
-      return { text: result.response.text(), contextFiles: contextFiles.length }
-    }
-
     try {
-      const { text: reviewed, contextFiles } = await callGemini()
+      const { text: reviewed, contextFiles } = await callGemini(apiKey, sys, texto)
       if (!reviewed) return NextResponse.json({ error: 'Resposta vazia da IA.' }, { status: 500 })
       return NextResponse.json({ texto: reviewed, contextFiles })
     } catch (err: unknown) {
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
         console.warn('[Gemini] URI de arquivo inválida, forçando re-upload...')
         invalidateCache()
         try {
-          const { text: reviewed, contextFiles } = await callGemini(true)
+          const { text: reviewed, contextFiles } = await callGemini(apiKey, sys, texto, true)
           if (!reviewed) return NextResponse.json({ error: 'Resposta vazia da IA.' }, { status: 500 })
           return NextResponse.json({ texto: reviewed, contextFiles, reuploaded: true })
         } catch (err2: unknown) {
