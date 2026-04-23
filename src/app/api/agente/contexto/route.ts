@@ -41,9 +41,13 @@ export async function GET(request: NextRequest) {
 
   const { data: pets } = await supabase
     .from('pets')
-    .select('id, nome, especie, raca, sexo')
+    .select('id, nome, especie, raca, sexo, falecido, falecido_em')
     .eq('tutor_id', tutor.id)
     .order('nome')
 
-  return NextResponse.json({ tutor, pets: pets ?? [] })
+  const todosOsPets   = pets ?? []
+  const petsAtivos    = todosOsPets.filter(p => !p.falecido)
+  const petsFalecidos = todosOsPets.filter(p => p.falecido)
+
+  return NextResponse.json({ tutor, pets: petsAtivos, pets_falecidos: petsFalecidos })
 }

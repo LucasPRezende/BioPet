@@ -24,13 +24,12 @@ async function getClinicaSession() {
   return parseClinicaSession(token)
 }
 
-// ── GET — lista agendamentos da clínica ───────────────────────────────────────
+// ── GET ───────────────────────────────────────────────────────────────────────
 export async function GET(request: NextRequest) {
   const session = await getClinicaSession()
   if (!session) return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 })
 
-  const params = request.nextUrl.searchParams
-  const status = params.get('status')
+  const status = request.nextUrl.searchParams.get('status')
 
   let query = supabase
     .from('agendamentos')
@@ -46,7 +45,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ agendamentos: data ?? [] })
 }
 
-// ── POST — solicita novo agendamento ─────────────────────────────────────────
+// ── POST ──────────────────────────────────────────────────────────────────────
 export async function POST(request: NextRequest) {
   const session = await getClinicaSession()
   if (!session) return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 })
@@ -55,37 +54,50 @@ export async function POST(request: NextRequest) {
   const {
     telefone, tutor_nome,
     pet_id, pet_nome, pet_especie, pet_raca,
-    tipo_exame, data_hora, duracao_minutos,
+    exames,                     // [{ tipo_exame, duracao_minutos, valor, horario_especial }]
+    tipo_exame,                 // fallback single-exam
+    data_hora, duracao_minutos,
     veterinario_id, observacoes,
+    sedacao_necessaria, pet_internado,
+    pagamento_responsavel, forma_pagamento, entrega_pagamento,
+    valor,
+    bioquimica_selecionados,    // [{ bioquimica_exame_id, valor_pix, valor_cartao }]
   } = body ?? {}
 
-  if (!telefone || !tipo_exame || !data_hora) {
-    return NextResponse.json({ error: 'Campos obrigatórios: telefone, tipo_exame, data_hora.' }, { status: 400 })
+  // Suporte a multi-exame (exames[]) e single (tipo_exame)
+  const examesArr: { tipo_exame: string; duracao_minutos: number; valor: number; horario_especial: boolean }[] =
+    Array.isArray(exames) && exames.length > 0
+      ? exames
+      : tipo_exame
+      ? [{ tipo_exame, duracao_minutos: duracao_minutos ?? 30, valor: valor ?? 0, horario_especial: false }]
+      : []
+
+  if (!telefone || examesArr.length === 0 || !data_hora) {
+    return NextResponse.json({ error: 'Campos obrigatórios: telefone, exames, data_hora.' }, { status: 400 })
   }
   if (!pet_id && !pet_nome) {
     return NextResponse.json({ error: 'Informe o pet (pet_id ou pet_nome).' }, { status: 400 })
   }
 
-  // Verifica se o exame é permitido para esta clínica
-  const { data: permCheck } = await supabase
-    .from('clinica_exames_permitidos')
-    .select('id')
-    .eq('clinica_id', session.clinicaId)
-    .eq('tipo_exame', tipo_exame)
-    .maybeSingle()
-
-  if (!permCheck) {
-    return NextResponse.json({ error: 'Este exame não está disponível para sua clínica.' }, { status: 403 })
+  // Verifica permissão de cada exame
+  for (const ex of examesArr) {
+    const { data: permCheck } = await supabase
+      .from('clinica_exames_permitidos')
+      .select('id')
+      .eq('clinica_id', session.clinicaId)
+      .eq('tipo_exame', ex.tipo_exame)
+      .maybeSingle()
+    if (!permCheck) {
+      return NextResponse.json({ error: `Exame "${ex.tipo_exame}" não disponível para sua clínica.` }, { status: 403 })
+    }
   }
 
-  // Busca dados da clínica (nome + telefone para notificação)
   const { data: clinica } = await supabase
     .from('clinicas')
     .select('nome, telefone')
     .eq('id', session.clinicaId)
     .single()
 
-  // Normaliza telefone do tutor
   const digits  = String(telefone).replace(/\D/g, '')
   const telNorm = digits.startsWith('55') ? digits : `55${digits}`
 
@@ -115,38 +127,33 @@ export async function POST(request: NextRequest) {
   // 2. Busca ou cria pet
   let petIdFinal: number
   let petNomeFinal: string
-  let petEspecieFinal: string | null = null
-  let petRacaFinal: string | null = null
 
   if (pet_id) {
     const { data: petExist } = await supabase
       .from('pets')
-      .select('id, nome, especie, raca')
+      .select('id, nome')
       .eq('id', pet_id)
       .eq('tutor_id', tutorId)
       .single()
     if (!petExist) return NextResponse.json({ error: 'Pet não encontrado.' }, { status: 404 })
-    petIdFinal     = petExist.id
-    petNomeFinal   = petExist.nome
-    petEspecieFinal = petExist.especie
-    petRacaFinal   = petExist.raca
+    petIdFinal   = petExist.id
+    petNomeFinal = petExist.nome
   } else {
     const { data: novoPet, error: errPet } = await supabase
       .from('pets')
       .insert({ tutor_id: tutorId, nome: pet_nome, especie: pet_especie ?? null, raca: pet_raca ?? null })
-      .select('id, nome, especie, raca')
+      .select('id, nome')
       .single()
     if (errPet) return NextResponse.json({ error: errPet.message }, { status: 500 })
-    petIdFinal      = novoPet.id
-    petNomeFinal    = novoPet.nome
-    petEspecieFinal = novoPet.especie
-    petRacaFinal    = novoPet.raca
+    petIdFinal   = novoPet.id
+    petNomeFinal = novoPet.nome
   }
 
   // 3. Verifica conflito de horário
+  const totalDuracao = examesArr.reduce((sum, e) => sum + e.duracao_minutos, 0)
   const diaStr  = (data_hora as string).split('T')[0]
   const novaIni = new Date(data_hora)
-  const novaFim = new Date(novaIni.getTime() + (duracao_minutos ?? 30) * 60_000)
+  const novaFim = new Date(novaIni.getTime() + totalDuracao * 60_000)
 
   const { data: existentes } = await supabase
     .from('agendamentos')
@@ -165,48 +172,84 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Já existe um agendamento neste horário.' }, { status: 409 })
   }
 
-  // 4. Cria agendamento (status pendente)
+  // 4. Cria agendamento
+  const tipoExameLabel = examesArr.map(e => e.tipo_exame).join(', ')
+  const valorTotal     = examesArr.reduce((sum, e) => sum + (e.valor ?? 0), 0)
+
   const { data: agendamento, error: errAg } = await supabase
     .from('agendamentos')
     .insert({
-      tutor_id:        tutorId,
-      pet_id:          petIdFinal,
-      tipo_exame,
+      tutor_id:              tutorId,
+      pet_id:                petIdFinal,
+      tipo_exame:            tipoExameLabel,
       data_hora,
-      duracao_minutos: duracao_minutos ?? null,
-      forma_pagamento: 'a confirmar',
-      veterinario_id:  veterinario_id ? Number(veterinario_id) : null,
-      observacoes:     observacoes ?? null,
-      status:          'pendente',
-      origem:          'clinica',
-      clinica_id:      session.clinicaId,
+      duracao_minutos:       totalDuracao,
+      valor:                 valorTotal > 0 ? valorTotal : null,
+      forma_pagamento:       forma_pagamento ?? 'a confirmar',
+      entrega_pagamento:     entrega_pagamento ?? 'link',
+      veterinario_id:        veterinario_id ? Number(veterinario_id) : null,
+      observacoes:           observacoes ?? null,
+      sedacao_necessaria:    sedacao_necessaria ?? false,
+      pet_internado:         pet_internado ?? false,
+      pagamento_responsavel: pagamento_responsavel ?? 'tutor',
+      status:                'pendente',
+      origem:                'clinica',
+      clinica_id:            session.clinicaId,
+      status_pagamento:      'pendente',
     })
     .select('id')
     .single()
 
   if (errAg) return NextResponse.json({ error: errAg.message }, { status: 500 })
 
-  // 5. Busca nome do vet
+  // 5. Insere exames na tabela agendamento_exames
+  if (examesArr.length > 0) {
+    await supabase.from('agendamento_exames').insert(
+      examesArr.map(e => ({
+        agendamento_id:   agendamento.id,
+        tipo_exame:       e.tipo_exame,
+        duracao_minutos:  e.duracao_minutos,
+        valor:            e.valor,
+        horario_especial: e.horario_especial ?? false,
+      }))
+    )
+  }
+
+  // 5b. Insere sub-exames de bioquímica (se houver)
+  const bioArr = Array.isArray(bioquimica_selecionados) ? bioquimica_selecionados : []
+  if (bioArr.length > 0) {
+    await supabase.from('agendamento_bioquimica').insert(
+      bioArr.map((b: { bioquimica_exame_id: number; valor_pix: number; valor_cartao: number }) => ({
+        agendamento_id:      agendamento.id,
+        bioquimica_exame_id: b.bioquimica_exame_id,
+        valor_pix:           b.valor_pix,
+        valor_cartao:        b.valor_cartao,
+      }))
+    )
+  }
+
+  // 6. Nome do vet
   let vetNome = 'Não informado'
   if (veterinario_id) {
     const { data: vet } = await supabase.from('veterinarios').select('nome').eq('id', veterinario_id).single()
     if (vet) vetNome = vet.nome
   }
 
-  // 6. Monta mensagem para admins
-  const petDesc = [petNomeFinal, petEspecieFinal, petRacaFinal].filter(Boolean).join(' / ')
+  // 7. Notificação
   const mensagem = [
     `📋 Nova solicitação de agendamento`,
     `Clínica: ${clinica?.nome ?? 'Clínica parceira'}`,
-    `Pet: ${petDesc}`,
-    `Tutor: ${tutor_nome ?? tutorExist?.nome ?? 'Desconhecido'} — ${telNorm}`,
-    `Exame: ${tipo_exame}`,
+    `Pet: ${petNomeFinal}`,
+    `Resp. Legal: ${tutor_nome ?? tutorExist?.nome ?? 'Desconhecido'} — ${telNorm}`,
+    `Exame(s): ${tipoExameLabel}`,
     `Data/Hora: ${formatDataHora(data_hora)}`,
     `Vet responsável: ${vetNome}`,
+    sedacao_necessaria ? '⚠️ Sedação necessária' : null,
+    pet_internado      ? '🏥 Pet internado na clínica' : null,
+    `Pag. responsável: ${pagamento_responsavel === 'clinica' ? 'Clínica' : 'Tutor (link MP)'}`,
     `Acesse o painel para confirmar.`,
-  ].join('\n')
+  ].filter(Boolean).join('\n')
 
-  // 7. Salva notificação
   await supabase.from('notificacoes').insert({
     telefone:       telNorm,
     nome_tutor:     tutor_nome ?? tutorExist?.nome ?? null,
@@ -215,11 +258,7 @@ export async function POST(request: NextRequest) {
     agendamento_id: agendamento.id,
   })
 
-  // 8. Envia WhatsApp para admins
-  const admins = [
-    process.env.ADMIN_WHATSAPP_1,
-    process.env.ADMIN_WHATSAPP_2,
-  ].filter(Boolean) as string[]
+  const admins = [process.env.ADMIN_WHATSAPP_1, process.env.ADMIN_WHATSAPP_2].filter(Boolean) as string[]
   await Promise.all(admins.map(num => sendWhatsAppText(num, mensagem)))
 
   return NextResponse.json({ sucesso: true, agendamento_id: agendamento.id }, { status: 201 })

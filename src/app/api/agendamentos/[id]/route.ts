@@ -34,7 +34,11 @@ export async function PATCH(
   if (!session) return NextResponse.json({ error: 'Sessão inválida.' }, { status: 401 })
 
   const body = await request.json().catch(() => null)
-  const { status, observacoes, valor, forma_pagamento } = body ?? {}
+  const {
+    status, observacoes, valor, forma_pagamento,
+    data_hora, entrega_pagamento, pagamento_responsavel,
+    sedacao_necessaria, pet_internado, veterinario_id,
+  } = body ?? {}
 
   const STATUSES = ['pendente', 'agendado', 'em atendimento', 'concluído', 'cancelado']
 
@@ -43,9 +47,15 @@ export async function PATCH(
     if (!STATUSES.includes(status)) return NextResponse.json({ error: 'Status inválido.' }, { status: 400 })
     update.status = status
   }
-  if (observacoes   !== undefined) update.observacoes    = observacoes
-  if (valor         !== undefined) update.valor          = valor
-  if (forma_pagamento !== undefined) update.forma_pagamento = forma_pagamento
+  if (observacoes          !== undefined) update.observacoes          = observacoes
+  if (valor                !== undefined) update.valor                = valor
+  if (forma_pagamento      !== undefined) update.forma_pagamento      = forma_pagamento
+  if (data_hora            !== undefined) update.data_hora            = data_hora
+  if (entrega_pagamento    !== undefined) update.entrega_pagamento    = entrega_pagamento
+  if (pagamento_responsavel !== undefined) update.pagamento_responsavel = pagamento_responsavel
+  if (sedacao_necessaria   !== undefined) update.sedacao_necessaria   = sedacao_necessaria
+  if (pet_internado        !== undefined) update.pet_internado        = pet_internado
+  if (veterinario_id       !== undefined) update.veterinario_id       = veterinario_id === '' ? null : Number(veterinario_id)
 
   if (Object.keys(update).length === 0) {
     return NextResponse.json({ error: 'Nenhum campo para atualizar.' }, { status: 400 })
@@ -55,7 +65,7 @@ export async function PATCH(
     .from('agendamentos')
     .update(update)
     .eq('id', Number(params.id))
-    .select('id, status, observacoes, valor, forma_pagamento')
+    .select()
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

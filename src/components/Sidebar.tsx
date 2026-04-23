@@ -37,8 +37,9 @@ const NAV: NavGroup[] = [
   {
     title: 'LAUDOS',
     items: [
-      { icon: '📋', label: 'Laudos',      href: '/admin/laudos'          },
-      { icon: '🧪', label: 'Bioquímica',  href: '/admin/novo-bioquimica' },
+      { icon: '📋', label: 'Laudos',       href: '/admin/laudos'                   },
+      { icon: '🧪', label: 'Bioquímica',  href: '/admin/novo-bioquimica'          },
+      { icon: '📊', label: 'Referências', href: '/admin/bioquimica/referencias'   },
     ],
   },
   {

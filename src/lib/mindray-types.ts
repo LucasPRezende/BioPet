@@ -18,6 +18,8 @@ export const EXAM_CODES: Record<string, { nome: string; unidade: string }> = {
   BUN:   { nome: 'Ureia',                unidade: 'mg/dL' },
   PROT:  { nome: 'Proteínas Totais',     unidade: 'g/dL'  },
   ALB:   { nome: 'Albumina',             unidade: 'g/dL'  },
+  HDL:   { nome: 'HDL',                  unidade: 'mg/dL' },
+  BILI:  { nome: 'Bilirrubina Total',    unidade: 'mg/dL' },
   GLOB:  { nome: 'Globulina',            unidade: 'g/dL'  },
   CA:    { nome: 'Cálcio',               unidade: 'mg/dL' },
   PHOS:  { nome: 'Fósforo',              unidade: 'mg/dL' },

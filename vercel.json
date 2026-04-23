@@ -2,6 +2,9 @@
   "functions": {
     "src/app/api/laudos/gerar/route.ts": {
       "maxDuration": 60
+    },
+    "src/app/api/laudos/gerar-bioquimica/route.ts": {
+      "maxDuration": 60
     }
   }
 }

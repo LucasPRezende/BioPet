@@ -9,7 +9,6 @@ export async function GET() {
   const session = await parseClinicaSession(token)
   if (!session) return NextResponse.json({ error: 'Sessão inválida.' }, { status: 401 })
 
-  // Exames permitidos para esta clínica
   const { data: perms, error } = await supabase
     .from('clinica_exames_permitidos')
     .select('tipo_exame')
@@ -20,16 +19,28 @@ export async function GET() {
 
   const tipos = (perms ?? []).map(p => p.tipo_exame)
 
-  // Duração de cada exame a partir de comissoes_exame
   const { data: comissoes } = await supabase
     .from('comissoes_exame')
-    .select('tipo_exame, duracao_minutos')
+    .select(
+      'tipo_exame, duracao_minutos, varia_por_horario, preco_exame, ' +
+      'preco_pix_comercial, preco_cartao_comercial, ' +
+      'preco_pix_fora_horario, preco_cartao_fora_horario'
+    )
     .in('tipo_exame', tipos.length > 0 ? tipos : ['__nenhum__'])
 
-  const exames = tipos.map(tipo => ({
-    tipo_exame:      tipo,
-    duracao_minutos: (comissoes ?? []).find(c => c.tipo_exame === tipo)?.duracao_minutos ?? 30,
-  }))
+  const exames = tipos.map(tipo => {
+    const c = (comissoes ?? []).find(x => x.tipo_exame === tipo)
+    const varia = c?.varia_por_horario ?? false
+    return {
+      tipo_exame:           tipo,
+      duracao_minutos:      c?.duracao_minutos          ?? 30,
+      varia_por_horario:    varia,
+      valor_pix:            varia ? (c?.preco_pix_comercial    ?? null) : (c?.preco_exame ?? null),
+      valor_cartao:         varia ? (c?.preco_cartao_comercial ?? null) : (c?.preco_exame ?? null),
+      valor_especial_pix:   varia ? (c?.preco_pix_fora_horario    ?? null) : null,
+      valor_especial_cartao:varia ? (c?.preco_cartao_fora_horario ?? null) : null,
+    }
+  })
 
   return NextResponse.json({ exames })
 }

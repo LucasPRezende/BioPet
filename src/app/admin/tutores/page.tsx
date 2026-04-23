@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { ESPECIES, especieIcon } from '@/lib/especies'
 
-interface Pet  { id: number; nome: string; especie: string | null; raca: string | null; sexo: string | null }
+interface Pet  { id: number; nome: string; especie: string | null; raca: string | null; sexo: string | null; falecido?: boolean | null }
 interface Tutor {
   id:            number
   telefone:      string
@@ -13,13 +14,7 @@ interface Tutor {
   agendamentos:  { id: number }[]
 }
 
-const ESPECIES      = ['Cachorro','Gato','Pássaro','Coelho','Hamster','Réptil','Outro']
-const SEXOS         = ['Macho', 'Fêmea', 'Não informado']
-const ESPECIES_ICON: Record<string, string> = {
-  'Cachorro':'🐶','Gato':'🐱','Pássaro':'🐦','Coelho':'🐰','Hamster':'🐹','Réptil':'🦎',
-}
-
-function especieIcon(e: string | null) { return e ? (ESPECIES_ICON[e] ?? '🐾') : '🐾' }
+const SEXOS = ['Macho', 'Fêmea', 'Não informado']
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', { day:'2-digit', month:'short', year:'numeric' })
 }
@@ -282,16 +277,21 @@ export default function TutoresPage() {
                       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Pets</p>
                       <div className="flex flex-wrap gap-2">
                         {tutor.pets.map(pet => (
-                          <button key={pet.id}
-                            onClick={() => openEditPet(pet)}
-                            className="flex items-center gap-1.5 bg-gray-50 border border-gray-100 px-3 py-1.5 rounded-full text-sm hover:bg-amber-50 hover:border-[#8a6e36]/30 transition group">
-                            <span>{especieIcon(pet.especie)}</span>
-                            <span className="font-medium text-[#19202d]">{pet.nome}</span>
-                            {pet.especie && <span className="text-gray-400 text-xs">· {pet.especie}</span>}
-                            {pet.raca    && <span className="text-gray-400 text-xs">· {pet.raca}</span>}
-                            {pet.sexo    && <span className="text-gray-400 text-xs">· {pet.sexo}</span>}
-                            <span className="text-gray-300 group-hover:text-[#8a6e36] text-xs ml-0.5 transition">✏️</span>
-                          </button>
+                          <div key={pet.id} className="flex items-center gap-1">
+                            <button
+                              onClick={() => openEditPet(pet)}
+                              className={`flex items-center gap-1.5 border px-3 py-1.5 rounded-full text-sm hover:bg-amber-50 hover:border-[#8a6e36]/30 transition group ${pet.falecido ? 'bg-gray-50 border-gray-200 opacity-70' : 'bg-gray-50 border-gray-100'}`}>
+                              <span>{especieIcon(pet.especie)}</span>
+                              <span className="font-medium text-[#19202d]">{pet.nome}</span>
+                              {pet.especie && <span className="text-gray-400 text-xs">· {pet.especie}</span>}
+                              {pet.falecido && <span className="text-gray-400 text-xs ml-1">· Falecido</span>}
+                              <span className="text-gray-300 group-hover:text-[#8a6e36] text-xs ml-0.5 transition">✏️</span>
+                            </button>
+                            <a href={`/admin/pets/${pet.id}`}
+                              className="text-xs px-2 py-1.5 rounded-lg bg-amber-50 border border-[#8a6e36]/20 text-[#8a6e36] hover:bg-amber-100 transition whitespace-nowrap">
+                              Histórico
+                            </a>
+                          </div>
                         ))}
                       </div>
                     </div>

@@ -1,8 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-
-const ESPECIES = ['Cachorro', 'Gato', 'Pássaro', 'Coelho', 'Hamster', 'Réptil', 'Outro']
+import { ESPECIES } from '@/lib/especies'
 const SEXOS    = ['Macho', 'Fêmea', 'Não informado']
 
 interface Pet { id: number; nome: string; especie: string | null; raca: string | null; sexo: string | null }

@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await supabase
     .from('tutores')
-    .select('*, pets(id, nome, especie, raca, sexo), agendamentos(id)')
+    .select('*, pets(id, nome, especie, raca, sexo, falecido), agendamentos(id)')
     .order('criado_em', { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
   const { data, error } = await supabase
     .from('tutores')
     .insert({ telefone: telNorm, nome })
-    .select('*, pets(id, nome, especie, raca, sexo), agendamentos(id)')
+    .select('*, pets(id, nome, especie, raca, sexo, falecido), agendamentos(id)')
     .single()
 
   if (error) {

@@ -3,12 +3,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
+import { ESPECIES } from '@/lib/especies'
 
 
 const RichTextEditor = dynamic(() => import('@/components/RichTextEditor'), { ssr: false })
 import TutorBusca from '@/components/TutorBusca'
 
-const ESPECIES = ['Cachorro', 'Gato', 'Pássaro', 'Coelho', 'Hamster', 'Réptil', 'Outro']
 const SEXOS    = ['Macho', 'Fêmea', 'Não informado']
 
 interface Vet { id: number; nome: string; convite_aceito: boolean; clinicas?: { nome: string } | null }

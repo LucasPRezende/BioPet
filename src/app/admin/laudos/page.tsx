@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 
 interface Laudo {
   id: number
+  pet_id: number | null
   nome_pet: string
   especie: string
   tutor: string
@@ -184,7 +185,8 @@ export default function LaudosPage() {
                   <tr key={laudo.id} className="hover:bg-amber-50/30 transition">
                     <td className="px-4 py-4 text-gray-400 text-sm whitespace-nowrap">{fmt(laudo.created_at)}</td>
                     <td className="px-4 py-4">
-                      <span className="font-semibold text-[#19202d]">{laudo.nome_pet}</span>
+                      <a href={laudo.pet_id ? `/admin/pets/${laudo.pet_id}` : '#'}
+                        className="font-semibold text-[#19202d] hover:text-[#8a6e36] hover:underline">{laudo.nome_pet}</a>
                       {laudo.tipo === 'gerado' && (
                         <span className="ml-2 text-[10px] bg-amber-50 text-[#8a6e36] border border-[#8a6e36]/20 px-1.5 py-0.5 rounded">
                           Gerado

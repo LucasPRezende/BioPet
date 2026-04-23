@@ -5,11 +5,98 @@ import { useRouter } from 'next/navigation'
 
 import { EXAM_CODES, type MindrayResult } from '@/lib/mindray-types'
 import TutorBusca from '@/components/TutorBusca'
+import { ESPECIES, ESPECIE_PARA_REF } from '@/lib/especies'
 
-const ESPECIES = ['Cachorro', 'Gato', 'Pássaro', 'Coelho', 'Hamster', 'Réptil', 'Outro']
+interface Referencia {
+  id:           number
+  exame_id:     number
+  codigo:       string
+  nome:         string
+  faixa_etaria: string
+  metodo:       string
+  valor_min:    number | null
+  valor_max:    number | null
+  unidade:      string | null
+}
+
+function calcFaixaEtaria(especie: string, idadeStr: string): string {
+  const num = parseFloat(idadeStr)
+  if (isNaN(num)) return 'todos'
+  const anos = idadeStr.toLowerCase().includes('mes') || idadeStr.toLowerCase().includes('mês') ? num / 12 : num
+  const esp = especie.toLowerCase()
+  if (esp === 'canina') {
+    if (anos < 1) return 'filhote'
+    if (anos <= 7) return 'adulto'
+    return 'idoso'
+  }
+  if (esp === 'felina') {
+    if (anos < 1) return 'filhote'
+    if (anos <= 10) return 'adulto'
+    return 'idoso'
+  }
+  return 'todos'
+}
+
+function especieParaBanco(especie: string): string {
+  return ESPECIE_PARA_REF[especie] ?? 'outro'
+}
+
+function refStatusBadge(valor: string, ref: Referencia | undefined) {
+  if (!ref || ref.valor_min === null || ref.valor_max === null) {
+    return <span className="text-[10px] font-semibold bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded whitespace-nowrap">— S/R</span>
+  }
+  const n = parseFloat(valor)
+  if (isNaN(n)) return null
+  if (n < ref.valor_min) return <span className="text-[10px] font-bold bg-red-100 text-red-600 px-1.5 py-0.5 rounded whitespace-nowrap">↓ Baixo</span>
+  if (n > ref.valor_max) return <span className="text-[10px] font-bold bg-red-100 text-red-600 px-1.5 py-0.5 rounded whitespace-nowrap">↑ Alto</span>
+  return <span className="text-[10px] font-bold bg-green-100 text-green-700 px-1.5 py-0.5 rounded whitespace-nowrap">✓ Normal</span>
+}
+
 const SEXOS    = ['Macho', 'Fêmea', 'Não informado']
 
 const INPUT = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8a6e36] focus:border-transparent bg-white'
+
+// ── MetodoSelect ─────────────────────────────────────────────────────────────
+function MetodoSelect({ opcoes, value, onChange }: {
+  opcoes:   { id: number; metodo: string; unidade: string | null }[]
+  value:    string
+  onChange: (metodo: string, unidade: string | null) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const selected = opcoes.find(o => o.metodo === value)
+
+  return (
+    <div className="relative w-full">
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        className="w-full flex items-center justify-between border-b border-gray-200 hover:border-[#c4a35a] focus:border-[#c4a35a] focus:outline-none py-1 text-sm bg-transparent text-left gap-1"
+      >
+        <span className={selected ? 'text-[#19202d]' : 'text-gray-400'}>
+          {selected ? selected.metodo : '— selecionar —'}
+        </span>
+        <svg className={`w-3 h-3 shrink-0 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 10 6">
+          <path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute z-30 top-full mt-1 left-0 min-w-max bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+          {opcoes.map(o => (
+            <button
+              key={o.id}
+              type="button"
+              onMouseDown={() => { onChange(o.metodo, o.unidade); setOpen(false) }}
+              className={`w-full text-left px-3 py-2 text-sm hover:bg-amber-50 hover:text-[#8a6e36] transition border-b border-gray-50 last:border-0 whitespace-nowrap ${o.metodo === value ? 'bg-amber-50/60 text-[#8a6e36] font-medium' : 'text-[#19202d]'}`}
+            >
+              {o.metodo}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 interface Vet { id: number; nome: string; convite_aceito?: boolean; clinicas?: { nome: string } | null }
 
@@ -137,64 +224,26 @@ function NovoVetModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
 }
 
 interface Form {
-  nome_pet:   string
-  especie:    string
-  raca:       string
-  sexo:       string
-  idade:      string
-  tutor:      string
-  telefone:   string
-  data_laudo: string
+  nome_pet:    string
+  especie:     string
+  raca:        string
+  sexo:        string
+  idade:       string
+  peso:        string
+  faixa_etaria: string
+  tutor:       string
+  telefone:    string
+  material:    string
+  data_laudo:  string
   veterinario_id: string
 }
 
-function statusBadge(s: string) {
-  if (s === 'H') return <span className="text-xs font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded">↑ H</span>
-  if (s === 'L') return <span className="text-xs font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">↓ L</span>
-  return null
-}
 
-/** Build an HTML table from results — used as `texto` for the PDF generator */
-function buildTexto(resultados: MindrayResult[]): string {
-  if (resultados.length === 0) return '<p>Sem resultados.</p>'
-
-  const rows = resultados
-    .filter(r => r.valor)
-    .map(r => {
-      const statusCell = r.status === 'H'
-        ? '<strong style="color:#dc2626">H ↑</strong>'
-        : r.status === 'L'
-        ? '<strong style="color:#2563eb">L ↓</strong>'
-        : '—'
-      return `<tr>
-        <td style="padding:4px 8px;border:1px solid #e5e7eb">${r.nome}</td>
-        <td style="padding:4px 8px;border:1px solid #e5e7eb;text-align:right">${r.valor}</td>
-        <td style="padding:4px 8px;border:1px solid #e5e7eb">${r.unidade}</td>
-        <td style="padding:4px 8px;border:1px solid #e5e7eb">${r.metodo ?? ''}</td>
-        <td style="padding:4px 8px;border:1px solid #e5e7eb;text-align:center">${statusCell}</td>
-      </tr>`
-    })
-    .join('\n')
-
-  return `<table style="width:100%;border-collapse:collapse;font-size:13px">
-  <thead>
-    <tr style="background:#f3f4f6">
-      <th style="padding:6px 8px;border:1px solid #e5e7eb;text-align:left">Exame</th>
-      <th style="padding:6px 8px;border:1px solid #e5e7eb;text-align:right">Resultado</th>
-      <th style="padding:6px 8px;border:1px solid #e5e7eb;text-align:left">Unidade</th>
-      <th style="padding:6px 8px;border:1px solid #e5e7eb;text-align:left">Método</th>
-      <th style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center">Status</th>
-    </tr>
-  </thead>
-  <tbody>
-${rows}
-  </tbody>
-</table>`
-}
 
 export default function NovoBioquimicaPage() {
   const router = useRouter()
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef   = useRef<HTMLInputElement>(null)
+  const faixaManualRef = useRef(false)
 
   const [form, setForm] = useState<Form>({
     nome_pet:       '',
@@ -202,8 +251,11 @@ export default function NovoBioquimicaPage() {
     raca:           '',
     sexo:           '',
     idade:          '',
+    peso:           '',
+    faixa_etaria:   '',
     tutor:          '',
     telefone:       '',
+    material:       'Soro sanguíneo',
     data_laudo:     new Date().toLocaleDateString('en-CA'),
     veterinario_id: '',
   })
@@ -221,6 +273,8 @@ export default function NovoBioquimicaPage() {
   const [petId,      setPetId]      = useState<number | null>(null)
   const [vetId,      setVetId]      = useState<number | null>(null)
   const [vetModal,   setVetModal]   = useState(false)
+  const [referencias,  setReferencias]  = useState<Referencia[]>([])
+  const [examesCad,    setExamesCad]    = useState<{ codigo: string; nome: string }[]>([])
 
   const loadVets = useCallback(async () => {
     const res = await fetch('/api/veterinarios')
@@ -229,8 +283,52 @@ export default function NovoBioquimicaPage() {
 
   useEffect(() => { loadVets() }, [loadVets])
 
+  useEffect(() => {
+    fetch('/api/bioquimica/exames')
+      .then(r => r.json())
+      .then((d: { codigo: string | null; nome: string }[]) =>
+        setExamesCad(d.filter(e => e.codigo).map(e => ({ codigo: e.codigo!, nome: e.nome })))
+      )
+      .catch(() => {})
+  }, [])
+
+  // Auto-suggest faixa_etaria when especie/idade change, unless user chose manually
+  useEffect(() => {
+    if (!form.especie || faixaManualRef.current) return
+    const sugestao = calcFaixaEtaria(form.especie, form.idade)
+    if (sugestao !== 'todos') {
+      setForm(p => ({ ...p, faixa_etaria: sugestao }))
+    }
+  }, [form.especie, form.idade])
+
+  // Fetch references whenever especie or faixa_etaria changes; auto-fills method when only one exists
+  useEffect(() => {
+    if (!form.especie || !form.faixa_etaria) { setReferencias([]); return }
+    const esp = especieParaBanco(form.especie)
+    fetch(`/api/bioquimica/referencia?especie=${esp}&faixa_etaria=${form.faixa_etaria}`)
+      .then(r => r.json())
+      .then(d => {
+        const refs: Referencia[] = d.referencias ?? []
+        setReferencias(refs)
+        setResultados(prev => prev.map(r => {
+          if (r.metodo) return r
+          const metodosRef = refs.filter(ref => ref.codigo === r.codigo && ref.metodo)
+          if (metodosRef.length !== 1) return r
+          return { ...r, metodo: metodosRef[0].metodo, unidade: metodosRef[0].unidade ?? r.unidade }
+        }))
+      })
+      .catch(() => setReferencias([]))
+  }, [form.especie, form.faixa_etaria])
+
   function handleFormChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
-    setForm(p => ({ ...p, [e.target.name]: e.target.value }))
+    const { name, value } = e.target
+    if (name === 'faixa_etaria') faixaManualRef.current = true
+    if (name === 'especie')      faixaManualRef.current = false
+    setForm(p => ({
+      ...p,
+      [name]: value,
+      ...(name === 'especie' ? { faixa_etaria: '' } : {}),
+    }))
   }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -261,13 +359,10 @@ export default function NovoBioquimicaPage() {
 
     setForm(prev => ({
       ...prev,
-      nome_pet: data.paciente  || prev.nome_pet,
-      especie:  data.especie   || prev.especie,
-      sexo:     data.sexo      || prev.sexo,
-      idade:    data.idade     || prev.idade,
-      data_laudo: data.data_exame
-        ? parseXpsDate(data.data_exame)
-        : prev.data_laudo,
+      nome_pet: data.paciente || prev.nome_pet,
+      especie:  data.especie  || prev.especie,
+      sexo:     data.sexo     || prev.sexo,
+      idade:    data.idade    || prev.idade,
     }))
   }
 
@@ -309,29 +404,63 @@ export default function NovoBioquimicaPage() {
 
     setSubmitting(true)
 
-    const texto = buildTexto(resultados)
+    const selectedVet = vets.find(v => v.id === vetId)
 
-    const fd = new FormData()
-    fd.append('nome_pet',          form.nome_pet)
-    fd.append('especie',           form.especie)
-    fd.append('tutor',             form.tutor)
-    fd.append('telefone',          form.telefone)
-    fd.append('sexo',              form.sexo)
-    fd.append('raca',              form.raca)
-    fd.append('idade',             form.idade)
-    fd.append('data_laudo',        form.data_laudo)
-    fd.append('tipo_exame',        'Bioquímica')
-    fd.append('texto',             texto)
-    const selectedVet2 = vets.find(v => v.id === vetId)
-    fd.append('medico_responsavel', selectedVet2?.nome ?? '')
-    if (vetId) fd.append('veterinario_id', String(vetId))
-    if (tutorId) fd.append('tutor_id', String(tutorId))
-    if (petId)   fd.append('pet_id',   String(petId))
+    // Merge reference values into exam results for the PDF (match by code + method)
+    const resultadosComRef = resultados.map(r => {
+      const metodo = r.metodo ?? ''
+      const ref = referencias.find(ref => ref.codigo === r.codigo && ref.metodo === metodo)
+             ?? referencias.find(ref => ref.codigo === r.codigo && ref.metodo === '')
+      return {
+        codigo:    r.codigo,
+        nome:      r.nome,
+        valor:     r.valor,
+        unidade:   r.unidade,
+        metodo,
+        status:    r.status,
+        valor_min: ref?.valor_min ?? null,
+        valor_max: ref?.valor_max ?? null,
+      }
+    })
 
-    const res = await fetch('/api/laudos/gerar', { method: 'POST', body: fd })
+    const payload = {
+      pdfData: {
+        nome_pet:   form.nome_pet,
+        especie:    form.especie,
+        raca:       form.raca,
+        sexo:       form.sexo,
+        idade:      form.idade,
+        peso:       form.peso,
+        tutor:      form.tutor,
+        telefone:   form.telefone,
+        material:   form.material,
+        medico:     selectedVet?.nome ?? '',
+        crmv:       '',
+        clinica:    typeof selectedVet?.clinicas === 'object' && selectedVet.clinicas !== null
+                      ? (selectedVet.clinicas as { nome: string }).nome
+                      : '',
+        data_laudo: form.data_laudo,
+        resultados: resultadosComRef,
+      },
+      tutor:              form.tutor,
+      telefone:           form.telefone,
+      sexo:               form.sexo,
+      raca:               form.raca,
+      medico_responsavel: selectedVet?.nome ?? '',
+      data_laudo:         form.data_laudo,
+      veterinario_id:     vetId,
+      tutor_id:           tutorId,
+      pet_id:             petId,
+      agendamento_id:     null,
+    }
+
+    const res = await fetch('/api/laudos/gerar-bioquimica', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload),
+    })
 
     if (res.ok) {
-      const laudo = await res.json()
       router.push('/admin/laudos')
     } else {
       const d = await res.json().catch(() => ({}))
@@ -503,8 +632,33 @@ export default function NovoBioquimicaPage() {
                     placeholder="Ex: 3 anos" className={INPUT} />
                 </div>
                 <div>
+                  <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+                    Faixa Etária <span className="text-[#c4a35a] font-normal normal-case tracking-normal">(altera a referência)</span>
+                  </label>
+                  <select name="faixa_etaria" value={form.faixa_etaria} onChange={handleFormChange} className={INPUT}>
+                    <option value="">Selecione...</option>
+                    <option value="filhote">Filhote</option>
+                    <option value="adulto">Adulto</option>
+                    <option value="idoso">Idoso</option>
+                    <option value="todos">Todos</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Peso</label>
+                  <input type="text" name="peso" value={form.peso} onChange={handleFormChange}
+                    placeholder="Ex: 12,5 kg" className={INPUT} />
+                </div>
+                <div>
                   <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Data do Laudo</label>
                   <input type="date" name="data_laudo" value={form.data_laudo} onChange={handleFormChange} className={INPUT} />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Material</label>
+                  <select name="material" value={form.material} onChange={handleFormChange} className={INPUT}>
+                    <option value="Soro sanguíneo">Soro sanguíneo</option>
+                    <option value="Plasma">Plasma</option>
+                    <option value="Sangue total">Sangue total</option>
+                  </select>
                 </div>
               </div>
             </div>
@@ -540,6 +694,7 @@ export default function NovoBioquimicaPage() {
                         <th className="text-right text-xs font-semibold text-gray-400 uppercase pb-2 px-3">Resultado</th>
                         <th className="text-left text-xs font-semibold text-gray-400 uppercase pb-2 px-3">Unidade</th>
                         <th className="text-left text-xs font-semibold text-gray-400 uppercase pb-2 px-3">Método</th>
+                        <th className="text-left text-xs font-semibold text-gray-400 uppercase pb-2 px-3">Referência</th>
                         <th className="text-center text-xs font-semibold text-gray-400 uppercase pb-2 px-3">Status</th>
                         <th className="pb-2 w-8" />
                       </tr>
@@ -547,7 +702,7 @@ export default function NovoBioquimicaPage() {
                     <tbody>
                       {resultados.map((r, i) => (
                         <tr key={i} className="border-b border-gray-50 last:border-0">
-                          <td className="py-1.5 pr-3">
+                          <td className="py-3 pr-3">
                             <input
                               type="text"
                               value={r.nome}
@@ -556,7 +711,7 @@ export default function NovoBioquimicaPage() {
                               placeholder="Nome do exame"
                             />
                           </td>
-                          <td className="py-1.5 px-3">
+                          <td className="py-3 px-3">
                             <input
                               type="text"
                               value={r.valor}
@@ -565,7 +720,7 @@ export default function NovoBioquimicaPage() {
                               placeholder="0.00"
                             />
                           </td>
-                          <td className="py-1.5 px-3">
+                          <td className="py-3 px-3">
                             <input
                               type="text"
                               value={r.unidade}
@@ -574,29 +729,49 @@ export default function NovoBioquimicaPage() {
                               placeholder="U/L"
                             />
                           </td>
-                          <td className="py-1.5 px-3">
-                            <input
-                              type="text"
-                              value={r.metodo ?? ''}
-                              onChange={e => updateResultado(i, 'metodo', e.target.value)}
-                              className="w-28 border-0 border-b border-gray-200 focus:border-[#c4a35a] focus:outline-none text-sm py-1 bg-transparent"
-                              placeholder="Ex: Cinético"
-                            />
+                          <td className="py-3 px-3 w-44">
+                            {(() => {
+                              const metodosRef = referencias.filter(ref => ref.codigo === r.codigo && ref.metodo)
+                              if (metodosRef.length > 0) {
+                                return (
+                                  <MetodoSelect
+                                    opcoes={metodosRef}
+                                    value={r.metodo ?? ''}
+                                    onChange={(metodo, unidade) => setResultados(prev => {
+                                      const next = [...prev]
+                                      next[i] = { ...next[i], metodo, unidade: unidade ?? next[i].unidade }
+                                      return next
+                                    })}
+                                  />
+                                )
+                              }
+                              return (
+                                <input
+                                  type="text"
+                                  value={r.metodo ?? ''}
+                                  onChange={e => updateResultado(i, 'metodo', e.target.value)}
+                                  className="w-full border-0 border-b border-gray-200 focus:border-[#c4a35a] focus:outline-none text-sm py-1 bg-transparent"
+                                  placeholder="Ex: Cinético"
+                                />
+                              )
+                            })()}
                           </td>
-                          <td className="py-1.5 px-3 text-center">
-                            <select
-                              value={r.status}
-                              onChange={e => updateResultado(i, 'status', e.target.value as MindrayResult['status'])}
-                              className="border-0 border-b border-gray-200 focus:border-[#c4a35a] focus:outline-none text-sm py-1 bg-transparent text-center"
-                            >
-                              <option value="">—</option>
-                              <option value="N">N</option>
-                              <option value="H">H ↑</option>
-                              <option value="L">L ↓</option>
-                            </select>
-                            {statusBadge(r.status)}
-                          </td>
-                          <td className="py-1.5 pl-2">
+                          {(() => {
+                            const metodo = r.metodo ?? ''
+                            const ref = referencias.find(ref => ref.codigo === r.codigo && ref.metodo === metodo)
+                                     ?? referencias.find(ref => ref.codigo === r.codigo && ref.metodo === '')
+                            return <>
+                              <td className="py-3 px-3 text-xs text-gray-400 whitespace-nowrap">
+                                {ref && ref.valor_min !== null && ref.valor_max !== null
+                                  ? `${ref.valor_min} – ${ref.valor_max} ${ref.unidade ?? ''}`
+                                  : <span className="text-gray-300">—</span>}
+                              </td>
+                              <td className="py-3 px-3 text-center">
+                                {r.valor ? refStatusBadge(r.valor, ref) : null}
+                              </td>
+                            </>
+                          })()}
+                          <td className="py-3 pl-2">
                             <button
                               type="button"
                               onClick={() => removeResultado(i)}
@@ -617,20 +792,28 @@ export default function NovoBioquimicaPage() {
                 <div className="mt-4 pt-3 border-t border-gray-100">
                   <p className="text-xs text-gray-400 mb-2">Adicionar exame conhecido:</p>
                   <div className="flex flex-wrap gap-1.5">
-                    {['TGP','TGO','AMIL','COL','CREA','FAL','GLIC','TRIG','UREIA','ALB','PROT','GGT','LDH','CK','LIPA'].map(code => (
+                    {examesCad.map(({ codigo, nome }) => (
                       <button
-                        key={code}
+                        key={codigo}
                         type="button"
                         onClick={() => {
-                          if (resultados.some(r => r.codigo === code)) return
-                          const info = EXAM_CODES[code]
-                          if (!info) return
-                          setResultados(p => [...p, { codigo: code, nome: info.nome, valor: '', unidade: info.unidade, metodo: '', status: '' }])
+                          if (resultados.some(r => r.codigo === codigo)) return
+                          const info = EXAM_CODES[codigo]
+                          const metodosRef = referencias.filter(ref => ref.codigo === codigo && ref.metodo)
+                          const autoRef    = metodosRef.length === 1 ? metodosRef[0] : null
+                          setResultados(p => [...p, {
+                            codigo,
+                            nome:    info?.nome    ?? nome,
+                            valor:   '',
+                            unidade: autoRef?.unidade ?? info?.unidade ?? '',
+                            metodo:  autoRef?.metodo  ?? '',
+                            status:  '',
+                          }])
                         }}
-                        disabled={resultados.some(r => r.codigo === code)}
+                        disabled={resultados.some(r => r.codigo === codigo)}
                         className="text-xs px-2 py-1 rounded border font-mono disabled:opacity-30 disabled:cursor-not-allowed bg-gray-50 hover:bg-amber-50 hover:border-[#c4a35a] border-gray-200 transition"
                       >
-                        {code}
+                        {codigo}
                       </button>
                     ))}
                   </div>
