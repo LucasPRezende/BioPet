@@ -38,7 +38,7 @@ export default function RichTextEditor({ value, onChange, placeholder }: Props) 
     if (!editor) return
     if (value === editor.getHTML()) return // nada mudou
     externalUpdate.current = true
-    editor.commands.setContent(value, false) // false = não emite onUpdate
+    editor.commands.setContent(value)
     externalUpdate.current = false
   }, [value, editor])
 

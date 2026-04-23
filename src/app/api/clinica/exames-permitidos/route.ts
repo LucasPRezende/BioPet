@@ -19,7 +19,7 @@ export async function GET() {
 
   const tipos = (perms ?? []).map(p => p.tipo_exame)
 
-  const { data: comissoes } = await supabase
+  const { data: comissoesRaw } = await supabase
     .from('comissoes_exame')
     .select(
       'tipo_exame, duracao_minutos, varia_por_horario, preco_exame, ' +
@@ -28,8 +28,14 @@ export async function GET() {
     )
     .in('tipo_exame', tipos.length > 0 ? tipos : ['__nenhum__'])
 
+  const comissoes = (comissoesRaw ?? [] as unknown[]) as unknown as {
+    tipo_exame: string; duracao_minutos: number | null; varia_por_horario: boolean
+    preco_exame: number | null; preco_pix_comercial: number | null; preco_cartao_comercial: number | null
+    preco_pix_fora_horario: number | null; preco_cartao_fora_horario: number | null
+  }[]
+
   const exames = tipos.map(tipo => {
-    const c = (comissoes ?? []).find(x => x.tipo_exame === tipo)
+    const c = comissoes.find(x => x.tipo_exame === tipo)
     const varia = c?.varia_por_horario ?? false
     return {
       tipo_exame:           tipo,

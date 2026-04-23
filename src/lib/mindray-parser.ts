@@ -184,6 +184,7 @@ export function parseMindrayXPS(buffer: Buffer): MindrayData {
         valor,
         unidade,
         status,
+        metodo: '',
       })
       seenCodes.add(code)
       break

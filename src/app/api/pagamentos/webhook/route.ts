@@ -26,10 +26,11 @@ export async function POST(request: NextRequest) {
             .eq('id', agendamentoId)
             .single()
 
+          const tutoresRaw = ag?.tutores as unknown
           const nomeTutor =
-            (Array.isArray(ag?.tutores)
-              ? ag.tutores[0]?.nome
-              : (ag?.tutores as { nome: string } | null)?.nome) ?? null
+            (Array.isArray(tutoresRaw)
+              ? (tutoresRaw[0] as { nome: string } | null)?.nome
+              : (tutoresRaw as { nome: string } | null)?.nome) ?? null
 
           await supabase
             .from('agendamentos')

@@ -1,0 +1,758 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>Laudo de Análises Clínicas — Veterinário</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:       #0F2942;   /* azul-petróleo da logo */
+    --ink-2:     #1B3A5B;
+    --teal:      #3BA7B0;   /* turquesa da logo */
+    --teal-soft: #CFE7E9;
+    --gold:      #C9A96A;   /* dourado da logo */
+    --gold-soft: #EFE3C9;
+    --cream:     #FAF7F2;
+    --paper:     #FFFFFF;
+    --line:      #E6E1D6;
+    --muted:     #6B7280;
+    --ok:        #2F8F6B;
+    --warn:      #B8863A;
+    --bad:       #B44B3A;
+  }
+
+  *{ box-sizing: border-box; }
+  html,body{ margin:0; padding:0; background:#ECE7DC; color:var(--ink);
+             font-family:'Inter', sans-serif; -webkit-font-smoothing:antialiased; }
+
+  /* ———— PÁGINA A4 ———— */
+  .page{
+    width: 210mm;
+    min-height: 297mm;
+    margin: 16px auto;
+    background: var(--paper);
+    position: relative;
+    padding: 0 12mm 50mm 12mm;
+    box-shadow: 0 18px 60px rgba(15,41,66,.12), 0 2px 6px rgba(15,41,66,.06);
+    overflow: hidden;
+  }
+
+
+  .header{
+    position: relative;
+    margin: 0 -12mm 0 -12mm;
+    background: #0D2339;
+    color: #fff;
+    padding: 3mm 14mm 3mm 14mm;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .header::after{
+    content:"";
+    position:absolute; left:0; right:0; bottom:-2.5mm; height:2.5mm;
+    background: linear-gradient(90deg, var(--gold) 0%, var(--gold-soft) 50%, var(--gold) 100%);
+  }
+  .logo-full{
+    height: 22mm;
+    width: auto;
+    max-width: 100%;
+    display:block;
+    filter: drop-shadow(0 2px 6px rgba(0,0,0,.25));
+  }
+
+  .doc-meta{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 3mm 0 0 6mm;
+    font-size: 7.5pt;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+  .doc-meta .left{ text-align:left; }
+  .doc-meta .right{ text-align:right; }
+
+  /* faixa do título após a barra dourada */
+  .doc-title-bar{
+    margin: 4mm 0 0 6mm;
+    padding-bottom: 3mm;
+    border-bottom: 1px solid var(--line);
+    display:flex; align-items: baseline; justify-content: space-between; gap: 6mm;
+  }
+  .doc-title-bar h1{
+    margin: 0;
+    font-family:'Inter', sans-serif;
+    font-weight: 700;
+    font-size: 16pt;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--ink);
+  }
+  .doc-title-bar .subtitle{
+    font-family:'Cormorant Garamond', serif;
+    font-style: italic;
+    color: var(--teal);
+    font-size: 12pt;
+  }
+
+  /* ———— TÍTULO DO LAUDO ———— */
+  .title-block{
+    margin-top: 8mm;
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    gap: 6mm;
+  }
+  .title-block h1{
+    font-family:'Cormorant Garamond', serif;
+    font-weight:500;
+    font-size: 32pt;
+    margin:0;
+    letter-spacing: .3px;
+    color: var(--ink);
+  }
+  .title-block .kicker{
+    font-size: 8pt;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--gold);
+    font-weight: 600;
+  }
+  .title-block .subtitle{
+    font-family:'Cormorant Garamond', serif;
+    font-style: italic;
+    color: var(--teal);
+    font-size: 14pt;
+    margin-top: 1mm;
+  }
+
+  /* ———— GRUPO DE INFORMAÇÕES ———— */
+  .info-grid{
+    margin-top: 4mm;
+    display:grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0;
+    border: 1px solid var(--line);
+    background: linear-gradient(180deg, #FCFBF7 0%, #FFFFFF 100%);
+  }
+  .info-card{
+    padding: 3.5mm 4mm;
+    border-right: 1px solid var(--line);
+    position:relative;
+  }
+  .info-card:last-child{ border-right:none; }
+  .info-card .label{
+    font-size: 7pt;
+    letter-spacing: 1.8px;
+    text-transform: uppercase;
+    color: var(--teal);
+    font-weight: 600;
+    margin-bottom: 2mm;
+    display:flex; align-items:center; gap:2mm;
+  }
+  .info-card .label::before{
+    content:""; display:inline-block; width:3mm; height:1px; background: var(--gold);
+  }
+  .info-card dl{ margin:0; display:grid; grid-template-columns: auto 1fr; gap: 1mm 3mm; }
+  .info-card dt{ font-size: 8pt; color: var(--muted); font-weight:500; }
+  .info-card dd{ margin:0; font-size: 9pt; color: var(--ink); font-weight:500; }
+
+  /* ———— TABELA DE EXAMES ———— */
+  .section-head{
+    margin-top: 3mm;
+    margin-bottom: 1.5mm;
+    display:flex; align-items:center; gap: 4mm;
+  }
+  .section-head h2{
+    font-family:'Cormorant Garamond', serif;
+    font-weight:500;
+    font-size: 15pt;
+    margin:0;
+    color: var(--ink);
+    white-space:nowrap;
+  }
+  .section-head .rule{
+    flex:1; height:1px; background: var(--line); position:relative;
+  }
+  .section-head .rule::before{
+    content:""; position:absolute; left:0; top:-1px; width:12mm; height:2px; background:var(--gold);
+  }
+  .section-head .tag{
+    font-size:8pt; letter-spacing:2px; text-transform:uppercase;
+    color:var(--gold); font-weight:600;
+  }
+
+  table.exams{
+    width:100%;
+    border-collapse: collapse;
+    font-size: 9pt;
+  }
+  table.exams thead th{
+    background: var(--ink);
+    color: #fff;
+    font-weight:500;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    font-size: 7.2pt;
+    padding: 2mm 2.5mm;
+    text-align: left;
+    border: none;
+  }
+  table.exams thead th:first-child{ padding-left: 4mm; }
+  table.exams thead th.num-col{ text-align:right; }
+  table.exams thead th.center{ text-align:center; }
+
+  table.exams tbody td{
+    padding: 1.4mm 2.5mm;
+    border-bottom: 1px solid var(--line);
+    vertical-align: middle;
+  }
+  table.exams tbody tr:nth-child(even) td{ background: #FBF9F3; }
+  table.exams tbody td:first-child{ padding-left: 4mm; }
+
+  .exam-name{
+    font-weight: 600;
+    color: var(--ink);
+    font-size: 9pt;
+  }
+  .exam-name small{
+    display:block; font-weight:400; color: var(--muted);
+    font-size: 7pt; letter-spacing:.3px; margin-top:.3mm;
+  }
+
+  .num{
+    font-family:'JetBrains Mono', monospace;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    color: var(--ink);
+    font-size: 9pt;
+  }
+  .result-cell .num{ font-weight: 600; font-size: 9.8pt; color: var(--ink); }
+  .unit{ color: var(--muted); font-size: 7.5pt; margin-left:1mm; font-family:'Inter', sans-serif; }
+
+  /* barra indicador min — resultado — max */
+  .range{
+    width: 100%;
+    min-width: 32mm;
+    padding: 0 2mm;
+  }
+  .range-track{
+    position:relative;
+    height: 4px;
+    background: linear-gradient(90deg, var(--gold-soft) 0%, var(--teal-soft) 50%, var(--gold-soft) 100%);
+    border-radius: 2px;
+  }
+  .range-track .zone{
+    position:absolute; top:0; bottom:0;
+    background: var(--teal);
+    opacity:.85;
+    border-radius:2px;
+  }
+  .range-track .dot{
+    position:absolute; top:50%;
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    background: var(--ink);
+    border: 2px solid #fff;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 0 1px var(--ink);
+  }
+  .range-track .dot.low{ background: var(--warn); box-shadow: 0 0 0 1px var(--warn); }
+  .range-track .dot.high{ background: var(--bad); box-shadow: 0 0 0 1px var(--bad); }
+  .range-labels{
+    display:flex; justify-content:space-between;
+    font-family:'JetBrains Mono', monospace;
+    font-size: 7pt;
+    color: var(--muted);
+    margin-top: 1.2mm;
+  }
+
+  /* pílulas de status */
+  .status{
+    display:inline-flex; align-items:center; gap: 1.5mm;
+    font-size: 7pt;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: .8mm 2.5mm;
+    border-radius: 999px;
+    white-space:nowrap;
+    border: 1px solid transparent;
+  }
+  .status::before{
+    content:""; width: 5px; height: 5px; border-radius: 50%;
+  }
+  .status.normal{ color: var(--ok); background: #E9F3EE; border-color: #CDE6D8; }
+  .status.normal::before{ background: var(--ok); }
+  .status.low{    color: var(--warn); background: #F6EEDC; border-color: #EADFC0; }
+  .status.low::before{ background: var(--warn); }
+  .status.high{   color: var(--bad); background: #F6E4DF; border-color: #EBCBC3; }
+  .status.high::before{ background: var(--bad); }
+
+  /* ———— BARRA DE DATAS (abaixo do paciente) ———— */
+  .dates-bar{
+    display:flex;
+    gap: 10mm;
+    padding: 2mm 4mm;
+    margin-top: -1px;
+    border: 1px solid var(--line);
+    border-top: none;
+    background: var(--cream);
+  }
+  .date-row{
+    display:flex; align-items:baseline; gap: 3mm;
+  }
+  .date-label{
+    font-size: 7pt; letter-spacing: 1.8px; text-transform: uppercase;
+    color: var(--teal); font-weight: 600;
+  }
+  .date-value{
+    font-family:'JetBrains Mono', monospace;
+    font-size: 9pt; color: var(--ink); font-weight: 500;
+  }
+
+  /* ———— ASSINATURA (fixa no rodapé) ———— */
+  .sign-section{
+    position: absolute;
+    left: 14mm;
+    right: 12mm;
+    bottom: 15mm;
+    display:flex;
+    justify-content:center;
+  }
+  .signature{
+    text-align:center;
+    min-width: 80mm;
+    position: relative;
+  }
+  .sig-image{
+    display:block;
+    margin: 0 auto -3mm;
+    height: 14mm;
+    width: auto;
+    object-fit: contain;
+    position: relative;
+    z-index: 2;
+  }
+  .signature .sig-line{
+    border-top: 1px solid var(--ink);
+    padding-top: 2mm;
+    position: relative;
+  }
+  .signature .sig-name{
+    font-family:'Cormorant Garamond', serif;
+    font-size: 12pt;
+    color: var(--ink);
+    font-weight:600;
+  }
+  .signature .sig-role{
+    font-size: 8pt;
+    color: var(--muted);
+    margin-top: .5mm;
+  }
+  .signature .sig-crmv{
+    font-family:'JetBrains Mono', monospace;
+    font-size: 7.5pt;
+    color: var(--gold);
+    letter-spacing: 1.5px;
+    margin-top: 1mm;
+  }
+
+  /* rodapé */
+  .page-footer{
+    position:absolute;
+    left: 14mm; right: 12mm; bottom: 3mm;
+    display:flex; justify-content:space-between; align-items:flex-end;
+    font-size: 7pt;
+    color: var(--muted);
+    letter-spacing: .5px;
+    padding-top: 2mm;
+    border-top: 1px solid var(--line);
+    line-height: 1.6;
+  }
+  .page-footer .mark{
+    color: var(--gold);
+    font-family:'Cormorant Garamond', serif;
+    font-style: italic;
+    font-size: 9pt;
+  }
+
+  /* impressão — força preservação de cores no PDF */
+  @page { size: A4; margin: 0; }
+  @media print {
+    html,body{
+      background:#fff;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
+    *, *::before, *::after{
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    .page{ margin:0; box-shadow:none; width:210mm; min-height:297mm; }
+    .toolbar{ display:none !important; }
+  }
+
+  /* barra utilitária na tela */
+  .toolbar{
+    position: fixed; top: 16px; right: 16px; z-index: 10;
+    display:flex; gap:8px;
+    font-family:'Inter', sans-serif;
+  }
+  .toolbar button{
+    background: var(--ink); color:#fff; border:none;
+    padding: 9px 14px; border-radius: 6px;
+    font-size: 12px; font-weight:500; letter-spacing:.4px;
+    cursor:pointer; box-shadow: 0 6px 20px rgba(15,41,66,.25);
+  }
+  .toolbar button:hover{ background: var(--ink-2); }
+  .toolbar button.gold{ background: var(--gold); color: var(--ink); }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <button onclick="window.print()">Imprimir / Salvar PDF</button>
+</div>
+
+<article class="page" data-screen-label="Laudo">
+
+  <!-- CABEÇALHO -->
+  <header class="header">
+    <img class="logo-full" src="assets/logo-full.png" alt="Biopet — Laboratório Veterinário" />
+  </header>
+
+  <!-- TÍTULO DO DOCUMENTO -->
+  <div class="doc-title-bar">
+    <h1>Laudo de Análises Clínicas</h1>
+  </div>
+
+  <!-- META -->
+  <div class="doc-meta">
+    <span class="left"></span>
+  </div>
+
+
+
+  <!-- INFORMAÇÕES -->
+  <section class="info-grid" style="margin-top:5mm">
+    <div class="info-card">
+      <div class="label">Paciente</div>
+      <dl>
+        <dt>Nome</dt><dd>Thor</dd>
+        <dt>Espécie</dt><dd>Canina</dd>
+        <dt>Raça</dt><dd>Golden Retriever</dd>
+        <dt>Sexo</dt><dd>Macho</dd>
+        <dt>Idade</dt><dd>4 anos</dd>
+        <dt>Peso</dt><dd>28,6 kg</dd>
+      </dl>
+    </div>
+    <div class="info-card">
+      <div class="label">Tutor(a)</div>
+      <dl>
+        <dt>Nome</dt><dd>Mariana Alvarenga</dd>
+        <dt>Telefone</dt><dd>(11) 99812-4455</dd>
+      </dl>
+    </div>
+    <div class="info-card">
+      <div class="label">Solicitante</div>
+      <dl>
+        <dt>Médico(a)</dt><dd>Dra. Renata Oliveira</dd>
+        <dt>CRMV</dt><dd>SP 12.345</dd>
+        <dt>Clínica</dt><dd>Clínica PetVida</dd>
+        <dt>Material</dt><dd>Soro sanguíneo</dd>
+      </dl>
+    </div>
+  </section>
+
+  <!-- DATAS -->
+  <section class="dates-bar">
+    <div class="date-row">
+      <span class="date-label">Emissão</span>
+      <span class="date-value">20 / 04 / 2026</span>
+    </div>
+    <div class="date-row">
+      <span class="date-label">Coleta</span>
+      <span class="date-value">19 / 04 / 2026 · 08h42</span>
+    </div>
+  </section>
+
+  <!-- EXAMES -->
+  <div class="section-head">
+    <span class="tag">Resultados</span>
+    <h2>Perfil bioquímico</h2>
+    <div class="rule"></div>
+  </div>
+
+  <table class="exams">
+    <thead>
+      <tr>
+        <th style="width: 28%">Exame</th>
+        <th class="num-col" style="width: 12%">Resultado</th>
+        <th class="num-col" style="width: 8%">Mín.</th>
+        <th class="num-col" style="width: 8%">Máx.</th>
+        <th style="width: 18%">Valor de referência</th>
+        <th style="width: 14%">Método</th>
+        <th class="center" style="width: 12%">Status</th>
+      </tr>
+    </thead>
+    <tbody>
+
+      <!-- 1. TGP (ALT) -->
+      <tr>
+        <td class="exam-name">TGP <small>Alanina aminotransferase (ALT)</small></td>
+        <td class="result-cell"><span class="num">52</span><span class="unit">U/L</span></td>
+        <td class="num">10</td>
+        <td class="num">100</td>
+        <td>
+          <div class="range">
+            <div class="range-track">
+              <div class="zone" style="left:10%; right:10%"></div>
+              <div class="dot" style="left:46%"></div>
+            </div>
+            <div class="range-labels"><span>10</span><span>100 U/L</span></div>
+          </div>
+        </td>
+        <td style="font-size:7.5pt;color:var(--muted)">Cinético UV (IFCC)</td>
+        <td style="text-align:center"><span class="status normal">Normal</span></td>
+      </tr>
+
+      <!-- 2. TGO (AST) -->
+      <tr>
+        <td class="exam-name">TGO <small>Aspartato aminotransferase (AST)</small></td>
+        <td class="result-cell"><span class="num">61</span><span class="unit">U/L</span></td>
+        <td class="num">10</td>
+        <td class="num">50</td>
+        <td>
+          <div class="range">
+            <div class="range-track">
+              <div class="zone" style="left:10%; right:10%"></div>
+              <div class="dot high" style="left:92%"></div>
+            </div>
+            <div class="range-labels"><span>10</span><span>50 U/L</span></div>
+          </div>
+        </td>
+        <td style="font-size:7.5pt;color:var(--muted)">Cinético UV (IFCC)</td>
+        <td style="text-align:center"><span class="status high">Alto</span></td>
+      </tr>
+
+      <!-- 3. Alfa Amilase -->
+      <tr>
+        <td class="exam-name">Alfa-Amilase <small>Amilase pancreática</small></td>
+        <td class="result-cell"><span class="num">842</span><span class="unit">U/L</span></td>
+        <td class="num">300</td>
+        <td class="num">1500</td>
+        <td>
+          <div class="range">
+            <div class="range-track">
+              <div class="zone" style="left:10%; right:10%"></div>
+              <div class="dot" style="left:41%"></div>
+            </div>
+            <div class="range-labels"><span>300</span><span>1500 U/L</span></div>
+          </div>
+        </td>
+        <td style="font-size:7.5pt;color:var(--muted)">Cinético enzimático</td>
+        <td style="text-align:center"><span class="status normal">Normal</span></td>
+      </tr>
+
+      <!-- 4. Colesterol -->
+      <tr>
+        <td class="exam-name">Colesterol <small>Total</small></td>
+        <td class="result-cell"><span class="num">195</span><span class="unit">mg/dL</span></td>
+        <td class="num">135</td>
+        <td class="num">270</td>
+        <td>
+          <div class="range">
+            <div class="range-track">
+              <div class="zone" style="left:10%; right:10%"></div>
+              <div class="dot" style="left:50%"></div>
+            </div>
+            <div class="range-labels"><span>135</span><span>270 mg/dL</span></div>
+          </div>
+        </td>
+        <td style="font-size:7.5pt;color:var(--muted)">Enzimático colorimétrico</td>
+        <td style="text-align:center"><span class="status normal">Normal</span></td>
+      </tr>
+
+      <!-- 5. Creatinina -->
+      <tr>
+        <td class="exam-name">Creatinina <small>Função renal</small></td>
+        <td class="result-cell"><span class="num">0,6</span><span class="unit">mg/dL</span></td>
+        <td class="num">0,5</td>
+        <td class="num">1,5</td>
+        <td>
+          <div class="range">
+            <div class="range-track">
+              <div class="zone" style="left:10%; right:10%"></div>
+              <div class="dot low" style="left:15%"></div>
+            </div>
+            <div class="range-labels"><span>0,5</span><span>1,5 mg/dL</span></div>
+          </div>
+        </td>
+        <td style="font-size:7.5pt;color:var(--muted)">Cinético Jaffé</td>
+        <td style="text-align:center"><span class="status low">Baixo</span></td>
+      </tr>
+
+      <!-- 6. Fosfatase Alcalina -->
+      <tr>
+        <td class="exam-name">Fosfatase Alcalina <small>FA</small></td>
+        <td class="result-cell"><span class="num">98</span><span class="unit">U/L</span></td>
+        <td class="num">20</td>
+        <td class="num">150</td>
+        <td>
+          <div class="range">
+            <div class="range-track">
+              <div class="zone" style="left:10%; right:10%"></div>
+              <div class="dot" style="left:62%"></div>
+            </div>
+            <div class="range-labels"><span>20</span><span>150 U/L</span></div>
+          </div>
+        </td>
+        <td style="font-size:7.5pt;color:var(--muted)">Cinético (DGKC)</td>
+        <td style="text-align:center"><span class="status normal">Normal</span></td>
+      </tr>
+
+      <!-- 7. Glicose -->
+      <tr>
+        <td class="exam-name">Glicose <small>Jejum</small></td>
+        <td class="result-cell"><span class="num">88</span><span class="unit">mg/dL</span></td>
+        <td class="num">70</td>
+        <td class="num">110</td>
+        <td>
+          <div class="range">
+            <div class="range-track">
+              <div class="zone" style="left:10%; right:10%"></div>
+              <div class="dot" style="left:54%"></div>
+            </div>
+            <div class="range-labels"><span>70</span><span>110 mg/dL</span></div>
+          </div>
+        </td>
+        <td style="font-size:7.5pt;color:var(--muted)">Enzimático (GOD-POD)</td>
+        <td style="text-align:center"><span class="status normal">Normal</span></td>
+      </tr>
+
+      <!-- 8. Triglicerídeos -->
+      <tr>
+        <td class="exam-name">Triglicerídeos</td>
+        <td class="result-cell"><span class="num">172</span><span class="unit">mg/dL</span></td>
+        <td class="num">20</td>
+        <td class="num">150</td>
+        <td>
+          <div class="range">
+            <div class="range-track">
+              <div class="zone" style="left:10%; right:10%"></div>
+              <div class="dot high" style="left:95%"></div>
+            </div>
+            <div class="range-labels"><span>20</span><span>150 mg/dL</span></div>
+          </div>
+        </td>
+        <td style="font-size:7.5pt;color:var(--muted)">Enzimático colorimétrico</td>
+        <td style="text-align:center"><span class="status high">Alto</span></td>
+      </tr>
+
+      <!-- 9. Ureia -->
+      <tr>
+        <td class="exam-name">Ureia <small>Função renal</small></td>
+        <td class="result-cell"><span class="num">34</span><span class="unit">mg/dL</span></td>
+        <td class="num">15</td>
+        <td class="num">60</td>
+        <td>
+          <div class="range">
+            <div class="range-track">
+              <div class="zone" style="left:10%; right:10%"></div>
+              <div class="dot" style="left:44%"></div>
+            </div>
+            <div class="range-labels"><span>15</span><span>60 mg/dL</span></div>
+          </div>
+        </td>
+        <td style="font-size:7.5pt;color:var(--muted)">Cinético UV (GLDH)</td>
+        <td style="text-align:center"><span class="status normal">Normal</span></td>
+      </tr>
+
+      <!-- 10. Albumina -->
+      <tr>
+        <td class="exam-name">Albumina <small>Proteína sérica</small></td>
+        <td class="result-cell"><span class="num">3,1</span><span class="unit">g/dL</span></td>
+        <td class="num">2,6</td>
+        <td class="num">4,0</td>
+        <td>
+          <div class="range">
+            <div class="range-track">
+              <div class="zone" style="left:10%; right:10%"></div>
+              <div class="dot" style="left:42%"></div>
+            </div>
+            <div class="range-labels"><span>2,6</span><span>4,0 g/dL</span></div>
+          </div>
+        </td>
+        <td style="font-size:7.5pt;color:var(--muted)">Colorimétrico (BCG)</td>
+        <td style="text-align:center"><span class="status normal">Normal</span></td>
+      </tr>
+
+      <!-- 11. HDL -->
+      <tr>
+        <td class="exam-name">HDL <small>Colesterol HDL</small></td>
+        <td class="result-cell"><span class="num">62</span><span class="unit">mg/dL</span></td>
+        <td class="num">50</td>
+        <td class="num">120</td>
+        <td>
+          <div class="range">
+            <div class="range-track">
+              <div class="zone" style="left:10%; right:10%"></div>
+              <div class="dot" style="left:26%"></div>
+            </div>
+            <div class="range-labels"><span>50</span><span>120 mg/dL</span></div>
+          </div>
+        </td>
+        <td style="font-size:7.5pt;color:var(--muted)">Enzimático direto</td>
+        <td style="text-align:center"><span class="status normal">Normal</span></td>
+      </tr>
+
+      <!-- 12. Bilirrubina Total -->
+      <tr>
+        <td class="exam-name">Bilirrubina Total <small>Fração direta + indireta</small></td>
+        <td class="result-cell"><span class="num">0,28</span><span class="unit">mg/dL</span></td>
+        <td class="num">0,10</td>
+        <td class="num">0,50</td>
+        <td>
+          <div class="range">
+            <div class="range-track">
+              <div class="zone" style="left:10%; right:10%"></div>
+              <div class="dot" style="left:50%"></div>
+            </div>
+            <div class="range-labels"><span>0,10</span><span>0,50 mg/dL</span></div>
+          </div>
+        </td>
+        <td style="font-size:7.5pt;color:var(--muted)">Colorimétrico (DCA)</td>
+        <td style="text-align:center"><span class="status normal">Normal</span></td>
+      </tr>
+
+    </tbody>
+  </table>
+
+  <!-- ASSINATURA -->
+  <section class="sign-section">
+    <div class="signature">
+      <img class="sig-image" src="assets/assinatura.png" alt="Assinatura" />
+      <div class="sig-line">
+        <div class="sig-name">Luciana Pereira de Brites</div>
+        <div class="sig-role">Médica Responsável</div>
+        <div class="sig-crmv">CRMV 12923</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RODAPÉ -->
+  <div class="page-footer">
+    <span>Av. Sávio Cota de Almeida Gama, 137 — Niterói, Volta Redonda/RJ · 27283-526<br>(24) 99999-9867</span>
+    <span class="mark">Tecnologia, precisão e cuidado em cada resultado</span>
+  </div>
+
+</article>
+
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script></body>
+</html>

@@ -123,8 +123,8 @@ export function gerarSenhaTemporaria(): string {
   const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
   let senha = ''
   const arr = crypto.getRandomValues(new Uint8Array(8))
-  for (const byte of arr) {
-    senha += chars[byte % chars.length]
+  for (let i = 0; i < arr.length; i++) {
+    senha += chars[arr[i] % chars.length]
   }
   return senha
 }

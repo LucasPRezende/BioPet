@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell -Command \"Test-NetConnection -ComputerName localhost -Port 3000 -InformationLevel Quiet\")",
+      "Bash(vercel env:*)",
+      "Bash(node -e \":*)",
+      "Bash(curl -s http://localhost:3001/api/agente/configuracoes)",
+      "Bash(grep -E \"^\\(jszip|adm-zip|fflate\\)$\")",
+      "Bash(npm install:*)",
+      "Bash(curl -s http://localhost:3000 -o /dev/null -w \"%{http_code}\")",
+      "Bash(curl -s -X POST http://localhost:3000/api/auth/login -H \"Content-Type: application/json\" -d '{\"\"\"\"senha\"\"\"\":\"\"\"\"vet123\"\"\"\"}' -c /tmp/cookies.txt -D -)",
+      "Bash(ls src/app/login* src/app/api/auth/login/)",
+      "Bash(curl -s -X POST http://localhost:3000/api/auth/login -H \"Content-Type: application/json\" -d '{\"\"\"\"email\"\"\"\":\"\"\"\"rezende@biopet.com\"\"\"\",\"\"\"\"senha\"\"\"\":\"\"\"\"3ade68b1\"\"\"\"}' -c /tmp/cookies.txt -D -)",
+      "Bash(curl -s -X POST http://localhost:3000/api/auth/login -H \"Content-Type: application/json\" -d '{\"\"\"\"email\"\"\"\":\"\"\"\"rezende@biopet.com\"\"\"\",\"\"\"\"senha\"\"\"\":\"\"\"\"3ade68b1\"\"\"\"}' -c /tmp/cookies.txt -b /tmp/cookies.txt -D /tmp/headers.txt)",
+      "Read(//tmp/**)",
+      "Bash(SESSION=\"sys_session=5%3Aadmin%3A0%3A13598db443c5d4cc216cdafb33edd641c4962666d9033c973f90af978fd2c0d3\")",
+      "Bash(curl -s -X POST http://localhost:3000/api/laudos/importar-xps -H \"Cookie: $SESSION\" -F \"arquivo=@TESTE1.xps\")",
+      "Bash(npx tsc:*)",
+      "Bash(node -e \"const mp = require\\('mercadopago'\\); console.log\\('ok', Object.keys\\(mp\\).slice\\(0,5\\)\\)\")",
+      "Bash(supabase --version)",
+      "Bash(npx supabase *)",
+      "Bash(node *)",
+      "Bash(curl *)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\({**d.get\\('dependencies',{}\\), **d.get\\('devDependencies',{}\\)}, indent=2\\)\\)\")",
+      "Bash(npm ls *)",
+      "Bash(npx next *)",
+      "Bash(vercel whoami *)",
+      "Bash(vercel project *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(vercel ls *)",
+      "Bash(vercel --prod)",
+      "Bash(git commit -m 'fix: mover callGemini para fora do bloco if \\(strict mode TS error\\) *)",
+      "Bash(npm run *)",
+      "Bash(git commit -m 'fix: corrigir erros TypeScript para build Vercel *)"
+    ]
+  }
+}

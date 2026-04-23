@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
     const { data: comissoes } = await supabase
       .from('comissoes_exame')
       .select('tipo_exame, varia_por_horario, preco_exame, preco_pix_comercial')
-      .in('tipo_exame', [...tiposComValorZero])
+      .in('tipo_exame', Array.from(tiposComValorZero))
 
     const precoMap = new Map<string, number>()
     for (const c of comissoes ?? []) {
