@@ -3,12 +3,13 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
+import Link from 'next/link'
 
 export default function LoginPage() {
-  const [email,    setEmail]    = useState('')
-  const [senha,    setSenha]    = useState('')
-  const [error,    setError]    = useState('')
-  const [loading,  setLoading]  = useState(false)
+  const [email,   setEmail]   = useState('')
+  const [senha,   setSenha]   = useState('')
+  const [error,   setError]   = useState('')
+  const [loading, setLoading] = useState(false)
   const router = useRouter()
 
   async function handleSubmit(e: React.FormEvent) {
@@ -16,10 +17,10 @@ export default function LoginPage() {
     setLoading(true)
     setError('')
 
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
+    const res = await fetch('/api/auth/login-unificado', {
+      method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, senha }),
+      body:    JSON.stringify({ email, password: senha }),
     })
 
     const data = await res.json()
@@ -30,16 +31,7 @@ export default function LoginPage() {
       return
     }
 
-    if (data.user.primeira_senha) {
-      router.push('/troca-senha')
-      return
-    }
-
-    if (data.user.role === 'admin') {
-      router.push('/admin/dashboard')
-    } else {
-      router.push('/admin/laudos')
-    }
+    router.push(data.redirect)
   }
 
   return (
@@ -63,8 +55,6 @@ export default function LoginPage() {
 
         {/* Formulário */}
         <div className="px-8 py-7">
-          <p className="text-sm text-gray-400 mb-5 text-center">Acesso ao painel da clínica</p>
-
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
@@ -109,6 +99,19 @@ export default function LoginPage() {
               {loading ? 'Entrando...' : 'Entrar'}
             </button>
           </form>
+
+          <div className="mt-5 space-y-2 text-center">
+            <div>
+              <Link href="/clinica/cadastro" className="text-xs text-[#8a6e36] hover:underline">
+                Primeiro acesso como clínica parceira
+              </Link>
+            </div>
+            <div>
+              <Link href="/vet/recuperar" className="text-xs text-gray-400 hover:text-[#8a6e36] transition">
+                Veterinário — esqueci minha senha
+              </Link>
+            </div>
+          </div>
         </div>
       </div>
     </div>

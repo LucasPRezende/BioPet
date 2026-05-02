@@ -40,6 +40,7 @@ interface Agendamento {
   mp_init_point:         string | null
   veterinario_id:        number | null
   clinica_id:            number | null
+  is_revisao:            boolean | null
   tutores:               Tutor | null
   pets:                  Pet | null
   system_users:          { nome: string } | null
@@ -702,6 +703,11 @@ export default function AgendaPage() {
                           <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border ${STATUS_COLORS[status] ?? STATUS_COLORS['agendado']}`}>
                             {STATUS_LABELS[status] ?? status}
                           </span>
+                          {ag.is_revisao && (
+                            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-violet-100 text-violet-700 border border-violet-200">
+                              🔄 Revisão
+                            </span>
+                          )}
                         </div>
 
                         <p className="text-sm text-gray-600 mb-1.5">

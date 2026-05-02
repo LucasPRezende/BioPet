@@ -1,475 +1,336 @@
 import 'server-only'
-import { PDFDocument, StandardFonts, rgb, PDFPage, PDFFont } from 'pdf-lib'
-import { parse as parseHtml } from 'node-html-parser'
-import type { HTMLElement as ParsedEl } from 'node-html-parser'
 import fs from 'fs'
 import path from 'path'
-
-// ── Cores BioPet ─────────────────────────────────────────────────────────────
-const C_BLUE    = rgb(25 / 255,  32 / 255,  45 / 255)
-const C_GOLD    = rgb(138 / 255, 110 / 255, 54 / 255)
-const C_GOLDMID = rgb(196 / 255, 163 / 255, 90 / 255)
-const C_WHITE   = rgb(1, 1, 1)
-const C_BODY    = rgb(0.08, 0.08, 0.10)
-const C_MUTED   = rgb(0.45, 0.45, 0.45)
-const C_BORDER  = rgb(0.78, 0.70, 0.53)
-const C_BG_CARD = rgb(0.975, 0.965, 0.940)
-
-// ── Dimensões A4 ─────────────────────────────────────────────────────────────
-const PW = 595.28
-const PH = 841.89
-const MG = 48
-const CW = PW - 2 * MG
-const HEADER_H  = 78
-const FOOTER_H  = 42
-const USABLE_TOP = PH - HEADER_H - 10
-const USABLE_BOT = FOOTER_H + 10
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'
+import { launchBrowser } from './chromium'
 
 export interface LaudoFormData {
-  animal: string; especie: string; proprietario: string
-  sexo: string;   raca: string;    medico_responsavel: string
-  idade: string;  data: string;    texto: string
+  animal:             string
+  especie:            string
+  proprietario:       string
+  sexo:               string
+  raca:               string
+  medico_responsavel: string
+  idade:              string
+  data:               string
+  texto:              string
+  tipo_exame?:        string
 }
 
-// ── Tipos internos de bloco para o PDF ───────────────────────────────────────
-type FontKey = 'reg' | 'bold' | 'italic' | 'boldItalic'
+// ── Constantes de layout (em mm e pt) ────────────────────────────────────────
+const HEADER_H_MM    = 28      // altura do header desenhado pelo pdf-lib
+const HEADER_MARGIN_MM = 33    // margem @page (header + 5mm de respiro acima do conteúdo)
+const FOOTER_H_MM = 14      // altura reservada para o rodapé
+const SIDE_PAD_MM = 12      // padding lateral
+const PT_PER_MM   = 2.83465
 
-interface Segment { text: string; font: FontKey }
+const HEADER_H_PT = HEADER_H_MM * PT_PER_MM
+const FOOTER_H_PT = FOOTER_H_MM * PT_PER_MM
+const SIDE_PAD_PT = SIDE_PAD_MM * PT_PER_MM
 
-interface Block {
-  segments:    Segment[]
-  fontSize:    number
-  lineHeight:  number
-  indent:      number    // recuo em pontos
-  prefix:      string    // "• ", "1. ", ""
-  spaceBefore: number
-  spaceAfter:  number
+// Cores BioPet
+const C_NAVY  = rgb(13 / 255,  35 / 255,  57 / 255)   // #0D2339
+const C_GOLD  = rgb(201 / 255, 169 / 255, 106 / 255)  // #C9A96A
+const C_MUTED = rgb(107 / 255, 114 / 255, 128 / 255)  // #6B7280
+const C_LINE  = rgb(230 / 255, 225 / 255, 214 / 255)  // #E6E1D6
+
+function toBase64(filePath: string): string | null {
+  try { return fs.readFileSync(filePath).toString('base64') } catch { return null }
 }
 
-interface TableRow { cells: string[]; isHeader: boolean }
-
-interface TableBlock {
-  type:        'table'
-  rows:        TableRow[]
-  colWidths:   number[]   // absolute px for each column
-  spaceBefore: number
-  spaceAfter:  number
+function esc(s: string) {
+  return (s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
-type AnyBlock = Block | TableBlock
-
-// ── Parser HTML → Blocos ─────────────────────────────────────────────────────
-function parseInline(node: ParsedEl, bold = false, italic = false): Segment[] {
-  const segs: Segment[] = []
-  for (const child of node.childNodes) {
-    if (child.nodeType === 3) {
-      const text = (child as unknown as { text: string }).text.replace(/[\r\n\t]+/g, ' ')
-      if (text) {
-        const font: FontKey =
-          bold && italic ? 'boldItalic' : bold ? 'bold' : italic ? 'italic' : 'reg'
-        segs.push({ text, font })
-      }
-    } else {
-      const el = child as ParsedEl
-      const tag = el.tagName?.toLowerCase() ?? ''
-      segs.push(...parseInline(
-        el,
-        bold || ['strong', 'b'].includes(tag),
-        italic || ['em', 'i'].includes(tag),
-      ))
-    }
-  }
-  return segs
+function detectMime(buf: Buffer): string {
+  if (buf[0] === 0x89 && buf[1] === 0x50) return 'image/png'
+  if (buf[0] === 0xff && buf[1] === 0xd8) return 'image/jpeg'
+  if (buf[0] === 0x47 && buf[1] === 0x49) return 'image/gif'
+  if (buf[0] === 0x52 && buf[1] === 0x49) return 'image/webp'
+  return 'image/jpeg'
 }
 
-function htmlToBlocks(html: string): AnyBlock[] {
-  const blocks: AnyBlock[] = []
-  const root = parseHtml(html)
-
-  function walkTableRows(node: ParsedEl): TableRow[] {
-    const rows: TableRow[] = []
-    for (const child of node.childNodes) {
-      if (child.nodeType !== 1) continue
-      const el  = child as ParsedEl
-      const tag = el.tagName?.toLowerCase() ?? ''
-      if (tag === 'tr') {
-        const cells: string[] = []
-        let isHeader = false
-        for (const cell of el.childNodes) {
-          if (cell.nodeType !== 1) continue
-          const cellEl  = cell as ParsedEl
-          const cellTag = cellEl.tagName?.toLowerCase()
-          if (cellTag === 'td' || cellTag === 'th') {
-            cells.push(cellEl.text.replace(/\s+/g, ' ').trim())
-            if (cellTag === 'th') isHeader = true
-          }
-        }
-        if (cells.length > 0) rows.push({ cells, isHeader })
-      } else {
-        rows.push(...walkTableRows(el))
-      }
-    }
-    return rows
-  }
-
-  function walk(node: ParsedEl) {
-    for (const child of node.childNodes) {
-      if (child.nodeType !== 1) continue
-      const el   = child as ParsedEl
-      const tag  = el.tagName?.toLowerCase() ?? ''
-
-      if (tag === 'p') {
-        blocks.push({
-          segments: parseInline(el),
-          fontSize: 10.5, lineHeight: 16.5, indent: 0, prefix: '',
-          spaceBefore: 0, spaceAfter: 5,
-        })
-      } else if (tag === 'h2') {
-        blocks.push({
-          segments: parseInline(el, true),
-          fontSize: 13, lineHeight: 20, indent: 0, prefix: '',
-          spaceBefore: 8, spaceAfter: 4,
-        })
-      } else if (tag === 'h3') {
-        blocks.push({
-          segments: parseInline(el, true),
-          fontSize: 11, lineHeight: 17, indent: 0, prefix: '',
-          spaceBefore: 6, spaceAfter: 3,
-        })
-      } else if (tag === 'ul') {
-        const lis = el.childNodes.filter(n => n.nodeType === 1 && (n as ParsedEl).tagName?.toLowerCase() === 'li') as ParsedEl[]
-        for (const li of lis) {
-          blocks.push({
-            segments: parseInline(li),
-            fontSize: 10.5, lineHeight: 16, indent: 18, prefix: '• ',
-            spaceBefore: 0, spaceAfter: 3,
-          })
-        }
-      } else if (tag === 'ol') {
-        const lis = el.childNodes.filter(n => n.nodeType === 1 && (n as ParsedEl).tagName?.toLowerCase() === 'li') as ParsedEl[]
-        let idx = 1
-        for (const li of lis) {
-          blocks.push({
-            segments: parseInline(li),
-            fontSize: 10.5, lineHeight: 16, indent: 20, prefix: `${idx++}. `,
-            spaceBefore: 0, spaceAfter: 3,
-          })
-        }
-      } else if (tag === 'table') {
-        const rows = walkTableRows(el)
-        if (rows.length === 0) continue
-        const maxCols  = Math.max(...rows.map(r => r.cells.length))
-        // Column widths for biochemistry table (4 cols: name, result, unit, status)
-        const colWidths = maxCols === 4
-          ? [CW * 0.42, CW * 0.20, CW * 0.20, CW * 0.18]
-          : Array(maxCols).fill(CW / maxCols)
-        blocks.push({
-          type: 'table', rows, colWidths,
-          spaceBefore: 6, spaceAfter: 8,
-        })
-      } else {
-        walk(el)
-      }
-    }
-  }
-
-  walk(root)
-  return blocks
-}
-
-// ── Quebra de linha com formatação inline ─────────────────────────────────────
-interface Token { text: string; font: FontKey }
-
-function layoutBlock(
-  block: Block,
-  fonts: Record<FontKey, PDFFont>,
-  maxW: number,
-): Token[][] {
-  const tokens: Token[] = []
-
-  for (const seg of block.segments) {
-    const words = seg.text.split(/(\s+)/)
-    for (const w of words) {
-      if (w) tokens.push({ text: w, font: seg.font })
-    }
-  }
-
-  const lines: Token[][] = []
-  let line: Token[] = []
-  const prefixW = block.prefix ? fonts.reg.widthOfTextAtSize(block.prefix, block.fontSize) : 0
-  let curW = block.indent + prefixW
-
-  for (const tok of tokens) {
-    const tw = fonts[tok.font].widthOfTextAtSize(tok.text, block.fontSize)
-    const isSpace = /^\s+$/.test(tok.text)
-
-    if (!isSpace && curW + tw > maxW && line.length > 0) {
-      // trim trailing spaces
-      while (line.length && /^\s+$/.test(line[line.length - 1].text)) line.pop()
-      lines.push(line)
-      line = [tok]
-      curW = block.indent + tw
-    } else {
-      line.push(tok)
-      curW += tw
-    }
-  }
-  if (line.length) {
-    while (line.length && /^\s+$/.test(line[line.length - 1].text)) line.pop()
-    lines.push(line)
-  }
-  if (!lines.length) lines.push([]) // parágrafo vazio
-
-  return lines
-}
-
-// ── Gerador principal ─────────────────────────────────────────────────────────
 export async function generateLaudoPDF(
-  data: LaudoFormData,
+  data:           LaudoFormData,
   imagensBuffers: Buffer[],
 ): Promise<Buffer> {
-  const doc = await PDFDocument.create()
+  // ── 1. Renderiza só o CORPO via Puppeteer (sem header/rodapé) ──────────────
+  // As margens reservam o espaço onde pdf-lib vai desenhar header/rodapé depois
+  const html = buildBodyHtml(data, imagensBuffers)
 
-  const fonts: Record<FontKey, PDFFont> = {
-    reg:        await doc.embedFont(StandardFonts.Helvetica),
-    bold:       await doc.embedFont(StandardFonts.HelveticaBold),
-    italic:     await doc.embedFont(StandardFonts.HelveticaOblique),
-    boldItalic: await doc.embedFont(StandardFonts.HelveticaBoldOblique),
+  const browser = await launchBrowser()
+  let bodyPdfBytes: Uint8Array
+  try {
+    const page = await browser.newPage()
+    await page.setViewport({ width: 1240, height: 1754, deviceScaleFactor: 2 })
+    await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30_000 })
+    bodyPdfBytes = await page.pdf({
+      format:          'A4',
+      printBackground: true,
+      margin: {
+        top:    `${HEADER_MARGIN_MM}mm`,
+        bottom: `${FOOTER_H_MM}mm`,
+        left:   '0',
+        right:  '0',
+      },
+    })
+  } finally {
+    await browser.close()
   }
 
-  let logo: Awaited<ReturnType<typeof doc.embedPng>> | null = null
-  const logoPath = path.join(process.cwd(), 'public', 'logo.png')
-  if (fs.existsSync(logoPath)) {
-    try { logo = await doc.embedPng(fs.readFileSync(logoPath)) } catch { /* ignora */ }
-  }
+  // ── 2. Desenha header e rodapé em todas as páginas usando pdf-lib ──────────
+  return await drawHeaderFooterOnAllPages(Buffer.from(bodyPdfBytes))
+}
 
-  // ── Header ─────────────────────────────────────────────────────────────────
-  function drawHeader(page: PDFPage) {
-    page.drawRectangle({ x: 0, y: PH - HEADER_H, width: PW, height: HEADER_H, color: C_BLUE })
-    page.drawRectangle({ x: 0, y: PH - HEADER_H - 3, width: PW, height: 3, color: C_GOLD })
+async function drawHeaderFooterOnAllPages(bodyPdfBuffer: Buffer): Promise<Buffer> {
+  const pdfDoc = await PDFDocument.load(bodyPdfBuffer)
 
-    let textX = MG
-    if (logo) {
-      const scale = Math.min(58 / logo.width, 58 / logo.height)
-      const lw = logo.width * scale
-      const lh = logo.height * scale
-      page.drawImage(logo, { x: MG, y: PH - HEADER_H / 2 - lh / 2, width: lw, height: lh })
-      textX = MG + lw + 10
-    }
-    page.drawText('BioPet', { x: textX, y: PH - HEADER_H / 2 + 6, font: fonts.bold, size: 22, color: C_WHITE })
-    page.drawText('Medicina Veterinária', {
-      x: textX, y: PH - HEADER_H / 2 - 10,
-      font: fonts.reg, size: 8.5,
-      color: rgb(C_GOLDMID.red, C_GOLDMID.green, C_GOLDMID.blue),
+  // Carrega assets
+  const logoPath  = path.join(process.cwd(), 'template', 'assets', 'logo-full.png')
+  const logoBytes = fs.readFileSync(logoPath)
+  const logo      = await pdfDoc.embedPng(logoBytes)
+
+  const helvetica       = await pdfDoc.embedFont(StandardFonts.Helvetica)
+  const helveticaItalic = await pdfDoc.embedFont(StandardFonts.HelveticaOblique)
+
+  for (const page of pdfDoc.getPages()) {
+    const { width, height } = page.getSize()
+
+    // ── HEADER (faixa azul-marinho com logo + faixa dourada) ──────────────────
+    page.drawRectangle({
+      x: 0, y: height - HEADER_H_PT,
+      width, height: HEADER_H_PT,
+      color: C_NAVY,
+    })
+
+    // Logo centralizada — escala para caber respeitando padding vertical
+    const logoMaxH = HEADER_H_PT * 0.78
+    const logoMaxW = width * 0.5
+    const scale    = Math.min(logoMaxH / logo.height, logoMaxW / logo.width)
+    const lw       = logo.width  * scale
+    const lh       = logo.height * scale
+    page.drawImage(logo, {
+      x: (width - lw) / 2,
+      y: height - HEADER_H_PT + (HEADER_H_PT - lh) / 2,
+      width:  lw,
+      height: lh,
+    })
+
+    // Faixa dourada de 3pt logo abaixo do header
+    page.drawRectangle({
+      x: 0, y: height - HEADER_H_PT - 3,
+      width, height: 3,
+      color: C_GOLD,
+    })
+
+    // ── RODAPÉ (fixo no fundo, em todas as páginas) ──────────────────────────
+    // Linha superior do rodapé
+    page.drawLine({
+      start: { x: SIDE_PAD_PT,         y: FOOTER_H_PT - 4 },
+      end:   { x: width - SIDE_PAD_PT, y: FOOTER_H_PT - 4 },
+      thickness: 0.5,
+      color:     C_LINE,
+    })
+
+    // Endereço (esquerda, duas linhas)
+    page.drawText('Av. Sávio Cota de Almeida Gama, 137 - Niterói, Volta Redonda/RJ', {
+      x: SIDE_PAD_PT, y: FOOTER_H_PT - 14,
+      size: 7, font: helvetica, color: C_MUTED,
+    })
+    page.drawText('Whatsapp: (24) 99999-9867', {
+      x: SIDE_PAD_PT, y: FOOTER_H_PT - 23,
+      size: 7, font: helvetica, color: C_MUTED,
+    })
+
+    // Tagline (direita, itálico dourado)
+    const tagline = 'Tecnologia, precisão e cuidado em cada resultado'
+    const tw      = helveticaItalic.widthOfTextAtSize(tagline, 9)
+    page.drawText(tagline, {
+      x: width - SIDE_PAD_PT - tw, y: FOOTER_H_PT - 18,
+      size: 9, font: helveticaItalic, color: C_GOLD,
     })
   }
 
-  // ── Footer ──────────────────────────────────────────────────────────────────
-  function drawFooter(page: PDFPage) {
-    page.drawRectangle({ x: 0, y: FOOTER_H - 2, width: PW, height: 2, color: C_GOLD })
-    const txt = 'Luciana Pereira de Brites  •  Médica Veterinária  •  CRMV - 12923'
-    const tw  = fonts.italic.widthOfTextAtSize(txt, 8)
-    page.drawText(txt, {
-      x: (PW - tw) / 2, y: FOOTER_H - 18,
-      font: fonts.italic, size: 8, color: C_GOLD,
-    })
-  }
+  const result = await pdfDoc.save()
+  return Buffer.from(result)
+}
 
-  // ── Ficha do paciente ───────────────────────────────────────────────────────
-  function drawPatientCard(page: PDFPage, startY: number): number {
-    const BOX_H = 120
-    const boxY  = startY - BOX_H
-    page.drawRectangle({ x: MG, y: boxY, width: CW, height: BOX_H, color: C_BG_CARD })
-    page.drawRectangle({ x: MG, y: startY - 3, width: CW, height: 3, color: C_GOLD })
-    page.drawRectangle({ x: MG, y: boxY, width: CW, height: BOX_H, borderColor: C_BORDER, borderWidth: 0.6 })
+function buildBodyHtml(data: LaudoFormData, imagensBuffers: Buffer[]): string {
+  // Reaproveita os estilos do template original (variáveis, tipografia, cards)
+  const templatePath = path.join(process.cwd(), 'template', 'Laudo Veterinario.html')
+  const tpl          = fs.readFileSync(templatePath, 'utf-8')
+  const styleMatch   = tpl.match(/<style>([\s\S]*?)<\/style>/)
+  // Remove o @page do template (que tem margin:0) — vamos definir o nosso depois
+  const baseStyles   = (styleMatch ? styleMatch[1] : '').replace(/@page\s*\{[^}]*\}/g, '')
 
-    const COL3 = CW / 3
-    const COL2 = CW / 2
-    const PAD  = 9
+  const sigB64 = toBase64(path.join(process.cwd(), 'template', 'assets', 'assinatura.png'))
+  const sectionLabel = data.tipo_exame || 'Laudo'
 
-    function field(label: string, value: string, x: number, y: number) {
-      page.drawText(label.toUpperCase(), { x, y, font: fonts.bold, size: 6.5, color: C_GOLD })
-      page.drawText(value || '—', { x, y: y - 14, font: fonts.reg, size: 9.5, color: C_BODY })
-    }
-    function hline(y: number) {
-      page.drawLine({ start: { x: MG + PAD, y }, end: { x: MG + CW - PAD, y }, thickness: 0.4, color: C_BORDER })
-    }
+  // ── Cards do paciente ──────────────────────────────────────────────────────
+  const pacienteCard = `
+    <div class="info-card">
+      <div class="label">Paciente</div>
+      <dl>
+        <dt>Nome</dt><dd>${esc(data.animal)}</dd>
+        <dt>Espécie</dt><dd>${esc(data.especie)}</dd>
+        ${data.raca  ? `<dt>Raça</dt><dd>${esc(data.raca)}</dd>`  : ''}
+        ${data.sexo  ? `<dt>Sexo</dt><dd>${esc(data.sexo)}</dd>`  : ''}
+        ${data.idade ? `<dt>Idade</dt><dd>${esc(data.idade)}</dd>` : ''}
+      </dl>
+    </div>
+    <div class="info-card">
+      <div class="label">Responsável Legal</div>
+      <dl><dt>Nome</dt><dd>${esc(data.proprietario)}</dd></dl>
+    </div>
+    <div class="info-card">
+      <div class="label">Responsável Técnico</div>
+      <dl><dt>Médico(a)</dt><dd>${esc(data.medico_responsavel || 'Luciana Pereira de Brites')}</dd></dl>
+    </div>`
 
-    const r1 = startY - 20
-    field('Animal',       data.animal,       MG + PAD,            r1)
-    field('Espécie',      data.especie,      MG + PAD + COL3,      r1)
-    field('Proprietário', data.proprietario, MG + PAD + COL3 * 2,  r1)
-    hline(startY - 42)
+  // ── Páginas de imagem (até 2 por página) ───────────────────────────────────
+  let imagePagesHtml = ''
+  if (imagensBuffers.length > 0) {
+    // Altura útil = 297 - margem topo - margem base - padding interno
+    const AREA_MM      = 297 - HEADER_MARGIN_MM - FOOTER_H_MM - 8
+    const MAX_PER_PAGE = 2
 
-    const r2 = startY - 52
-    field('Sexo',  data.sexo,  MG + PAD,           r2)
-    field('Raça',  data.raca,  MG + PAD + COL3,     r2)
-    field('Médico Veterinário Responsável', data.medico_responsavel, MG + PAD + COL3 * 2, r2)
-    hline(startY - 76)
-
-    const r3 = startY - 86
-    field('Idade', data.idade, MG + PAD,        r3)
-    field('Data',  data.data,  MG + PAD + COL2, r3)
-
-    return boxY - 14
-  }
-
-  // ── Renderiza tabela no PDF ────────────────────────────────────────────────
-  function drawTableBlock(
-    page: PDFPage, block: TableBlock, startY: number,
-  ): [PDFPage, number] {
-    let curPage = page
-    let curY    = startY - block.spaceBefore
-
-    const ROW_H    = 17
-    const CELL_PAD = 5
-    const FS       = 9
-
-    for (const row of block.rows) {
-      if (curY - ROW_H < USABLE_BOT) {
-        curPage = doc.addPage([PW, PH])
-        drawHeader(curPage)
-        drawFooter(curPage)
-        curY = USABLE_TOP
-      }
-
-      // Background: header rows get gold tint, odd data rows get light grey
-      const rowIndex = block.rows.indexOf(row)
-      if (row.isHeader) {
-        curPage.drawRectangle({
-          x: MG, y: curY - ROW_H + 3,
-          width: CW, height: ROW_H,
-          color: C_BG_CARD,
-        })
-      } else if (rowIndex % 2 === 0) {
-        curPage.drawRectangle({
-          x: MG, y: curY - ROW_H + 3,
-          width: CW, height: ROW_H,
-          color: rgb(0.98, 0.98, 0.98),
-        })
-      }
-
-      // Draw cells
-      let cellX = MG
-      for (let i = 0; i < row.cells.length; i++) {
-        const text = row.cells[i] ?? ''
-        if (text) {
-          curPage.drawText(text, {
-            x: cellX + CELL_PAD,
-            y: curY - ROW_H + 6,
-            font: row.isHeader ? fonts.bold : fonts.reg,
-            size: FS,
-            color: C_BODY,
-            maxWidth: (block.colWidths[i] ?? CW) - CELL_PAD * 2,
-          })
-        }
-        cellX += block.colWidths[i] ?? CW
-      }
-
-      // Bottom border
-      curPage.drawLine({
-        start: { x: MG, y: curY - ROW_H + 3 },
-        end:   { x: MG + CW, y: curY - ROW_H + 3 },
-        thickness: 0.4,
-        color: C_BORDER,
-      })
-
-      curY -= ROW_H
+    const groups: Buffer[][] = []
+    for (let i = 0; i < imagensBuffers.length; i += MAX_PER_PAGE) {
+      groups.push(imagensBuffers.slice(i, i + MAX_PER_PAGE))
     }
 
-    return [curPage, curY - block.spaceAfter]
+    imagePagesHtml = groups.map(group => {
+      const perImg = Math.floor((AREA_MM - (group.length - 1) * 5) / group.length)
+      const imgs = group.map((buf, j) => {
+        const mime = detectMime(buf)
+        const b64  = buf.toString('base64')
+        return `<img src="data:${mime};base64,${b64}" alt="Imagem ${j + 1}" style="max-height:${perImg}mm" />`
+      }).join('\n      ')
+      return `<div class="image-page"><div class="image-area">${imgs}</div></div>`
+    }).join('\n')
   }
 
-  // ── Renderiza bloco no PDF, retornando [página atual, Y atual] ────────────
-  function drawBlock(
-    page: PDFPage, block: Block, startY: number,
-  ): [PDFPage, number] {
-    let curPage = page
-    let curY    = startY - block.spaceBefore
+  return `<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+${baseStyles}
 
-    const lines = layoutBlock(block, fonts, CW - block.indent)
+/* ── Overrides para layout multi-página (corpo apenas) ── */
+@page {
+  size: A4;
+  margin: 33mm 0 14mm 0;   /* top = HEADER_MARGIN_MM, bottom = FOOTER_H_MM */
+}
 
-    for (let li = 0; li < lines.length; li++) {
-      if (curY < USABLE_BOT + block.lineHeight) {
-        curPage = doc.addPage([PW, PH])
-        drawHeader(curPage)
-        drawFooter(curPage)
-        curY = USABLE_TOP
-      }
+html, body {
+  margin: 0; padding: 0;
+  background: #fff !important;
+  font-family: 'Inter', sans-serif;
+  color: var(--ink);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
 
-      let curX = MG + block.indent
+/* Padding lateral do conteúdo principal */
+.body-pad { padding: 4mm 12mm 0; }
 
-      // Prefixo (bullet/número) na primeira linha
-      if (li === 0 && block.prefix) {
-        const pw = fonts.reg.widthOfTextAtSize(block.prefix, block.fontSize)
-        curPage.drawText(block.prefix, {
-          x: MG + block.indent - pw, y: curY,
-          font: fonts.reg, size: block.fontSize, color: C_BODY,
-        })
-      }
+/* Assinatura: bloco indivisível */
+.sign-section {
+  position: relative !important;
+  left: auto !important; right: auto !important; bottom: auto !important;
+  margin-top: 8mm;
+  display: flex;
+  justify-content: center;
+  page-break-inside: avoid !important;
+  break-inside: avoid !important;
+}
+.sign-section .signature,
+.sign-section .sig-line {
+  page-break-inside: avoid !important;
+  break-inside: avoid !important;
+}
+.laudo-content > *:last-child {
+  page-break-after: avoid;
+  break-after: avoid;
+}
 
-      // Tokens da linha
-      for (const tok of lines[li]) {
-        const font = fonts[tok.font]
-        curPage.drawText(tok.text, { x: curX, y: curY, font, size: block.fontSize, color: C_BODY })
-        curX += font.widthOfTextAtSize(tok.text, block.fontSize)
-      }
+/* Conteúdo rico do editor (TipTap HTML) */
+.laudo-content { font-size: 10pt; line-height: 1.78; color: var(--ink); margin-top: 3mm; }
+.laudo-content p  { margin: 0 0 2.5mm; }
+.laudo-content h2 { font-size: 13pt; font-weight: 700; color: var(--ink);   margin: 5mm 0 2mm; }
+.laudo-content h3 { font-size: 11pt; font-weight: 600; color: var(--ink-2); margin: 4mm 0 1.5mm; }
+.laudo-content ul,
+.laudo-content ol { padding-left: 6mm; margin: 0 0 2.5mm; }
+.laudo-content li { margin-bottom: 1mm; }
+.laudo-content strong { font-weight: 600; }
+.laudo-content em     { font-style: italic; }
+.laudo-content table  { border-collapse: collapse; width: 100%; margin: 3mm 0; font-size: 9.5pt; }
+.laudo-content th, .laudo-content td { border: 1px solid var(--line); padding: 1.5mm 2.5mm; }
+.laudo-content th { background: var(--ink); color: #fff; font-weight: 500; font-size: 8pt; }
 
-      curY -= block.lineHeight
-    }
+/* Páginas de imagem */
+.image-page {
+  page-break-before: always;
+  padding: 4mm 12mm 0;
+}
+.image-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5mm;
+}
+.image-area img {
+  max-width: 100%;
+  object-fit: contain;
+  display: block;
+}
 
-    return [curPage, curY - block.spaceAfter]
-  }
+/* CRMV com mesma cor do texto "Médica Responsável" */
+.signature .sig-crmv { color: var(--muted) !important; }
 
-  // ── Página 1 ───────────────────────────────────────────────────────────────
-  let page = doc.addPage([PW, PH])
-  drawHeader(page)
-  drawFooter(page)
+/* Sobrescreve estilos do template original que não se aplicam aqui */
+.page, .header, .doc-title-bar, .doc-meta, .page-footer, .toolbar { display: none !important; }
+</style>
+</head>
+<body>
+<div class="body-pad">
+  <section class="info-grid">
+    ${pacienteCard}
+  </section>
 
-  let curY = USABLE_TOP - 5
-  curY = drawPatientCard(page, curY)
+  <section class="dates-bar">
+    <div class="date-row">
+      <span class="date-label">Emissão</span>
+      <span class="date-value">${esc(data.data)}</span>
+    </div>
+  </section>
 
-  // Título "LAUDO"
-  page.drawText('LAUDO', { x: MG, y: curY, font: fonts.bold, size: 13, color: C_BLUE })
-  page.drawRectangle({ x: MG, y: curY - 5, width: 48, height: 2.5, color: C_GOLD })
-  curY -= 22
+  <div class="section-head" style="margin-top:5mm">
+    <span class="tag">Resultado</span>
+    <h2>${esc(sectionLabel)}</h2>
+    <div class="rule"></div>
+  </div>
 
-  // ── Texto do laudo (HTML → blocos) ────────────────────────────────────────
-  const blocks = htmlToBlocks(data.texto)
-  for (const block of blocks) {
-    if ('type' in block && block.type === 'table') {
-      ;[page, curY] = drawTableBlock(page, block as TableBlock, curY)
-    } else {
-      ;[page, curY] = drawBlock(page, block as Block, curY)
-    }
-  }
+  <div class="laudo-content">${data.texto}</div>
 
-  // ── Imagens ────────────────────────────────────────────────────────────────
-  for (const imgBuf of imagensBuffers) {
-    page = doc.addPage([PW, PH])
-    drawHeader(page)
-    drawFooter(page)
+  <section class="sign-section">
+    <div class="signature">
+      ${sigB64 ? `<img class="sig-image" src="data:image/png;base64,${sigB64}" alt="Assinatura" />` : ''}
+      <div class="sig-line">
+        <div class="sig-name">Luciana Pereira de Brites</div>
+        <div class="sig-role">Médica Responsável</div>
+        <div class="sig-crmv">CRMV 12923</div>
+      </div>
+    </div>
+  </section>
+</div>
 
-    const areaH = PH - HEADER_H - FOOTER_H - 24
-    try {
-      let img
-      try { img = await doc.embedPng(imgBuf) } catch { img = await doc.embedJpg(imgBuf) }
-
-      let { width: iw, height: ih } = img
-      if (iw > CW)   { ih = (ih * CW)   / iw; iw = CW   }
-      if (ih > areaH) { iw = (iw * areaH) / ih; ih = areaH }
-
-      page.drawImage(img, {
-        x: MG + (CW - iw) / 2,
-        y: FOOTER_H + 4 + (areaH - ih) / 2,
-        width: iw, height: ih,
-      })
-    } catch {
-      page.drawText('[ Imagem não pôde ser carregada ]', {
-        x: MG, y: PH / 2, font: fonts.reg, size: 10, color: C_MUTED,
-      })
-    }
-  }
-
-  return Buffer.from(await doc.save())
+${imagePagesHtml}
+</body>
+</html>`
 }

@@ -1,14 +1,10 @@
-import { NextResponse } from 'next/server'
 import { SESSION_COOKIE_NAME } from '@/lib/system-auth'
+import { clearCookieResponse } from '@/lib/session-helpers'
 
 export async function POST() {
-  const response = NextResponse.json({ success: true })
-  response.cookies.delete(SESSION_COOKIE_NAME)
-  return response
+  return clearCookieResponse(SESSION_COOKIE_NAME)
 }
 
 export async function DELETE() {
-  const response = NextResponse.json({ success: true })
-  response.cookies.delete(SESSION_COOKIE_NAME)
-  return response
+  return clearCookieResponse(SESSION_COOKIE_NAME)
 }

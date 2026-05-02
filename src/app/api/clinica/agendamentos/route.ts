@@ -3,6 +3,15 @@ import { cookies } from 'next/headers'
 import { supabase } from '@/lib/supabase'
 import { parseClinicaSession, CLINICA_COOKIE_NAME } from '@/lib/clinica-auth'
 import { sendWhatsAppText } from '@/lib/evolution'
+import {
+  normalizeTelefone,
+  verificarConflito,
+  upsertTutor,
+  insertExames,
+  insertBioquimica,
+  type ExameInput,
+  type BioquimicaInput,
+} from '@/lib/agendamento-helpers'
 
 const DIAS_PT = ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado']
 
@@ -65,7 +74,7 @@ export async function POST(request: NextRequest) {
   } = body ?? {}
 
   // Suporte a multi-exame (exames[]) e single (tipo_exame)
-  const examesArr: { tipo_exame: string; duracao_minutos: number; valor: number; horario_especial: boolean }[] =
+  const examesArr: ExameInput[] =
     Array.isArray(exames) && exames.length > 0
       ? exames
       : tipo_exame
@@ -98,30 +107,14 @@ export async function POST(request: NextRequest) {
     .eq('id', session.clinicaId)
     .single()
 
-  const digits  = String(telefone).replace(/\D/g, '')
-  const telNorm = digits.startsWith('55') ? digits : `55${digits}`
+  const telNorm = normalizeTelefone(telefone)
 
   // 1. Busca ou cria tutor
   let tutorId: number
-  const { data: tutorExist } = await supabase
-    .from('tutores')
-    .select('id, nome')
-    .eq('telefone', telNorm)
-    .maybeSingle()
-
-  if (tutorExist) {
-    tutorId = tutorExist.id
-    if (tutor_nome && !tutorExist.nome) {
-      await supabase.from('tutores').update({ nome: tutor_nome }).eq('id', tutorId)
-    }
-  } else {
-    const { data: novoTutor, error: errTutor } = await supabase
-      .from('tutores')
-      .insert({ telefone: telNorm, nome: tutor_nome ?? null })
-      .select('id')
-      .single()
-    if (errTutor) return NextResponse.json({ error: errTutor.message }, { status: 500 })
-    tutorId = novoTutor.id
+  try {
+    tutorId = await upsertTutor(telNorm, tutor_nome)
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : 'Erro ao processar tutor.' }, { status: 500 })
   }
 
   // 2. Busca ou cria pet
@@ -151,23 +144,7 @@ export async function POST(request: NextRequest) {
 
   // 3. Verifica conflito de horário
   const totalDuracao = examesArr.reduce((sum, e) => sum + e.duracao_minutos, 0)
-  const diaStr  = (data_hora as string).split('T')[0]
-  const novaIni = new Date(data_hora)
-  const novaFim = new Date(novaIni.getTime() + totalDuracao * 60_000)
-
-  const { data: existentes } = await supabase
-    .from('agendamentos')
-    .select('id, data_hora, duracao_minutos')
-    .gte('data_hora', `${diaStr}T00:00:00`)
-    .lte('data_hora', `${diaStr}T23:59:59`)
-    .neq('status', 'cancelado')
-
-  const conflito = (existentes ?? []).find(ag => {
-    const agIni = new Date(ag.data_hora)
-    const agFim = new Date(agIni.getTime() + (ag.duracao_minutos ?? 30) * 60_000)
-    return novaIni < agFim && novaFim > agIni
-  })
-
+  const conflito = await verificarConflito(data_hora, totalDuracao)
   if (conflito) {
     return NextResponse.json({ error: 'Já existe um agendamento neste horário.' }, { status: 409 })
   }
@@ -202,31 +179,9 @@ export async function POST(request: NextRequest) {
 
   if (errAg) return NextResponse.json({ error: errAg.message }, { status: 500 })
 
-  // 5. Insere exames na tabela agendamento_exames
-  if (examesArr.length > 0) {
-    await supabase.from('agendamento_exames').insert(
-      examesArr.map(e => ({
-        agendamento_id:   agendamento.id,
-        tipo_exame:       e.tipo_exame,
-        duracao_minutos:  e.duracao_minutos,
-        valor:            e.valor,
-        horario_especial: e.horario_especial ?? false,
-      }))
-    )
-  }
-
-  // 5b. Insere sub-exames de bioquímica (se houver)
-  const bioArr = Array.isArray(bioquimica_selecionados) ? bioquimica_selecionados : []
-  if (bioArr.length > 0) {
-    await supabase.from('agendamento_bioquimica').insert(
-      bioArr.map((b: { bioquimica_exame_id: number; valor_pix: number; valor_cartao: number }) => ({
-        agendamento_id:      agendamento.id,
-        bioquimica_exame_id: b.bioquimica_exame_id,
-        valor_pix:           b.valor_pix,
-        valor_cartao:        b.valor_cartao,
-      }))
-    )
-  }
+  // 5. Insere exames e sub-exames de bioquímica
+  await insertExames(agendamento.id, examesArr)
+  await insertBioquimica(agendamento.id, Array.isArray(bioquimica_selecionados) ? bioquimica_selecionados as BioquimicaInput[] : [])
 
   // 6. Nome do vet
   let vetNome = 'Não informado'
@@ -240,7 +195,7 @@ export async function POST(request: NextRequest) {
     `📋 Nova solicitação de agendamento`,
     `Clínica: ${clinica?.nome ?? 'Clínica parceira'}`,
     `Pet: ${petNomeFinal}`,
-    `Resp. Legal: ${tutor_nome ?? tutorExist?.nome ?? 'Desconhecido'} — ${telNorm}`,
+    `Resp. Legal: ${tutor_nome ?? 'Desconhecido'} — ${telNorm}`,
     `Exame(s): ${tipoExameLabel}`,
     `Data/Hora: ${formatDataHora(data_hora)}`,
     `Vet responsável: ${vetNome}`,
@@ -252,7 +207,7 @@ export async function POST(request: NextRequest) {
 
   await supabase.from('notificacoes').insert({
     telefone:       telNorm,
-    nome_tutor:     tutor_nome ?? tutorExist?.nome ?? null,
+    nome_tutor:     tutor_nome ?? null,
     motivo:         'agendamento_clinica',
     tipo_evento:    'agendamento_clinica',
     agendamento_id: agendamento.id,

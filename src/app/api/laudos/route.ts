@@ -85,6 +85,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'O arquivo deve ser um PDF.' }, { status: 400 })
   }
 
+  // Impede laudo duplicado para o mesmo agendamento — antes do upload para não deixar órfão
+  if (agendamentoId) {
+    const { data: existente } = await supabase
+      .from('laudos')
+      .select('id')
+      .eq('agendamento_id', Number(agendamentoId))
+      .maybeSingle()
+    if (existente) {
+      return NextResponse.json({ error: 'Este agendamento já possui um laudo.' }, { status: 409 })
+    }
+  }
+
   const token    = uuidv4()
   const filename = `${token}.pdf`
   const buffer   = Buffer.from(await file.arrayBuffer())
@@ -95,18 +107,6 @@ export async function POST(request: NextRequest) {
 
   if (uploadError) {
     return NextResponse.json({ error: `Erro ao salvar arquivo: ${uploadError.message}` }, { status: 500 })
-  }
-
-  // Impede laudo duplicado para o mesmo agendamento
-  if (agendamentoId) {
-    const { data: existente } = await supabase
-      .from('laudos')
-      .select('id')
-      .eq('agendamento_id', Number(agendamentoId))
-      .maybeSingle()
-    if (existente) {
-      return NextResponse.json({ error: 'Este agendamento já possui um laudo.' }, { status: 409 })
-    }
   }
 
   // Snapshot dos valores financeiros vigentes
@@ -134,7 +134,10 @@ export async function POST(request: NextRequest) {
     .select('*, veterinarios(nome), system_users(nome)')
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    await supabase.storage.from(BUCKET).remove([filename])
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
 
   // Marca agendamento como concluído
   if (agendamentoId) {

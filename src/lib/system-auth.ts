@@ -3,7 +3,11 @@
 // ps = "1" (primeira_senha = true) | "0"
 // Cookie name: sys_session
 
-const getSecret = () => process.env.AUTH_SECRET ?? 'mude-esta-chave-secreta-2024'
+const getSecret = () => {
+  const s = process.env.AUTH_SECRET
+  if (!s) throw new Error('AUTH_SECRET env var não configurada.')
+  return s
+}
 
 async function makeHmac(payload: string): Promise<string> {
   const key = await crypto.subtle.importKey(

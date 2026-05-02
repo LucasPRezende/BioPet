@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { verifyPassword, createVetSession } from '@/lib/vet-auth'
+import { clearCookieResponse } from '@/lib/session-helpers'
 
 export async function POST(request: NextRequest) {
   const { email, password } = await request.json()
@@ -37,7 +38,5 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE() {
-  const response = NextResponse.json({ success: true })
-  response.cookies.delete('vet_session')
-  return response
+  return clearCookieResponse('vet_session')
 }

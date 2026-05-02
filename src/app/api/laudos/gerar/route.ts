@@ -77,6 +77,7 @@ export async function POST(request: NextRequest) {
     idade,
     data:               dataLaudo || new Date().toLocaleDateString('pt-BR'),
     texto,
+    tipo_exame:         tipoExame ?? undefined,
   }
 
   // Impede laudo duplicado para o mesmo agendamento
@@ -134,7 +135,10 @@ export async function POST(request: NextRequest) {
       .select('*, veterinarios(nome), system_users(nome)')
       .single()
 
-    if (error) throw new Error(error.message)
+    if (error) {
+      await supabase.storage.from(BUCKET).remove([filename])
+      throw new Error(error.message)
+    }
 
     // Marca agendamento como concluído
     if (agendamentoId) {

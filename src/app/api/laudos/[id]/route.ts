@@ -14,6 +14,7 @@ export async function PATCH(
 
   const session = await parseSystemSession(cookie)
   if (!session) return NextResponse.json({ error: 'Sessão inválida.' }, { status: 401 })
+  if (session.role !== 'admin') return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 })
 
   // Busca laudo existente
   const { data: laudo } = await supabase

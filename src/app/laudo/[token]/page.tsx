@@ -72,7 +72,7 @@ export default async function LaudoPage({ params }: { params: { token: string } 
                 Laudo em PDF
               </h2>
               <a
-                href={`/api/pdf/${laudo.id}?download=1`}
+                href={`/api/pdf/${laudo.token}?download=1`}
                 download={laudo.original_name}
                 className="bg-[#19202d] hover:bg-[#232d3f] text-white text-sm font-semibold px-4 py-2 rounded-lg transition flex items-center gap-1.5"
               >
@@ -88,7 +88,7 @@ export default async function LaudoPage({ params }: { params: { token: string } 
               </svg>
               <p className="text-sm text-gray-500">Toque no botão acima para baixar o PDF do laudo.</p>
               <a
-                href={`/api/pdf/${laudo.id}`}
+                href={`/api/pdf/${laudo.token}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-[#8a6e36] text-sm font-medium underline underline-offset-2"
@@ -99,7 +99,7 @@ export default async function LaudoPage({ params }: { params: { token: string } 
 
             {/* Desktop: iframe */}
             <iframe
-              src={`/api/pdf/${laudo.id}`}
+              src={`/api/pdf/${laudo.token}`}
               className="hidden sm:block w-full rounded-lg border border-gray-100"
               style={{ height: '700px' }}
               title={`Laudo de ${laudo.nome_pet}`}

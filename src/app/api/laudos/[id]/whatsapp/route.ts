@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: { id: string } },
 ) {
+  const cookie = req.cookies.get(SESSION_COOKIE_NAME)?.value
+  if (!cookie) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 })
+  const session = await parseSystemSession(cookie)
+  if (!session || session.role !== 'admin') {
+    return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 })
+  }
+
   const id = Number(params.id)
   if (!id) return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
 
@@ -15,6 +23,7 @@ export async function POST(
     .single()
 
   if (error || !laudo) return NextResponse.json({ error: 'Laudo não encontrado' }, { status: 404 })
+  if (!laudo.token) return NextResponse.json({ error: 'Laudo sem token válido.' }, { status: 422 })
 
   const apiUrl   = process.env.EVOLUTION_API_URL
   const apiKey   = process.env.EVOLUTION_API_KEY

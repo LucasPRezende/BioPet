@@ -14,6 +14,7 @@ export async function GET(
 ) {
   const session = await autenticar(request)
   if (!session) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 })
+  if (session.role !== 'admin') return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 })
 
   const { id } = await params
   const petId = parseInt(id)
@@ -53,6 +54,7 @@ export async function PATCH(
 ) {
   const session = await autenticar(request)
   if (!session) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 })
+  if (session.role !== 'admin') return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 })
 
   const { id } = await params
   const petId = parseInt(id)

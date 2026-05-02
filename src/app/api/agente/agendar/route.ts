@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { verifyAgentKey } from '@/lib/agent-auth'
+import { verificarConflito } from '@/lib/agendamento-helpers'
 
 export async function POST(request: NextRequest) {
   if (!verifyAgentKey(request)) {
@@ -22,26 +23,10 @@ export async function POST(request: NextRequest) {
   }
 
   // Verifica conflito de horário
-  const novaInicio = new Date(data_hora)
-  const novaFim    = new Date(novaInicio.getTime() + (duracao_minutos ?? 30) * 60_000)
-  const diaStr     = (data_hora as string).split('T')[0]
-
-  const { data: existentes } = await supabase
-    .from('agendamentos')
-    .select('id, data_hora, duracao_minutos')
-    .gte('data_hora', `${diaStr}T00:00:00`)
-    .lte('data_hora', `${diaStr}T23:59:59`)
-    .neq('status', 'cancelado')
-
-  const conflito = (existentes ?? []).find(ag => {
-    const agInicio = new Date(ag.data_hora)
-    const agFim    = new Date(agInicio.getTime() + (ag.duracao_minutos ?? 30) * 60_000)
-    return novaInicio < agFim && novaFim > agInicio
-  })
-
+  const conflito = await verificarConflito(data_hora, duracao_minutos ?? 30)
   if (conflito) {
     return NextResponse.json(
-      { error: 'Já existe um agendamento neste horário.', conflito_id: conflito.id },
+      { error: 'Já existe um agendamento neste horário.', conflito_id: conflito },
       { status: 409 },
     )
   }

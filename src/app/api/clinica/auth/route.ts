@@ -6,6 +6,7 @@ import {
   CLINICA_COOKIE_NAME,
   CLINICA_COOKIE_OPTIONS,
 } from '@/lib/clinica-auth'
+import { clearCookieResponse } from '@/lib/session-helpers'
 
 export async function POST(request: NextRequest) {
   const { email, password } = await request.json()
@@ -43,7 +44,5 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE() {
-  const response = NextResponse.json({ success: true })
-  response.cookies.delete(CLINICA_COOKIE_NAME)
-  return response
+  return clearCookieResponse(CLINICA_COOKIE_NAME)
 }

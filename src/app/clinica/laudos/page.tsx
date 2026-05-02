@@ -156,7 +156,7 @@ export default function ClinicaLaudosPage() {
                             Ver
                           </a>
                           <a
-                            href={`/api/pdf/${l.id}?download=1`}
+                            href={`/api/pdf/${l.token}?download=1`}
                             className="text-xs px-3 py-1.5 rounded-lg bg-[#19202d] text-white hover:bg-[#232d3f] transition whitespace-nowrap"
                           >
                             ⬇ PDF

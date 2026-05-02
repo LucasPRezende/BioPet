@@ -3,8 +3,12 @@ node_modules/
 data/
 uploads/
 .env.local
+Fotos/
+Novo Index/
 
 .vercel
 
 # Cache do Gemini File Manager (gerado automaticamente)
 context-pdfs/.gemini-cache.json
+
+.vercel

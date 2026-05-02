@@ -14,6 +14,7 @@ export async function PATCH(
 ) {
   const session = await requireSession(request)
   if (!session) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 })
+  if (session.role !== 'admin') return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 })
 
   const { id } = await params
   const tutorId = parseInt(id)

@@ -212,7 +212,7 @@ export default function LaudosPage() {
                           className="text-xs px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition whitespace-nowrap">
                           Ver
                         </a>
-                        <a href={`/api/pdf/${laudo.id}?download=1`}
+                        <a href={`/api/pdf/${laudo.token}?download=1`}
                           className="text-xs px-2.5 py-1.5 rounded-lg bg-[#19202d] text-white hover:bg-[#232d3f] transition whitespace-nowrap">
                           ⬇ PDF
                         </a>

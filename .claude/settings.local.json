@@ -33,7 +33,22 @@
       "Bash(vercel --prod)",
       "Bash(git commit -m 'fix: mover callGemini para fora do bloco if \\(strict mode TS error\\) *)",
       "Bash(npm run *)",
-      "Bash(git commit -m 'fix: corrigir erros TypeScript para build Vercel *)"
+      "Bash(git commit -m 'fix: corrigir erros TypeScript para build Vercel *)",
+      "Bash(taskkill /F /IM node.exe)",
+      "Bash(taskkill /F /IM \"node.exe\")",
+      "PowerShell(Stop-Process *)",
+      "Bash(git commit -m 'fix: setContent com emitUpdate false \\(TipTap v3 API\\) *)",
+      "Bash(mkdir -p \"C:/Users/lucas/Documents/Sistema Andreza/src/app/api/pdf/[token]\")",
+      "Bash(cp \"C:/Users/lucas/Documents/Sistema Andreza/src/app/api/pdf/[id]/route.ts\" \"C:/Users/lucas/Documents/Sistema Andreza/src/app/api/pdf/[token]/route.ts\")",
+      "Bash(vercel inspect *)",
+      "Bash(git diff *)",
+      "Bash(grep -rn \"api/agendamentos/\\\\$\\\\|agendamentos/\\\\${\" --include=\"*.tsx\" --include=\"*.ts\" src/)",
+      "Bash(vercel *)",
+      "Bash(cp \"C:\\\\Users\\\\Lucas\\\\Documents\\\\Sistema Andreza\\\\Fotos\\\\Andreza.jpg\" \"C:\\\\Users\\\\Lucas\\\\Documents\\\\Sistema Andreza\\\\public\\\\Andreza.jpg\")",
+      "Bash(cp \"C:\\\\Users\\\\Lucas\\\\Documents\\\\Sistema Andreza\\\\Fotos\\\\Lucas.jpg\" \"C:\\\\Users\\\\Lucas\\\\Documents\\\\Sistema Andreza\\\\public\\\\Lucas.jpg\")",
+      "Bash(rm -f tsconfig.tsbuildinfo dev.log TESTE1.xps AGENTS.md \"Contorno.png\" \"Prancheta 1.png\" \"template/Laudo Veterinario.html\" context-pdfs/.gemini-cache.json)",
+      "Bash(rm -rf \"template/Testes\" \"template/biopet.zip\" \"template/biopet\" \"data/veterinaria.db\" uploads)",
+      "Bash(rmdir data *)"
     ]
   }
 }

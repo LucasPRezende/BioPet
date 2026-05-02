@@ -109,7 +109,10 @@ export async function POST(request: NextRequest) {
       .select('*, veterinarios(nome), system_users(nome)')
       .single()
 
-    if (error) throw new Error(error.message)
+    if (error) {
+      await supabase.storage.from(BUCKET).remove([filename])
+      throw new Error(error.message)
+    }
 
     if (agendamento_id) {
       await supabase
