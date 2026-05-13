@@ -146,7 +146,7 @@ export default function Sidebar({ isOpen, onClose }: Props) {
         )}
 
         {/* Nav */}
-        <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-0.5">
+        <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-0.5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           {NAV.map(group => {
             if (group.adminOnly && !isAdmin) return null
             const items = group.items.filter(i => !i.adminOnly || isAdmin)
