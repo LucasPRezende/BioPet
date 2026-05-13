@@ -274,32 +274,67 @@ function NovoVetModal({ onClose, onCreated }: {
 }
 
 // ── Modal configuração IA ─────────────────────────────────────────────────────
-function AiConfigModal({ onClose }: { onClose: () => void }) {
+function AiConfigModal({ onClose, isAdmin }: { onClose: () => void; isAdmin: boolean }) {
   const [tab, setTab] = useState<'anthropic' | 'gemini'>(
     () => (localStorage.getItem('ai_review_model') as 'anthropic' | 'gemini') ?? 'anthropic'
   )
+  const [claudeKey,      setClaudeKey]      = useState(() => localStorage.getItem('ai_review_key')            ?? '')
+  const [claudeEndpoint, setClaudeEndpoint] = useState(() => localStorage.getItem('ai_review_endpoint')       ?? '')
+  const [claudeSys,      setClaudeSys]      = useState(() => localStorage.getItem('ai_review_system')         ?? '')
+  const [geminiKey,      setGeminiKey]      = useState(() => localStorage.getItem('ai_review_gemini_key')     ?? '')
+  const [geminiSys,      setGeminiSys]      = useState(() => localStorage.getItem('ai_review_gemini_system')  ?? '')
+  const [globalStatus,   setGlobalStatus]   = useState<{ configured: boolean; model: string } | null>(null)
+  const [saving,         setSaving]         = useState(false)
+  const [savedGlobal,    setSavedGlobal]    = useState(false)
 
-  // Claude
-  const [claudeKey,      setClaudeKey]      = useState(() => localStorage.getItem('ai_review_key')      ?? '')
-  const [claudeEndpoint, setClaudeEndpoint] = useState(() => localStorage.getItem('ai_review_endpoint') ?? '')
-  const [claudeSys,      setClaudeSys]      = useState(() => localStorage.getItem('ai_review_system')   ?? '')
+  useEffect(() => {
+    fetch('/api/admin/config').then(r => r.ok ? r.json() : null).then(data => {
+      if (!data) return
+      setGlobalStatus({ configured: data.configured, model: data.model })
+      // Admin: pré-preenche os campos com os valores globais se ainda não tiver local
+      if (isAdmin) {
+        if (!localStorage.getItem('ai_review_key')            && data.claude_key)      setClaudeKey(data.claude_key)
+        if (!localStorage.getItem('ai_review_endpoint')       && data.claude_endpoint) setClaudeEndpoint(data.claude_endpoint)
+        if (!localStorage.getItem('ai_review_system')         && data.claude_system)   setClaudeSys(data.claude_system)
+        if (!localStorage.getItem('ai_review_gemini_key')     && data.gemini_key)      setGeminiKey(data.gemini_key)
+        if (!localStorage.getItem('ai_review_gemini_system')  && data.gemini_system)   setGeminiSys(data.gemini_system)
+        if (data.model) setTab(data.model)
+      }
+    })
+  }, [isAdmin])
 
-  // Gemini
-  const [geminiKey, setGeminiKey] = useState(() => localStorage.getItem('ai_review_gemini_key') ?? '')
-  const [geminiSys, setGeminiSys] = useState(() => localStorage.getItem('ai_review_gemini_system') ?? '')
-
-  function save() {
-    localStorage.setItem('ai_review_model', tab)
-    localStorage.setItem('ai_review_key',         claudeKey.trim())
-    localStorage.setItem('ai_review_endpoint',    claudeEndpoint.trim())
-    localStorage.setItem('ai_review_system',      claudeSys.trim())
-    localStorage.setItem('ai_review_gemini_key',  geminiKey.trim())
+  function saveLocal() {
+    localStorage.setItem('ai_review_model',         tab)
+    localStorage.setItem('ai_review_key',           claudeKey.trim())
+    localStorage.setItem('ai_review_endpoint',      claudeEndpoint.trim())
+    localStorage.setItem('ai_review_system',        claudeSys.trim())
+    localStorage.setItem('ai_review_gemini_key',    geminiKey.trim())
     localStorage.setItem('ai_review_gemini_system', geminiSys.trim())
     onClose()
   }
 
+  async function saveGlobal() {
+    setSaving(true)
+    const res = await fetch('/api/admin/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model:           tab,
+        gemini_key:      geminiKey.trim(),
+        gemini_system:   geminiSys.trim(),
+        claude_key:      claudeKey.trim(),
+        claude_endpoint: claudeEndpoint.trim(),
+        claude_system:   claudeSys.trim(),
+      }),
+    })
+    setSaving(false)
+    if (res.ok) { setSavedGlobal(true); setTimeout(onClose, 1200) }
+  }
+
   const TAB = (active: boolean) =>
     `flex-1 py-2 text-xs font-semibold rounded-lg transition ${active ? 'bg-[#19202d] text-white' : 'text-gray-500 hover:bg-gray-100'}`
+
+  const modelLabel = tab === 'gemini' ? 'Gemini (Google)' : 'Claude (Anthropic)'
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4">
@@ -307,11 +342,30 @@ function AiConfigModal({ onClose }: { onClose: () => void }) {
         <div className="bg-[#19202d] px-6 py-4 flex items-center justify-between">
           <div>
             <p className="text-white font-bold text-sm">Configurar revisão com IA</p>
-            <p className="text-gray-400 text-xs mt-0.5">Salvo apenas neste navegador</p>
+            <p className="text-gray-400 text-xs mt-0.5">
+              {isAdmin ? 'Admin — pode salvar para todos os usuários' : 'Configuração local deste navegador'}
+            </p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl leading-none">×</button>
         </div>
+
         <div className="p-6 space-y-4">
+          {/* Status da configuração global para não-admins */}
+          {!isAdmin && globalStatus && (
+            <div className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm ${
+              globalStatus.configured
+                ? 'bg-green-50 border-green-200 text-green-700'
+                : 'bg-yellow-50 border-yellow-200 text-yellow-700'
+            }`}>
+              <span>{globalStatus.configured ? '✅' : '⚠️'}</span>
+              <span>
+                {globalStatus.configured
+                  ? `Configuração global ativa (${globalStatus.model === 'gemini' ? 'Gemini' : 'Claude'}). Você já pode usar a IA.`
+                  : 'Nenhuma chave global configurada. Configure abaixo para este navegador.'}
+              </span>
+            </div>
+          )}
+
           {/* Seletor de modelo */}
           <div className="flex gap-1 p-1 bg-gray-100 rounded-lg">
             <button type="button" className={TAB(tab === 'anthropic')} onClick={() => setTab('anthropic')}>
@@ -326,7 +380,7 @@ function AiConfigModal({ onClose }: { onClose: () => void }) {
             <>
               <div>
                 <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
-                  Chave de API <span className="text-red-400">*</span>
+                  Chave de API {isAdmin && <span className="text-red-400">*</span>}
                 </label>
                 <input type="password" value={claudeKey} onChange={e => setClaudeKey(e.target.value)}
                   placeholder="sk-ant-..." className={INPUT} />
@@ -350,7 +404,7 @@ function AiConfigModal({ onClose }: { onClose: () => void }) {
             <>
               <div>
                 <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
-                  Chave de API Gemini <span className="text-red-400">*</span>
+                  Chave de API Gemini {isAdmin && <span className="text-red-400">*</span>}
                 </label>
                 <input type="password" value={geminiKey} onChange={e => setGeminiKey(e.target.value)}
                   placeholder="AIza..." className={INPUT} />
@@ -368,16 +422,41 @@ function AiConfigModal({ onClose }: { onClose: () => void }) {
             </>
           )}
 
+          {savedGlobal && (
+            <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+              ✅ Configuração salva globalmente para todos os usuários!
+            </p>
+          )}
+
           <div className="flex gap-3 pt-1">
             <button type="button" onClick={onClose}
               className="flex-1 border border-gray-200 text-gray-500 py-2.5 rounded-lg text-sm hover:bg-gray-50 transition">
               Cancelar
             </button>
-            <button type="button" onClick={save}
-              className="flex-1 bg-[#19202d] hover:bg-[#232d3f] text-white font-semibold py-2.5 rounded-lg text-sm transition">
-              Salvar
-            </button>
+            {isAdmin ? (
+              <>
+                <button type="button" onClick={saveLocal}
+                  className="flex-1 border border-gray-300 text-gray-700 py-2.5 rounded-lg text-sm hover:bg-gray-50 transition">
+                  Salvar localmente
+                </button>
+                <button type="button" onClick={saveGlobal} disabled={saving}
+                  className="flex-1 bg-[#19202d] hover:bg-[#232d3f] text-white font-semibold py-2.5 rounded-lg text-sm transition disabled:opacity-50">
+                  {saving ? 'Salvando...' : `🌐 Salvar para todos`}
+                </button>
+              </>
+            ) : (
+              <button type="button" onClick={saveLocal}
+                className="flex-1 bg-[#19202d] hover:bg-[#232d3f] text-white font-semibold py-2.5 rounded-lg text-sm transition">
+                Salvar neste navegador
+              </button>
+            )}
           </div>
+
+          {isAdmin && (
+            <p className="text-[11px] text-gray-400 text-center">
+              "Salvar para todos" grava no banco de dados e fica disponível para todos os usuários do sistema.
+            </p>
+          )}
         </div>
       </div>
     </div>
@@ -418,6 +497,7 @@ export default function NovoLaudoPage() {
   const [aiModel,      setAiModel]      = useState<'anthropic' | 'gemini'>(() =>
     (typeof window !== 'undefined' ? localStorage.getItem('ai_review_model') as 'anthropic' | 'gemini' : null) ?? 'anthropic'
   )
+  const [isAdmin, setIsAdmin] = useState(false)
 
   // Tutor/pet vinculado manualmente
   const [tutorId, setTutorId] = useState<number | null>(null)
@@ -476,6 +556,12 @@ export default function NovoLaudoPage() {
 
   useEffect(() => { loadVets(); loadTiposExame() }, [loadVets, loadTiposExame])
 
+  useEffect(() => {
+    fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(u => {
+      if (u?.role === 'admin') setIsAdmin(true)
+    })
+  }, [])
+
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
   }
@@ -500,9 +586,9 @@ export default function NovoLaudoPage() {
 
   async function reviewWithAI() {
     if (!texto.trim()) { setAiError('Escreva o texto do laudo antes de revisar.'); return }
-    const activeModel  = aiModel
-    const isGemini     = activeModel === 'gemini'
-    const apiKey       = isGemini
+    const isGemini     = aiModel === 'gemini'
+    // Chave local (override) — se vazia, o servidor usa a configuração global do admin
+    const localKey     = isGemini
       ? (localStorage.getItem('ai_review_gemini_key') ?? '')
       : (localStorage.getItem('ai_review_key') ?? '')
     const systemPrompt = isGemini
@@ -510,18 +596,28 @@ export default function NovoLaudoPage() {
       : (localStorage.getItem('ai_review_system') ?? '')
     const endpoint     = isGemini ? '' : (localStorage.getItem('ai_review_endpoint') ?? '')
 
-    if (!apiKey) { setAiConfigOpen(true); return }
     setAiLoading(true); setAiError('')
     try {
       const res = await fetch('/api/admin/ai-review', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ texto, apiKey, endpoint, systemPrompt, model: activeModel }),
+        body: JSON.stringify({
+          texto,
+          apiKey:       localKey     || undefined,
+          endpoint:     endpoint     || undefined,
+          systemPrompt: systemPrompt || undefined,
+          model:        aiModel,
+        }),
       })
       const d = await res.json()
-      if (!res.ok) setAiError(d.error ?? `Erro ${res.status}`)
-      else if (d.texto) setTexto(markdownToHtml(d.texto))
-      else setAiError('Resposta inválida da IA.')
+      if (!res.ok) {
+        setAiError(d.error ?? `Erro ${res.status}`)
+        if (res.status === 400 && d.error?.toLowerCase().includes('chave')) setAiConfigOpen(true)
+      } else if (d.texto) {
+        setTexto(markdownToHtml(d.texto))
+      } else {
+        setAiError('Resposta inválida da IA.')
+      }
     } catch (e: unknown) {
       setAiError(e instanceof Error ? e.message : 'Erro de rede.')
     }
@@ -930,7 +1026,7 @@ export default function NovoLaudoPage() {
 
       {/* Modal configuração IA */}
       {aiConfigOpen && (
-        <AiConfigModal onClose={() => setAiConfigOpen(false)} />
+        <AiConfigModal onClose={() => setAiConfigOpen(false)} isAdmin={isAdmin} />
       )}
     </div>
   )

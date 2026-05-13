@@ -23,7 +23,30 @@ export async function GET(request: NextRequest) {
     .order('data_hora')
 
   if (session.role !== 'admin') {
-    query = query.eq('system_user_id', session.userId)
+    const { data: userRow } = await supabase
+      .from('system_users')
+      .select('permissoes')
+      .eq('id', session.userId)
+      .single()
+
+    const laudosExames = (userRow?.permissoes as { laudos_exames?: string[] } | null)?.laudos_exames
+
+    if (laudosExames && laudosExames.length > 0) {
+      // Busca IDs de agendamentos que têm pelo menos um dos exames permitidos
+      const { data: exameRows } = await supabase
+        .from('agendamento_exames')
+        .select('agendamento_id')
+        .in('tipo_exame', laudosExames)
+
+      const agIds = Array.from(new Set((exameRows ?? []).map(r => r.agendamento_id)))
+
+      // Combina: via tabela agendamento_exames + fallback string tipo_exame (legado)
+      const orParts = laudosExames.map(t => `tipo_exame.ilike.%${t}%`)
+      if (agIds.length > 0) orParts.push(`id.in.(${agIds.join(',')})`)
+      query = query.or(orParts.join(','))
+    } else {
+      query = query.eq('system_user_id', session.userId)
+    }
   }
 
   const { data: rows, error } = await query

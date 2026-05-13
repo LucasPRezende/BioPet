@@ -2,6 +2,24 @@ import { NextRequest, NextResponse } from 'next/server'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
 import { getContextFiles, invalidateCache } from '@/lib/gemini-files'
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { supabase } from '@/lib/supabase'
+
+async function getSystemKey(model: string): Promise<string> {
+  const key = model === 'gemini' ? 'ai_gemini_key' : 'ai_claude_key'
+  const { data } = await supabase.from('system_config').select('value').eq('key', key).maybeSingle()
+  return data?.value?.trim() ?? ''
+}
+
+async function getSystemPrompt(model: string): Promise<string> {
+  const key = model === 'gemini' ? 'ai_gemini_system' : 'ai_claude_system'
+  const { data } = await supabase.from('system_config').select('value').eq('key', key).maybeSingle()
+  return data?.value?.trim() ?? ''
+}
+
+async function getSystemEndpoint(): Promise<string> {
+  const { data } = await supabase.from('system_config').select('value').eq('key', 'ai_claude_endpoint').maybeSingle()
+  return data?.value?.trim() ?? ''
+}
 
 async function callGemini(apiKey: string, sys: string, texto: string, forceReupload = false) {
   const contextFiles = await getContextFiles(apiKey.trim(), forceReupload)
@@ -26,10 +44,16 @@ export async function POST(request: NextRequest) {
   const session = await parseSystemSession(cookie)
   if (!session) return NextResponse.json({ error: 'Sessão inválida.' }, { status: 401 })
 
-  const { texto, apiKey, systemPrompt, endpoint, model } = await request.json()
+  const { texto, apiKey: localKey, systemPrompt: localPrompt, endpoint: localEndpoint, model } = await request.json()
 
-  if (!texto?.trim())  return NextResponse.json({ error: 'Texto vazio.' }, { status: 400 })
-  if (!apiKey?.trim()) return NextResponse.json({ error: 'Chave de API não configurada.' }, { status: 400 })
+  if (!texto?.trim()) return NextResponse.json({ error: 'Texto vazio.' }, { status: 400 })
+
+  // Usa chave local (override) ou busca a chave global configurada pelo admin
+  const apiKey      = localKey?.trim()      || await getSystemKey(model ?? 'gemini')
+  const systemPrompt = localPrompt?.trim()  || await getSystemPrompt(model ?? 'gemini')
+  const endpoint    = localEndpoint?.trim() || await getSystemEndpoint()
+
+  if (!apiKey) return NextResponse.json({ error: 'Chave de API não configurada. Peça ao administrador para configurar em Configurações → IA.' }, { status: 400 })
 
   // ── Gemini ────────────────────────────────────────────────────────────────
   if (model === 'gemini') {

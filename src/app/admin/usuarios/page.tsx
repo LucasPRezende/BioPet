@@ -4,6 +4,10 @@ import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 
 
+interface Permissoes {
+  laudos_exames?: string[]
+}
+
 interface SystemUser {
   id: number
   nome: string
@@ -12,6 +16,7 @@ interface SystemUser {
   ativo: boolean
   primeira_senha: boolean
   recebe_comissao: boolean
+  permissoes: Permissoes | null
   criado_em: string
 }
 
@@ -111,6 +116,121 @@ function NovoUsuarioModal({ onClose, onCreated }: {
   )
 }
 
+// ── Modal: Permissões ─────────────────────────────────────────────────────────
+function PermissoesModal({ user, onClose, onSaved }: {
+  user:    SystemUser
+  onClose: () => void
+  onSaved: (u: SystemUser) => void
+}) {
+  const [tipos,      setTipos]      = useState<string[]>([])
+  const [selecionados, setSelecionados] = useState<string[]>(user.permissoes?.laudos_exames ?? [])
+  const [loading,    setLoading]    = useState(false)
+  const [error,      setError]      = useState('')
+
+  useEffect(() => {
+    fetch('/api/comissoes')
+      .then(r => r.ok ? r.json() : [])
+      .then((data: { tipo_exame: string }[]) => setTipos(data.map(d => d.tipo_exame).sort()))
+  }, [])
+
+  function toggle(tipo: string) {
+    setSelecionados(prev =>
+      prev.includes(tipo) ? prev.filter(t => t !== tipo) : [...prev, tipo]
+    )
+  }
+
+  async function handleSave() {
+    setLoading(true); setError('')
+    const permissoes: Permissoes = selecionados.length > 0 ? { laudos_exames: selecionados } : {}
+    const res = await fetch(`/api/system-users/${user.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ permissoes }),
+    })
+    const data = await res.json()
+    if (res.ok) { onSaved(data); onClose() }
+    else setError(data.error ?? 'Erro ao salvar.')
+    setLoading(false)
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+        <div className="bg-[#19202d] px-6 py-4 flex items-center justify-between">
+          <div>
+            <h3 className="text-white font-bold text-sm">Permissões — {user.nome}</h3>
+            <p className="text-gray-400 text-xs mt-0.5">Exames que pode visualizar e emitir laudo</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-white text-xl leading-none">×</button>
+        </div>
+
+        {user.role === 'admin' ? (
+          <div className="p-6 text-center space-y-3">
+            <div className="text-3xl">🔑</div>
+            <p className="font-semibold text-[#19202d]">Administrador</p>
+            <p className="text-sm text-gray-500">Administradores têm acesso total. Não é necessário configurar permissões.</p>
+            <button onClick={onClose}
+              className="w-full bg-[#19202d] text-white font-semibold py-2.5 rounded-lg text-sm hover:bg-[#232d3f] transition">
+              Fechar
+            </button>
+          </div>
+        ) : (
+          <div className="p-6 space-y-4">
+            <p className="text-xs text-gray-500">
+              Selecione os tipos de exame. O usuário verá <strong>somente</strong> os agendamentos que contêm esses exames
+              e poderá emitir laudo apenas para eles.
+            </p>
+            <p className="text-xs text-gray-400 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+              Se nenhum for selecionado, o usuário verá apenas os agendamentos que ele mesmo cadastrou.
+            </p>
+
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {tipos.length === 0 ? (
+                <p className="text-xs text-gray-400 text-center py-4">Carregando...</p>
+              ) : (
+                tipos.map(tipo => (
+                  <label key={tipo} className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-gray-50 cursor-pointer border border-transparent hover:border-gray-100 transition">
+                    <input
+                      type="checkbox"
+                      checked={selecionados.includes(tipo)}
+                      onChange={() => toggle(tipo)}
+                      className="w-4 h-4 accent-[#19202d]"
+                    />
+                    <span className="text-sm font-medium text-[#19202d]">{tipo}</span>
+                    {selecionados.includes(tipo) && (
+                      <span className="ml-auto text-xs font-semibold text-[#8a6e36] bg-amber-50 px-2 py-0.5 rounded">✓</span>
+                    )}
+                  </label>
+                ))
+              )}
+            </div>
+
+            {selecionados.length > 0 && (
+              <p className="text-xs text-[#8a6e36] font-semibold">
+                {selecionados.length} tipo{selecionados.length > 1 ? 's' : ''} selecionado{selecionados.length > 1 ? 's' : ''}:
+                {' '}{selecionados.join(', ')}
+              </p>
+            )}
+
+            {error && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
+
+            <div className="flex gap-3 pt-1">
+              <button onClick={onClose}
+                className="flex-1 border border-gray-200 text-gray-500 py-2.5 rounded-lg text-sm hover:bg-gray-50 transition">
+                Cancelar
+              </button>
+              <button onClick={handleSave} disabled={loading}
+                className="flex-1 bg-[#19202d] hover:bg-[#232d3f] text-white font-semibold py-2.5 rounded-lg text-sm transition disabled:opacity-60">
+                {loading ? 'Salvando...' : 'Salvar'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Modal: Reset de Senha ──────────────────────────────────────────────────────
 function ResetSenhaModal({ user, onClose, onDone }: {
   user: SystemUser
@@ -191,6 +311,7 @@ export default function UsuariosPage() {
   const [loading, setLoading] = useState(true)
   const [novoModal, setNovoModal] = useState(false)
   const [resetModal, setResetModal] = useState<SystemUser | null>(null)
+  const [permissoesModal, setPermissoesModal] = useState<SystemUser | null>(null)
 
   const fetchUsers = useCallback(async () => {
     const res = await fetch('/api/system-users')
@@ -262,6 +383,19 @@ export default function UsuariosPage() {
                           Troca pendente
                         </span>
                       )}
+                      {user.role !== 'admin' && user.permissoes?.laudos_exames?.length ? (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {user.permissoes.laudos_exames.map(t => (
+                            <span key={t} className="text-[10px] bg-violet-50 text-violet-700 border border-violet-200 px-1.5 py-0.5 rounded">
+                              {t}
+                            </span>
+                          ))}
+                        </div>
+                      ) : user.role !== 'admin' ? (
+                        <div className="mt-1">
+                          <span className="text-[10px] text-gray-400">Sem restrição de exame</span>
+                        </div>
+                      ) : null}
                     </td>
                     <td className="px-5 py-4 text-gray-600 text-sm">{user.email}</td>
                     <td className="px-5 py-4">
@@ -299,7 +433,14 @@ export default function UsuariosPage() {
                     </td>
                     <td className="px-5 py-4 text-gray-400 text-sm">{formatDate(user.criado_em)}</td>
                     <td className="px-5 py-4">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                          onClick={() => setPermissoesModal(user)}
+                          className="text-xs px-3 py-1.5 rounded-lg bg-violet-50 text-violet-700 border border-violet-200 hover:bg-violet-100 transition"
+                          title="Editar permissões de exames"
+                        >
+                          🔒 Permissões
+                        </button>
                         <button
                           onClick={() => setResetModal(user)}
                           className="text-xs px-3 py-1.5 rounded-lg bg-amber-50 text-[#8a6e36] border border-[#8a6e36]/20 hover:bg-amber-100 transition"
@@ -338,6 +479,17 @@ export default function UsuariosPage() {
           user={resetModal}
           onClose={() => setResetModal(null)}
           onDone={() => setResetModal(null)}
+        />
+      )}
+
+      {permissoesModal && (
+        <PermissoesModal
+          user={permissoesModal}
+          onClose={() => setPermissoesModal(null)}
+          onSaved={updated => {
+            setUsers(prev => prev.map(u => u.id === updated.id ? updated : u))
+            setPermissoesModal(null)
+          }}
         />
       )}
     </div>

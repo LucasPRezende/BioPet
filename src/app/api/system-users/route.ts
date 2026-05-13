@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await supabase
     .from('system_users')
-    .select('id, nome, email, role, ativo, primeira_senha, recebe_comissao, criado_em')
+    .select('id, nome, email, role, ativo, primeira_senha, recebe_comissao, permissoes, criado_em')
     .order('criado_em', { ascending: true })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
   const { data, error } = await supabase
     .from('system_users')
     .insert({ nome, email, senha_hash: senhaHash, role, ativo: true, primeira_senha: true, recebe_comissao: recebeComissao })
-    .select('id, nome, email, role, ativo, primeira_senha, recebe_comissao, criado_em')
+    .select('id, nome, email, role, ativo, primeira_senha, recebe_comissao, permissoes, criado_em')
     .single()
 
   if (error) {

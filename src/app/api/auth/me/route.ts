@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
 
   const { data: user, error } = await supabase
     .from('system_users')
-    .select('id, nome, email, role, ativo, primeira_senha')
+    .select('id, nome, email, role, ativo, primeira_senha, permissoes')
     .eq('id', session.userId)
     .single()
 

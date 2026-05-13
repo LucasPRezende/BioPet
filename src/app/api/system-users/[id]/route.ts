@@ -28,6 +28,7 @@ export async function PATCH(
     ativo?: boolean
     recebe_comissao?: boolean
     reset_senha?: string
+    permissoes?: Record<string, unknown>
   }
   try {
     body = await request.json()
@@ -48,6 +49,7 @@ export async function PATCH(
   }
   if (body.ativo !== undefined) updates.ativo = body.ativo
   if (body.recebe_comissao !== undefined) updates.recebe_comissao = body.recebe_comissao
+  if (body.permissoes !== undefined) updates.permissoes = body.permissoes
 
   // Reset de senha pelo admin
   if (body.reset_senha !== undefined) {
@@ -66,7 +68,7 @@ export async function PATCH(
     .from('system_users')
     .update(updates)
     .eq('id', id)
-    .select('id, nome, email, role, ativo, primeira_senha, recebe_comissao, criado_em')
+    .select('id, nome, email, role, ativo, primeira_senha, recebe_comissao, permissoes, criado_em')
     .single()
 
   if (error) {
