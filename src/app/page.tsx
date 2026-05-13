@@ -224,7 +224,7 @@ export default function LandingPage() {
               </div>
               <p className="label">E-mail</p>
               <p className="ccard-body">
-                <a className="gold" href="mailto:contato@biopet.com">contato@biopet.com</a>
+                <a className="gold" href="mailto:contato@biopetvet.com">contato@biopetvet.com</a>
               </p>
             </div>
           </div>
