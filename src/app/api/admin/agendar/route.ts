@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
 import { sendWhatsAppText } from '@/lib/evolution'
 import { gerarPreferenciaMp } from '@/lib/mp-preference'
+import { gerarPixToken } from '@/lib/pix-token'
 import {
   normalizeTelefone,
   verificarConflito,
@@ -227,10 +228,11 @@ export async function POST(request: NextRequest) {
       }
     } else {
       // PIX: link para nossa página de pagamento
-      initPoint = `${process.env.NEXT_PUBLIC_URL}/pagamento/pix/${agendamento.id}`
+      const pixToken = gerarPixToken()
+      initPoint = `${process.env.NEXT_PUBLIC_URL}/pagamento/pix/${pixToken}`
       await supabase
         .from('agendamentos')
-        .update({ mp_init_point: initPoint, status_pagamento: 'a_receber' })
+        .update({ pix_token: pixToken, mp_init_point: initPoint, status_pagamento: 'a_receber' })
         .eq('id', agendamento.id)
     }
 

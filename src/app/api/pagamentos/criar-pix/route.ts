@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { isPixTokenValido } from '@/lib/pix-token'
 
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null)
-  const { agendamento_id, cpf, device_id } = body ?? {}
+  const { pix_token, cpf, device_id } = body ?? {}
 
-  if (!agendamento_id || !cpf) {
-    return NextResponse.json({ error: 'agendamento_id e cpf obrigatórios.' }, { status: 400 })
+  if (!pix_token || !cpf) {
+    return NextResponse.json({ error: 'Token e CPF obrigatórios.' }, { status: 400 })
+  }
+
+  // Valida formato UUID antes de qualquer consulta ao banco
+  if (!isPixTokenValido(String(pix_token))) {
+    return NextResponse.json({ error: 'Link de pagamento inválido.' }, { status: 403 })
   }
 
   const cpfClean = String(cpf).replace(/\D/g, '')
@@ -16,15 +22,20 @@ export async function POST(request: NextRequest) {
 
   const { data: ag } = await supabase
     .from('agendamentos')
-    .select('id, tipo_exame, valor, data_hora, status_pagamento, pets(nome), agendamento_exames(tipo_exame, valor), tutores(nome)')
-    .eq('id', Number(agendamento_id))
+    .select('id, tipo_exame, valor, data_hora, status_pagamento, forma_pagamento, entrega_pagamento, pets(nome), agendamento_exames(tipo_exame, valor), tutores(nome)')
+    .eq('pix_token', String(pix_token))
     .single()
 
-  if (!ag) return NextResponse.json({ error: 'Agendamento não encontrado.' }, { status: 404 })
+  if (!ag) return NextResponse.json({ error: 'Link de pagamento inválido.' }, { status: 404 })
   if (ag.status_pagamento === 'pago') return NextResponse.json({ error: 'Pagamento já confirmado.' }, { status: 400 })
 
-  // Valida que o agendamento está em estado válido para pagamento PIX
-  // e que o link de pagamento aponta para nossa página (não um estado inesperado)
+  // Valida forma de pagamento e entrega
+  const forma   = (ag.forma_pagamento ?? '').toLowerCase()
+  const entrega = (ag.entrega_pagamento ?? '').toLowerCase()
+  if (!forma.includes('pix') || entrega !== 'link') {
+    return NextResponse.json({ error: 'Este agendamento não é elegível para pagamento PIX online.' }, { status: 400 })
+  }
+
   const statusValido = ['pendente', 'a_receber', 'agendado'].includes(ag.status_pagamento ?? '')
   if (!statusValido) {
     return NextResponse.json({ error: 'Este agendamento não está disponível para pagamento.' }, { status: 400 })
@@ -52,7 +63,7 @@ export async function POST(request: NextRequest) {
   const expiresAt = agDate > now ? agDate : new Date(now.getTime() + 24 * 60 * 60 * 1000)
   const dateOfExpiration = expiresAt.toISOString().slice(0, 19) + '.000-03:00'
 
-  const idempotencyKey = `biopet-pix-${agendamento_id}-${cpfClean.slice(-4)}-${Date.now()}`
+  const idempotencyKey = `biopet-pix-${ag.id}-${cpfClean.slice(-4)}-${Date.now()}`
 
   const headers: Record<string, string> = {
     'Authorization':    `Bearer ${(process.env.MP_ACCESS_TOKEN ?? '').trim()}`,
@@ -70,14 +81,14 @@ export async function POST(request: NextRequest) {
       payment_method_id:    'pix',
       statement_descriptor: 'BioPet Vet',
       payer: {
-        email:      `agendamento${agendamento_id}@biopet.com.br`,
+        email:      `agendamento${ag.id}@biopet.com.br`,
         first_name: firstName,
         last_name:  lastName,
         identification: { type: 'CPF', number: cpfClean },
       },
       additional_info: {
         items: [{
-          id:          `ag-${agendamento_id}`,
+          id:          `ag-${ag.id}`,
           title:       ag.tipo_exame,
           description: `Exame veterinário — ${petNome ?? 'Pet'}`,
           quantity:    1,
@@ -89,7 +100,7 @@ export async function POST(request: NextRequest) {
         },
       },
       description:        `BioPet — ${ag.tipo_exame} — ${petNome ?? ''}`,
-      external_reference: `biopet-agendamento-${agendamento_id}`,
+      external_reference: `biopet-agendamento-${ag.id}`,
       notification_url:   `${process.env.NEXT_PUBLIC_URL}/api/pagamentos/webhook`,
       date_of_expiration: dateOfExpiration,
     }),
@@ -110,7 +121,7 @@ export async function POST(request: NextRequest) {
   await supabase
     .from('agendamentos')
     .update({ mp_preference_id: String(mpData.id), status_pagamento: 'a_receber' })
-    .eq('id', Number(agendamento_id))
+    .eq('id', ag.id)
 
   return NextResponse.json({
     payment_id:     mpData.id,

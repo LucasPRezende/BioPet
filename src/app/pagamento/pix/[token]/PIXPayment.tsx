@@ -8,6 +8,7 @@ type Estado = 'form' | 'gerando' | 'aguardando' | 'pago' | 'erro'
 
 interface Props {
   agendamentoId: number
+  pixToken:      string
   petNome:       string
   tipoExame:     string
   valor:         number
@@ -41,7 +42,7 @@ function formatCPFInput(v: string) {
   return `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9)}`
 }
 
-export default function PIXPayment({ agendamentoId, petNome, tipoExame, valor, dataHora, statusInicial, cpfInicial }: Props) {
+export default function PIXPayment({ agendamentoId, pixToken, petNome, tipoExame, valor, dataHora, statusInicial, cpfInicial }: Props) {
   const [estado,       setEstado]      = useState<Estado>(statusInicial === 'pago' ? 'pago' : 'form')
   const [cpf,          setCpf]         = useState(cpfInicial ? formatCPFInput(cpfInicial) : '')
   const [deviceId,     setDeviceId]    = useState('')
@@ -54,7 +55,7 @@ export default function PIXPayment({ agendamentoId, petNome, tipoExame, valor, d
   useEffect(() => {
     if (estado === 'aguardando') {
       pollingRef.current = setInterval(async () => {
-        const res  = await fetch(`/api/pagamentos/status/${agendamentoId}`)
+        const res  = await fetch(`/api/pagamentos/status/${pixToken}`)
         const data = await res.json()
         if (data.pago === true) {
           clearInterval(pollingRef.current!)
@@ -87,7 +88,7 @@ export default function PIXPayment({ agendamentoId, petNome, tipoExame, valor, d
     const res  = await fetch('/api/pagamentos/criar-pix', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ agendamento_id: agendamentoId, cpf: cpfClean, device_id: deviceId }),
+      body: JSON.stringify({ pix_token: pixToken, cpf: cpfClean, device_id: deviceId }),
     })
     const data = await res.json()
 
