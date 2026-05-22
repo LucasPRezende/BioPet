@@ -6,11 +6,19 @@ import Image from 'next/image'
 import Link from 'next/link'
 
 // ── Formulário de solicitação (sem token) ────────────────────────────────────
+function formatWhatsApp(v: string) {
+  const d = v.replace(/\D/g, '').slice(0, 11)
+  if (d.length <= 2)  return `(${d}`
+  if (d.length <= 6)  return `(${d.slice(0,2)}) ${d.slice(2)}`
+  if (d.length <= 10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`
+  return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`
+}
+
 function SolicitarForm() {
-  const [email,   setEmail]   = useState('')
-  const [loading, setLoading] = useState(false)
-  const [done,    setDone]    = useState(false)
-  const [error,   setError]   = useState('')
+  const [whatsapp, setWhatsapp] = useState('')
+  const [loading,  setLoading]  = useState(false)
+  const [done,     setDone]     = useState(false)
+  const [error,    setError]    = useState('')
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -19,7 +27,7 @@ function SolicitarForm() {
     const res = await fetch('/api/vet/recuperar/solicitar', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ whatsapp: whatsapp.replace(/\D/g, '') }),
     })
     if (res.ok) {
       setDone(true)
@@ -36,7 +44,7 @@ function SolicitarForm() {
         <div className="text-4xl">📲</div>
         <p className="text-[#19202d] font-semibold">Verifique seu WhatsApp!</p>
         <p className="text-gray-400 text-sm">
-          Se o e-mail estiver cadastrado, você receberá um link para redefinir sua senha.
+          Se o número estiver cadastrado, você receberá um link para redefinir sua senha.
         </p>
         <Link href="/vet/login" className="block text-[#8a6e36] hover:underline text-sm mt-4">
           ← Voltar ao login
@@ -48,17 +56,18 @@ function SolicitarForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <p className="text-sm text-gray-400 text-center">
-        Informe seu e-mail e enviaremos um link pelo WhatsApp para redefinir sua senha.
+        Informe seu WhatsApp e enviaremos um link para redefinir sua senha.
       </p>
       <div>
         <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
-          E-mail
+          WhatsApp
         </label>
         <input
-          type="email"
-          value={email}
-          onChange={e => setEmail(e.target.value)}
-          placeholder="seu@email.com"
+          type="tel"
+          inputMode="numeric"
+          value={whatsapp}
+          onChange={e => setWhatsapp(formatWhatsApp(e.target.value))}
+          placeholder="(24) 99999-9999"
           required
           autoFocus
           className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#8a6e36]"

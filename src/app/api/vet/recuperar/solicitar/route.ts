@@ -4,16 +4,19 @@ import { supabase } from '@/lib/supabase'
 import { sendVetInvite } from '@/lib/evolution'
 
 export async function POST(request: NextRequest) {
-  const { email } = await request.json()
+  const { whatsapp } = await request.json()
 
-  if (!email) {
-    return NextResponse.json({ error: 'E-mail é obrigatório.' }, { status: 400 })
+  if (!whatsapp) {
+    return NextResponse.json({ error: 'WhatsApp é obrigatório.' }, { status: 400 })
   }
+
+  const digits = String(whatsapp).replace(/\D/g, '')
+  const number = digits.startsWith('55') ? digits : `55${digits}`
 
   const { data: vet } = await supabase
     .from('veterinarios')
     .select('id, nome, whatsapp')
-    .eq('email', email.toLowerCase().trim())
+    .or(`whatsapp.eq.${digits},whatsapp.eq.${number}`)
     .single()
 
   // Resposta genérica mesmo se não encontrar (segurança)
