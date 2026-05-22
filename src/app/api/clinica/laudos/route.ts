@@ -31,9 +31,9 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from('laudos')
-    .select('id, nome_pet, especie, tutor, tipo, original_name, token, created_at, veterinario_id')
+    .select('id, nome_pet, especie, tutor, tipo, original_name, token, criado_em, veterinario_id')
     .in('veterinario_id', vetIds)
-    .order('created_at', { ascending: false })
+    .order('criado_em', { ascending: false })
 
   if (busca) {
     query = query.or(`nome_pet.ilike.%${busca}%,tutor.ilike.%${busca}%`)
@@ -45,10 +45,10 @@ export async function GET(request: NextRequest) {
     query = query.eq('tipo', tipo)
   }
   if (dataIni) {
-    query = query.gte('created_at', dataIni)
+    query = query.gte('criado_em', dataIni)
   }
   if (dataFim) {
-    query = query.lte('created_at', dataFim + 'T23:59:59')
+    query = query.lte('criado_em', dataFim + 'T23:59:59')
   }
 
   const { data: laudos, error } = await query

@@ -11,7 +11,7 @@ export default async function LaudoPage({ params }: { params: { token: string } 
 
   if (!laudo) notFound()
 
-  const dataCriacao = new Date(laudo.created_at).toLocaleDateString('pt-BR', {
+  const dataCriacao = new Date(laudo.criado_em).toLocaleDateString('pt-BR', {
     day: '2-digit', month: 'long', year: 'numeric',
   })
 

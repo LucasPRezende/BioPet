@@ -12,7 +12,7 @@ interface Laudo {
   tipo: string
   original_name: string
   token: string
-  created_at: string
+  criado_em: string
 }
 
 interface Perfil {
@@ -159,7 +159,7 @@ export default function VetDashboard() {
                         {l.tipo === 'gerado' ? 'Gerado' : 'Upload'}
                       </span>
                     </td>
-                    <td className="px-5 py-4 text-gray-400 text-sm">{fmt(l.created_at)}</td>
+                    <td className="px-5 py-4 text-gray-400 text-sm">{fmt(l.criado_em)}</td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">
                         <a

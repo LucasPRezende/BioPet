@@ -21,10 +21,10 @@ export async function GET(request: NextRequest) {
 
   const { data: laudos, error: laudosError } = await supabase
     .from('laudos')
-    .select('id, tipo_exame, created_at, system_user_id, preco_exame, custo_exame, valor_comissao')
-    .gte('created_at', `${inicio}T00:00:00`)
-    .lte('created_at', `${fim}T23:59:59`)
-    .order('created_at', { ascending: true })
+    .select('id, tipo_exame, criado_em, system_user_id, preco_exame, custo_exame, valor_comissao')
+    .gte('criado_em', `${inicio}T00:00:00`)
+    .lte('criado_em', `${fim}T23:59:59`)
+    .order('criado_em', { ascending: true })
 
   if (laudosError) return NextResponse.json({ error: laudosError.message }, { status: 500 })
 
@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
   // Por dia (gráfico)
   const porDiaMap: Record<string, number> = {}
   for (const l of laudos ?? []) {
-    const dia = l.created_at.slice(0, 10)
+    const dia = l.criado_em.slice(0, 10)
     porDiaMap[dia] = (porDiaMap[dia] ?? 0) + 1
   }
   const porDia = Object.entries(porDiaMap)

@@ -29,9 +29,9 @@ export async function GET(request: NextRequest) {
 
   const { data: laudos, error } = await supabase
     .from('laudos')
-    .select('token, tipo_exame, created_at, pets(nome)')
+    .select('token, tipo_exame, criado_em, pets(nome)')
     .eq('tutor_id', tutor.id)
-    .order('created_at', { ascending: false })
+    .order('criado_em', { ascending: false })
     .limit(3)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
     return {
       pet,
       tipo_exame: l.tipo_exame as string | null,
-      data:       new Date(l.created_at as string).toLocaleDateString('pt-BR'),
+      data:       new Date(l.criado_em as string).toLocaleDateString('pt-BR'),
       link:       `${baseUrl}/laudo/${l.token as string}`,
     }
   })

@@ -30,14 +30,14 @@ export async function GET(
   if (!pet)  return NextResponse.json({ error: 'Pet não encontrado.' }, { status: 404 })
 
   const [laudosRes, agendamentosRes] = await Promise.all([
-    supabase.from('laudos').select('id, created_at').eq('pet_id', petId).order('created_at'),
+    supabase.from('laudos').select('id, criado_em').eq('pet_id', petId).order('criado_em'),
     supabase.from('agendamentos').select('id, data_hora').eq('pet_id', petId).order('data_hora'),
   ])
 
   const laudos       = laudosRes.data       ?? []
   const agendamentos = agendamentosRes.data  ?? []
 
-  const datas = [...laudos.map(l => l.created_at), ...agendamentos.map(a => a.data_hora)].sort()
+  const datas = [...laudos.map(l => l.criado_em), ...agendamentos.map(a => a.data_hora)].sort()
 
   return NextResponse.json({
     ...pet,

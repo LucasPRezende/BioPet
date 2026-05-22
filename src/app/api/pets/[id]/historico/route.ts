@@ -26,9 +26,9 @@ export async function GET(
     tipo_evento === 'agendamento' ? Promise.resolve({ data: [] }) :
     supabase
       .from('laudos')
-      .select('id, created_at, tipo_exame, token, system_users(nome), veterinarios(nome)')
+      .select('id, criado_em, tipo_exame, token, system_users(nome), veterinarios(nome)')
       .eq('pet_id', petId)
-      .order('created_at', { ascending: false }),
+      .order('criado_em', { ascending: false }),
 
     tipo_evento === 'laudo' ? Promise.resolve({ data: [] }) :
     supabase
@@ -42,12 +42,12 @@ export async function GET(
   let agendamentos: typeof agendamentosRes.data = agendamentosRes.data ?? []
 
   if (data_inicio) {
-    laudos        = laudos?.filter(l => l.created_at >= data_inicio) ?? []
+    laudos        = laudos?.filter(l => l.criado_em >= data_inicio) ?? []
     agendamentos  = agendamentos?.filter(a => a.data_hora >= data_inicio) ?? []
   }
   if (data_fim) {
     const fim = data_fim + 'T23:59:59'
-    laudos        = laudos?.filter(l => l.created_at <= fim) ?? []
+    laudos        = laudos?.filter(l => l.criado_em <= fim) ?? []
     agendamentos  = agendamentos?.filter(a => a.data_hora <= fim) ?? []
   }
   if (tipo_exame) {
@@ -59,7 +59,7 @@ export async function GET(
     ...(laudos ?? []).map(l => ({
       tipo:       'laudo' as const,
       id:         l.id,
-      data:       l.created_at,
+      data:       l.criado_em,
       tipo_exame: l.tipo_exame,
       token:      l.token,
       emitido_por: (l.system_users as unknown as { nome: string } | null)?.nome ?? null,

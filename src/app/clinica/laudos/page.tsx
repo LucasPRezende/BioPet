@@ -11,7 +11,7 @@ interface Laudo {
   tipo: string
   original_name: string
   token: string
-  created_at: string
+  criado_em: string
   veterinario_id: number
 }
 
@@ -141,7 +141,7 @@ export default function ClinicaLaudosPage() {
                   const vet = vets.find(v => v.id === l.veterinario_id)
                   return (
                     <tr key={l.id} className="hover:bg-amber-50/30 transition">
-                      <td className="px-5 py-4 text-gray-400 text-sm whitespace-nowrap">{fmt(l.created_at)}</td>
+                      <td className="px-5 py-4 text-gray-400 text-sm whitespace-nowrap">{fmt(l.criado_em)}</td>
                       <td className="px-5 py-4 font-semibold text-[#19202d]">{l.nome_pet}</td>
                       <td className="px-5 py-4 text-gray-700">{l.tutor}</td>
                       <td className="px-5 py-4 text-gray-500 text-sm">{vet?.nome ?? '—'}</td>

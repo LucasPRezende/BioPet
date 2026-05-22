@@ -12,9 +12,9 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from('laudos')
-    .select('id, nome_pet, especie, tutor, telefone, token, tipo, original_name, created_at')
+    .select('id, nome_pet, especie, tutor, telefone, token, tipo, original_name, criado_em')
     .eq('veterinario_id', vetId)
-    .order('created_at', { ascending: false })
+    .order('criado_em', { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)

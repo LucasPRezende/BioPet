@@ -13,7 +13,7 @@ interface Laudo {
   token: string
   tipo: string
   tipo_exame: string | null
-  created_at: string
+  criado_em: string
   veterinarios: { nome: string } | null
   system_users: { nome: string } | null
 }
@@ -183,7 +183,7 @@ export default function LaudosPage() {
               <tbody className="divide-y divide-gray-100">
                 {laudos.map(laudo => (
                   <tr key={laudo.id} className="hover:bg-amber-50/30 transition">
-                    <td className="px-4 py-4 text-gray-400 text-sm whitespace-nowrap">{fmt(laudo.created_at)}</td>
+                    <td className="px-4 py-4 text-gray-400 text-sm whitespace-nowrap">{fmt(laudo.criado_em)}</td>
                     <td className="px-4 py-4">
                       <a href={laudo.pet_id ? `/admin/pets/${laudo.pet_id}` : '#'}
                         className="font-semibold text-[#19202d] hover:text-[#8a6e36] hover:underline">{laudo.nome_pet}</a>
