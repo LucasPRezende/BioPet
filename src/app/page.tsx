@@ -242,7 +242,7 @@ export default function LandingPage() {
         © {new Date().getFullYear()} BioPet – Laboratório Veterinário de Análises Clínicas e Diagnóstico por Imagem.
         Todos os direitos reservados.
         <span style={{ margin: '0 12px', opacity: 0.3 }}>|</span>
-        <Link href="/admin/login">Área restrita</Link>
+        <Link href="/acesso">Área restrita</Link>
       </footer>
     </div>
   )
