@@ -5,11 +5,11 @@ import { parseClinicaSession } from '@/lib/clinica-auth'
 
 const ADMIN_ONLY = ['/admin/dashboard', '/admin/usuarios', '/admin/comissoes']
 
-// Usa nextUrl.clone() para preservar o domínio público (evita redirect para localhost atrás de proxy)
+// Constrói URL de redirect a partir dos headers do proxy — nextUrl pode retornar localhost em self-hosted
 function redir(request: NextRequest, path: string) {
-  const url = request.nextUrl.clone()
-  url.pathname = path
-  return NextResponse.redirect(url)
+  const proto = request.headers.get('x-forwarded-proto')?.split(',')[0] ?? 'https'
+  const host  = request.headers.get('x-forwarded-host') ?? request.headers.get('host') ?? 'biopetvet.com'
+  return NextResponse.redirect(new URL(path, `${proto}://${host}`))
 }
 
 export async function middleware(request: NextRequest) {
