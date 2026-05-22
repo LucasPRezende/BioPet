@@ -119,6 +119,13 @@ export default function VeterinariosPage() {
     return new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
   }
 
+  function fmtWa(wa: string) {
+    const d = wa.replace(/\D/g, '').replace(/^55/, '')
+    if (d.length === 11) return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`
+    if (d.length === 10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`
+    return wa
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <main className="max-w-5xl mx-auto px-4 py-8">
@@ -143,64 +150,73 @@ export default function VeterinariosPage() {
             <p className="text-gray-500">Nenhum veterinário cadastrado.</p>
           </div>
         ) : (
-          <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-            <div className="h-1 bg-gold-stripe" />
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b">
-                <tr>
-                  {['Nome', 'Clínica', 'E-mail', 'WhatsApp', 'Status', 'Cadastro', 'Ações'].map(h => (
-                    <th key={h} className="text-left px-5 py-3 text-xs font-bold text-[#19202d] uppercase tracking-wide whitespace-nowrap">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {vets.map(vet => (
-                  <tr key={vet.id} className="hover:bg-amber-50/30 transition">
-                    <td className="px-5 py-4 font-semibold text-[#19202d]">{vet.nome}</td>
-                    <td className="px-5 py-4 text-gray-500 text-sm">
-                      {vet.clinicas ? (
-                        <span className="text-xs bg-amber-50 text-[#8a6e36] border border-[#8a6e36]/20 px-2 py-0.5 rounded-full">
-                          {vet.clinicas.nome}
-                        </span>
-                      ) : <span className="text-gray-300">—</span>}
-                    </td>
-                    <td className="px-5 py-4 text-gray-500 text-sm">{vet.email ?? <span className="text-gray-300">—</span>}</td>
-                    <td className="px-5 py-4 text-gray-500 text-sm">{vet.whatsapp ?? <span className="text-gray-300">—</span>}</td>
-                    <td className="px-5 py-4">
-                      <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
-                        vet.convite_aceito
-                          ? 'bg-green-50 text-green-700 border border-green-200'
-                          : 'bg-amber-50 text-[#8a6e36] border border-[#8a6e36]/20'
-                      }`}>
-                        {vet.convite_aceito ? '✓ Ativo' : '⏳ Pendente'}
+          <div className="space-y-3">
+            {vets.map(vet => (
+              <div key={vet.id} className="bg-white rounded-xl shadow-sm border overflow-hidden">
+                <div className="h-1 bg-gold-stripe" />
+                <div className="p-5 flex flex-wrap items-center gap-4">
+
+                  {/* Avatar + Nome */}
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="w-10 h-10 rounded-full bg-[#19202d] flex items-center justify-center shrink-0">
+                      <span className="text-[#c4a35a] font-bold text-sm">
+                        {vet.nome.charAt(0).toUpperCase()}
                       </span>
-                    </td>
-                    <td className="px-5 py-4 text-gray-400 text-sm whitespace-nowrap">{fmt(vet.criado_em)}</td>
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => openEdit(vet)}
-                          className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition"
-                        >
-                          ✏️ Editar
-                        </button>
-                        {!vet.convite_aceito && (
-                          <button
-                            onClick={() => handleReenviar(vet)}
-                            disabled={sending === vet.id}
-                            className="text-xs px-3 py-1.5 rounded-lg bg-amber-50 text-[#8a6e36] border border-[#8a6e36]/20 hover:bg-amber-100 transition disabled:opacity-50"
-                          >
-                            {sending === vet.id ? 'Enviando...' : '↩ Reenviar convite'}
-                          </button>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-bold text-[#19202d] text-[15px] leading-tight">{vet.nome}</p>
+                      <div className="flex flex-wrap items-center gap-2 mt-1">
+                        {vet.clinicas ? (
+                          <span className="text-xs bg-amber-50 text-[#8a6e36] border border-[#8a6e36]/20 px-2 py-0.5 rounded-full">
+                            {vet.clinicas.nome}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-300">Sem clínica</span>
                         )}
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${
+                          vet.convite_aceito
+                            ? 'bg-green-50 text-green-700 border-green-200'
+                            : 'bg-amber-50 text-[#8a6e36] border-[#8a6e36]/20'
+                        }`}>
+                          {vet.convite_aceito ? '✓ Ativo' : '⏳ Pendente'}
+                        </span>
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </div>
+                  </div>
+
+                  {/* Contato + Cadastro */}
+                  <div className="text-sm text-gray-500 shrink-0 space-y-0.5">
+                    {vet.whatsapp && (
+                      <p className="flex items-center gap-1.5">
+                        <span className="text-gray-300">📱</span>
+                        {fmtWa(vet.whatsapp)}
+                      </p>
+                    )}
+                    <p className="text-xs text-gray-400">Cadastrado em {fmt(vet.criado_em)}</p>
+                  </div>
+
+                  {/* Ações */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => openEdit(vet)}
+                      className="text-xs px-3 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition"
+                    >
+                      ✏️ Editar
+                    </button>
+                    {!vet.convite_aceito && (
+                      <button
+                        onClick={() => handleReenviar(vet)}
+                        disabled={sending === vet.id}
+                        className="text-xs px-3 py-2 rounded-lg bg-amber-50 text-[#8a6e36] border border-[#8a6e36]/20 hover:bg-amber-100 transition disabled:opacity-50 whitespace-nowrap"
+                      >
+                        {sending === vet.id ? 'Enviando...' : '↩ Reenviar convite'}
+                      </button>
+                    )}
+                  </div>
+
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </main>

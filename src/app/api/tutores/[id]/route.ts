@@ -23,7 +23,8 @@ export async function PATCH(
   const body = await request.json()
   const updates: Record<string, string | null> = {}
 
-  if (body.nome !== undefined) updates.nome = body.nome?.trim() || null
+  if (body.nome !== undefined)     updates.nome     = body.nome?.trim() || null
+  if (body.cpf  !== undefined)     updates.cpf      = body.cpf?.replace(/\D/g, '') || null
   if (body.telefone !== undefined) {
     const digits = body.telefone.replace(/\D/g, '')
     updates.telefone = digits.startsWith('55') ? digits : `55${digits}`
@@ -39,7 +40,7 @@ export async function PATCH(
     .from('tutores')
     .update(updates)
     .eq('id', tutorId)
-    .select('*, pets(id, nome, especie, raca), agendamentos(id)')
+    .select('*, pets(id, nome, especie, raca, sexo, pelagem, data_nascimento, castrado, temperamento, falecido), agendamentos(id)')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

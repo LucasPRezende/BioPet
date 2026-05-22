@@ -1,6 +1,10 @@
 // Usa apenas Web Crypto (globalThis.crypto) — funciona em Node.js e Edge Runtime
 
-const getSecret = () => process.env.AUTH_SECRET ?? 'mude-esta-chave-secreta-2024'
+const getSecret = () => {
+  const s = process.env.AUTH_SECRET
+  if (!s) throw new Error('AUTH_SECRET env var não configurada.')
+  return s
+}
 
 // ── Session token ─────────────────────────────────────────────────────────────
 // Formato: "vetId:hmac"

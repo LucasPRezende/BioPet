@@ -4,11 +4,16 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { ESPECIES, especieIcon } from '@/lib/especies'
 
-interface Pet  { id: number; nome: string; especie: string | null; raca: string | null; sexo: string | null; falecido?: boolean | null }
+interface Pet  {
+  id: number; nome: string; especie: string | null; raca: string | null; sexo: string | null
+  pelagem?: string | null; data_nascimento?: string | null; castrado?: boolean | null; temperamento?: string | null
+  falecido?: boolean | null
+}
 interface Tutor {
   id:            number
   telefone:      string
   nome:          string | null
+  cpf?:          string | null
   criado_em:     string
   pets:          Pet[]
   agendamentos:  { id: number }[]
@@ -29,25 +34,25 @@ export default function TutoresPage() {
 
   // Modal novo tutor
   const [novoTutorModal, setNovoTutorModal] = useState(false)
-  const [novoTutorForm,  setNovoTutorForm]  = useState({ nome: '', telefone: '' })
+  const [novoTutorForm,  setNovoTutorForm]  = useState({ nome: '', telefone: '', cpf: '' })
   const [novoTutorSaving, setNovoTutorSaving] = useState(false)
   const [novoTutorError,  setNovoTutorError]  = useState('')
 
   // Modal editar tutor
   const [editTutor,       setEditTutor]       = useState<Tutor | null>(null)
-  const [editTutorForm,   setEditTutorForm]   = useState({ nome: '', telefone: '' })
+  const [editTutorForm,   setEditTutorForm]   = useState({ nome: '', telefone: '', cpf: '' })
   const [editTutorSaving, setEditTutorSaving] = useState(false)
   const [editTutorError,  setEditTutorError]  = useState('')
 
   // Modal novo pet
   const [petTutor,     setPetTutor]     = useState<Tutor | null>(null)
-  const [petForm,      setPetForm]      = useState({ nome: '', especie: '', raca: '', sexo: '' })
+  const [petForm,      setPetForm]      = useState({ nome: '', especie: '', raca: '', sexo: '', pelagem: '', data_nascimento: '', castrado: false, temperamento: '' })
   const [petSaving,    setPetSaving]    = useState(false)
   const [petError,     setPetError]     = useState('')
 
   // Modal editar pet
   const [editPet,      setEditPet]      = useState<Pet | null>(null)
-  const [editPetForm,  setEditPetForm]  = useState({ nome: '', especie: '', raca: '', sexo: '' })
+  const [editPetForm,  setEditPetForm]  = useState({ nome: '', especie: '', raca: '', sexo: '', pelagem: '', data_nascimento: '', castrado: false, temperamento: '' })
   const [editPetSaving, setEditPetSaving] = useState(false)
   const [editPetError,  setEditPetError]  = useState('')
 
@@ -80,12 +85,12 @@ export default function TutoresPage() {
     const res = await fetch('/api/tutores', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(novoTutorForm),
+      body: JSON.stringify({ ...novoTutorForm, cpf: novoTutorForm.cpf.replace(/\D/g,'') || undefined }),
     })
     if (res.ok) {
       await load()
       setNovoTutorModal(false)
-      setNovoTutorForm({ nome: '', telefone: '' })
+      setNovoTutorForm({ nome: '', telefone: '', cpf: '' })
     } else {
       const d = await res.json()
       setNovoTutorError(d.error ?? 'Erro ao cadastrar.')
@@ -96,7 +101,7 @@ export default function TutoresPage() {
   // ── Editar tutor ──────────────────────────────────────────────────────────
   function openEdit(t: Tutor) {
     setEditTutor(t)
-    setEditTutorForm({ nome: t.nome ?? '', telefone: t.telefone })
+    setEditTutorForm({ nome: t.nome ?? '', telefone: t.telefone, cpf: t.cpf ?? '' })
     setEditTutorError('')
   }
 
@@ -107,7 +112,7 @@ export default function TutoresPage() {
     const res = await fetch(`/api/tutores/${editTutor.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(editTutorForm),
+      body: JSON.stringify({ ...editTutorForm, cpf: editTutorForm.cpf.replace(/\D/g,'') || undefined }),
     })
     if (res.ok) {
       await load()
@@ -122,7 +127,7 @@ export default function TutoresPage() {
   // ── Editar pet ────────────────────────────────────────────────────────────
   function openEditPet(pet: Pet) {
     setEditPet(pet)
-    setEditPetForm({ nome: pet.nome, especie: pet.especie ?? '', raca: pet.raca ?? '', sexo: pet.sexo ?? '' })
+    setEditPetForm({ nome: pet.nome, especie: pet.especie ?? '', raca: pet.raca ?? '', sexo: pet.sexo ?? '', pelagem: pet.pelagem ?? '', data_nascimento: pet.data_nascimento ?? '', castrado: pet.castrado ?? false, temperamento: pet.temperamento ?? '' })
     setEditPetError('')
   }
 
@@ -133,7 +138,7 @@ export default function TutoresPage() {
     const res = await fetch(`/api/pets/${editPet.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(editPetForm),
+      body: JSON.stringify({ ...editPetForm, castrado: editPetForm.castrado }),
     })
     if (res.ok) {
       await load()
@@ -148,7 +153,7 @@ export default function TutoresPage() {
   // ── Novo pet ──────────────────────────────────────────────────────────────
   function openNovoPet(t: Tutor) {
     setPetTutor(t)
-    setPetForm({ nome: '', especie: '', raca: '', sexo: '' })
+    setPetForm({ nome: '', especie: '', raca: '', sexo: '', pelagem: '', data_nascimento: '', castrado: false, temperamento: '' })
     setPetError('')
   }
 
@@ -206,7 +211,7 @@ export default function TutoresPage() {
               className="flex-1 border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#8a6e36]"
             />
             <button
-              onClick={() => { setNovoTutorForm({ nome: '', telefone: '' }); setNovoTutorError(''); setNovoTutorModal(true) }}
+              onClick={() => { setNovoTutorForm({ nome: '', telefone: '', cpf: '' }); setNovoTutorError(''); setNovoTutorModal(true) }}
               className="shrink-0 bg-[#c4a35a] hover:bg-[#a88a47] text-white font-bold px-4 py-2.5 rounded-lg text-sm transition"
             >
               + Novo resp. legal
@@ -326,6 +331,12 @@ export default function TutoresPage() {
                   onChange={e => setNovoTutorForm(p => ({ ...p, nome: e.target.value }))}
                   placeholder="Nome completo" className={INPUT} />
               </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">CPF <span className="text-gray-300 font-normal">(opcional)</span></label>
+                <input type="text" inputMode="numeric" value={novoTutorForm.cpf}
+                  onChange={e => setNovoTutorForm(p => ({ ...p, cpf: e.target.value }))}
+                  placeholder="000.000.000-00" className={INPUT} />
+              </div>
               {novoTutorError && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{novoTutorError}</p>}
               <div className="flex gap-3 pt-1">
                 <button type="button" onClick={() => setNovoTutorModal(false)}
@@ -363,6 +374,12 @@ export default function TutoresPage() {
                   onChange={e => setEditTutorForm(p => ({ ...p, telefone: e.target.value }))}
                   placeholder="(24) 99999-9999" className={INPUT} />
               </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">CPF <span className="text-gray-300 font-normal">(opcional)</span></label>
+                <input type="text" inputMode="numeric" value={editTutorForm.cpf}
+                  onChange={e => setEditTutorForm(p => ({ ...p, cpf: e.target.value }))}
+                  placeholder="000.000.000-00" className={INPUT} />
+              </div>
               {editTutorError && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{editTutorError}</p>}
               <div className="flex gap-3 pt-1">
                 <button type="button" onClick={() => setEditTutor(null)}
@@ -390,7 +407,7 @@ export default function TutoresPage() {
               </div>
               <button onClick={() => setEditPet(null)} className="text-gray-400 hover:text-white text-xl leading-none">×</button>
             </div>
-            <form onSubmit={handleEditPet} className="p-6 space-y-4">
+            <form onSubmit={handleEditPet} className="p-6 space-y-3 max-h-[80vh] overflow-y-auto">
               <div>
                 <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
                   Nome <span className="text-red-400">*</span>
@@ -399,26 +416,59 @@ export default function TutoresPage() {
                   onChange={e => setEditPetForm(p => ({ ...p, nome: e.target.value }))}
                   placeholder="Ex: Thor" required className={INPUT} />
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Espécie</label>
-                <select value={editPetForm.especie} onChange={e => setEditPetForm(p => ({ ...p, especie: e.target.value }))} className={INPUT}>
-                  <option value="">—</option>
-                  {ESPECIES.map(s => <option key={s}>{s}</option>)}
-                </select>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Espécie</label>
+                  <select value={editPetForm.especie} onChange={e => setEditPetForm(p => ({ ...p, especie: e.target.value }))} className={INPUT}>
+                    <option value="">—</option>
+                    {ESPECIES.map(s => <option key={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Sexo</label>
+                  <select value={editPetForm.sexo} onChange={e => setEditPetForm(p => ({ ...p, sexo: e.target.value }))} className={INPUT}>
+                    <option value="">—</option>
+                    <option value="macho">Macho</option>
+                    <option value="femea">Fêmea</option>
+                  </select>
+                </div>
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Raça</label>
-                <input type="text" value={editPetForm.raca}
-                  onChange={e => setEditPetForm(p => ({ ...p, raca: e.target.value }))}
-                  placeholder="Ex: Golden Retriever" className={INPUT} />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Raça</label>
+                  <input type="text" value={editPetForm.raca}
+                    onChange={e => setEditPetForm(p => ({ ...p, raca: e.target.value }))}
+                    placeholder="Ex: Golden" className={INPUT} />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Pelagem</label>
+                  <input type="text" value={editPetForm.pelagem}
+                    onChange={e => setEditPetForm(p => ({ ...p, pelagem: e.target.value }))}
+                    placeholder="Ex: Dourada" className={INPUT} />
+                </div>
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Sexo</label>
-                <select value={editPetForm.sexo} onChange={e => setEditPetForm(p => ({ ...p, sexo: e.target.value }))} className={INPUT}>
-                  <option value="">—</option>
-                  {SEXOS.map(s => <option key={s}>{s}</option>)}
-                </select>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Data de Nascimento</label>
+                  <input type="date" value={editPetForm.data_nascimento}
+                    onChange={e => setEditPetForm(p => ({ ...p, data_nascimento: e.target.value }))}
+                    className={INPUT} />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Temperamento</label>
+                  <select value={editPetForm.temperamento} onChange={e => setEditPetForm(p => ({ ...p, temperamento: e.target.value }))} className={INPUT}>
+                    <option value="">—</option>
+                    <option value="manso">Manso</option>
+                    <option value="medroso">Medroso</option>
+                    <option value="reativo">Reativo</option>
+                    <option value="bravo">Bravo</option>
+                  </select>
+                </div>
               </div>
+              <label className="flex items-center gap-2 text-sm text-[#19202d] cursor-pointer pt-1">
+                <input type="checkbox" checked={editPetForm.castrado} onChange={e => setEditPetForm(p => ({ ...p, castrado: e.target.checked }))} className="w-4 h-4 accent-[#8a6e36]" />
+                Castrado
+              </label>
               {editPetError && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{editPetError}</p>}
               <div className="flex gap-3 pt-1">
                 <button type="button" onClick={() => setEditPet(null)}
@@ -446,7 +496,7 @@ export default function TutoresPage() {
               </div>
               <button onClick={() => setPetTutor(null)} className="text-gray-400 hover:text-white text-xl leading-none">×</button>
             </div>
-            <form onSubmit={handleNovoPet} className="p-6 space-y-4">
+            <form onSubmit={handleNovoPet} className="p-6 space-y-3 max-h-[80vh] overflow-y-auto">
               <div>
                 <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
                   Nome do pet <span className="text-red-400">*</span>
@@ -455,26 +505,47 @@ export default function TutoresPage() {
                   onChange={e => setPetForm(p => ({ ...p, nome: e.target.value }))}
                   placeholder="Ex: Thor" required className={INPUT} />
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Espécie</label>
-                <select value={petForm.especie} onChange={e => setPetForm(p => ({ ...p, especie: e.target.value }))} className={INPUT}>
-                  <option value="">—</option>
-                  {ESPECIES.map(s => <option key={s}>{s}</option>)}
-                </select>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Espécie</label>
+                  <select value={petForm.especie} onChange={e => setPetForm(p => ({ ...p, especie: e.target.value }))} className={INPUT}>
+                    <option value="">—</option>
+                    {ESPECIES.map(s => <option key={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Sexo</label>
+                  <select value={petForm.sexo} onChange={e => setPetForm(p => ({ ...p, sexo: e.target.value }))} className={INPUT}>
+                    <option value="">—</option>
+                    <option value="macho">Macho</option>
+                    <option value="femea">Fêmea</option>
+                  </select>
+                </div>
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Raça</label>
-                <input type="text" value={petForm.raca}
-                  onChange={e => setPetForm(p => ({ ...p, raca: e.target.value }))}
-                  placeholder="Ex: Golden Retriever" className={INPUT} />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Raça</label>
+                  <input type="text" value={petForm.raca} onChange={e => setPetForm(p => ({ ...p, raca: e.target.value }))} placeholder="Ex: Golden" className={INPUT} />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Pelagem</label>
+                  <input type="text" value={petForm.pelagem} onChange={e => setPetForm(p => ({ ...p, pelagem: e.target.value }))} placeholder="Ex: Dourada" className={INPUT} />
+                </div>
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Sexo</label>
-                <select value={petForm.sexo} onChange={e => setPetForm(p => ({ ...p, sexo: e.target.value }))} className={INPUT}>
-                  <option value="">—</option>
-                  {SEXOS.map(s => <option key={s}>{s}</option>)}
-                </select>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Nascimento</label>
+                  <input type="date" value={petForm.data_nascimento} onChange={e => setPetForm(p => ({ ...p, data_nascimento: e.target.value }))} className={INPUT} />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Temperamento</label>
+                  <input type="text" value={petForm.temperamento} onChange={e => setPetForm(p => ({ ...p, temperamento: e.target.value }))} placeholder="Ex: Dócil" className={INPUT} />
+                </div>
               </div>
+              <label className="flex items-center gap-2 text-sm text-[#19202d] cursor-pointer">
+                <input type="checkbox" checked={petForm.castrado} onChange={e => setPetForm(p => ({ ...p, castrado: e.target.checked }))} className="w-4 h-4 accent-[#8a6e36]" />
+                Castrado
+              </label>
               {petError && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{petError}</p>}
               <div className="flex gap-3 pt-1">
                 <button type="button" onClick={() => setPetTutor(null)}

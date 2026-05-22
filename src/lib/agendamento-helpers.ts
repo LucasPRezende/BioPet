@@ -46,23 +46,26 @@ export async function verificarConflito(
 }
 
 // Busca tutor pelo telefone normalizado; cria se não existir. Lança se o insert falhar.
-export async function upsertTutor(telNorm: string, nome?: string): Promise<number> {
+export async function upsertTutor(telNorm: string, nome?: string, cpf?: string): Promise<number> {
   const { data: existing } = await supabase
     .from('tutores')
-    .select('id, nome')
+    .select('id, nome, cpf')
     .eq('telefone', telNorm)
     .maybeSingle()
 
   if (existing) {
-    if (nome && !existing.nome) {
-      await supabase.from('tutores').update({ nome }).eq('id', existing.id)
+    const updates: Record<string, unknown> = {}
+    if (nome && !existing.nome) updates.nome = nome
+    if (cpf && !existing.cpf)   updates.cpf  = cpf
+    if (Object.keys(updates).length > 0) {
+      await supabase.from('tutores').update(updates).eq('id', existing.id)
     }
     return existing.id
   }
 
   const { data: created, error } = await supabase
     .from('tutores')
-    .insert({ telefone: telNorm, nome: nome ?? null })
+    .insert({ telefone: telNorm, nome: nome ?? null, cpf: cpf ?? null })
     .select('id')
     .single()
 

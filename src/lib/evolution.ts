@@ -40,7 +40,7 @@ export async function sendClinicaInvite(
   token: string,
   senhaTemporaria: string,
 ): Promise<boolean> {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+  const baseUrl = process.env.NEXT_PUBLIC_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
   const link = `${baseUrl}/clinica/cadastro?token=${token}`
   const message =
     `Olá! A BioPet cadastrou *${nomeClinica}* como parceira.\n\n` +
@@ -56,7 +56,7 @@ export async function sendVetInvite(
   token: string,
   tipo: 'convite' | 'recuperacao' = 'convite',
 ): Promise<boolean> {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+  const baseUrl = process.env.NEXT_PUBLIC_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
   const rota    = tipo === 'recuperacao' ? 'recuperar' : 'cadastro'
   const link    = `${baseUrl}/vet/${rota}?token=${token}`
   const message = tipo === 'recuperacao'

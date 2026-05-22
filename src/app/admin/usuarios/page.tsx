@@ -361,108 +361,108 @@ export default function UsuariosPage() {
         {loading ? (
           <div className="text-center py-16 text-gray-400">Carregando...</div>
         ) : (
-          <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-            <div className="h-1 bg-gold-stripe" />
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b">
-                <tr>
-                  {['Nome', 'E-mail', 'Perfil', 'Comissão', 'Status', 'Criado em', 'Ações'].map(h => (
-                    <th key={h} className="text-left px-5 py-3 text-xs font-bold text-[#19202d] uppercase tracking-wide">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {users.map(user => (
-                  <tr key={user.id} className="hover:bg-amber-50/30 transition">
-                    <td className="px-5 py-4">
-                      <span className="font-semibold text-[#19202d]">{user.nome}</span>
-                      {user.primeira_senha && (
-                        <span className="ml-2 text-[10px] bg-orange-50 text-orange-600 border border-orange-200 px-1.5 py-0.5 rounded">
-                          Troca pendente
+          <div className="space-y-3">
+            {users.map(user => (
+              <div key={user.id} className="bg-white rounded-xl shadow-sm border overflow-hidden">
+                <div className="h-1 bg-gold-stripe" />
+                <div className="p-5 flex flex-wrap items-start gap-4">
+
+                  {/* Avatar + Nome + Info */}
+                  <div className="flex items-start gap-3 min-w-0 flex-1">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${user.ativo ? 'bg-[#19202d]' : 'bg-gray-300'}`}>
+                      <span className="text-[#c4a35a] font-bold text-sm">
+                        {user.nome.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-bold text-[#19202d] text-[15px] leading-tight">{user.nome}</p>
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                          user.role === 'admin' ? 'bg-amber-100 text-[#8a6e36]' : 'bg-blue-50 text-blue-600'
+                        }`}>
+                          {user.role === 'admin' ? '👑 Admin' : 'Usuário'}
                         </span>
-                      )}
-                      {user.role !== 'admin' && user.permissoes?.laudos_exames?.length ? (
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          {user.permissoes.laudos_exames.map(t => (
-                            <span key={t} className="text-[10px] bg-violet-50 text-violet-700 border border-violet-200 px-1.5 py-0.5 rounded">
-                              {t}
-                            </span>
-                          ))}
-                        </div>
-                      ) : user.role !== 'admin' ? (
-                        <div className="mt-1">
-                          <span className="text-[10px] text-gray-400">Sem restrição de exame</span>
-                        </div>
-                      ) : null}
-                    </td>
-                    <td className="px-5 py-4 text-gray-600 text-sm">{user.email}</td>
-                    <td className="px-5 py-4">
-                      <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
-                        user.role === 'admin'
-                          ? 'bg-amber-100 text-[#8a6e36]'
-                          : 'bg-blue-50 text-blue-600'
-                      }`}>
-                        {user.role === 'admin' ? 'Admin' : 'Usuário'}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4">
-                      <button
-                        onClick={() => {
-                          fetch(`/api/system-users/${user.id}`, {
-                            method: 'PATCH',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ recebe_comissao: !user.recebe_comissao }),
-                          }).then(r => r.ok ? r.json() : null).then(u => {
-                            if (u) setUsers(prev => prev.map(x => x.id === u.id ? u : x))
-                          })
-                        }}
-                        className={`relative w-11 h-6 rounded-full transition-colors ${user.recebe_comissao ? 'bg-[#19202d]' : 'bg-gray-300'}`}
-                        title={user.recebe_comissao ? 'Recebe comissão' : 'Salário fixo (sem comissão)'}
-                      >
-                        <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${user.recebe_comissao ? 'translate-x-5' : 'translate-x-0'}`} />
-                      </button>
-                    </td>
-                    <td className="px-5 py-4">
-                      <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
-                        user.ativo ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'
-                      }`}>
-                        {user.ativo ? 'Ativo' : 'Inativo'}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4 text-gray-400 text-sm">{formatDate(user.criado_em)}</td>
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <button
-                          onClick={() => setPermissoesModal(user)}
-                          className="text-xs px-3 py-1.5 rounded-lg bg-violet-50 text-violet-700 border border-violet-200 hover:bg-violet-100 transition"
-                          title="Editar permissões de exames"
-                        >
-                          🔒 Permissões
-                        </button>
-                        <button
-                          onClick={() => setResetModal(user)}
-                          className="text-xs px-3 py-1.5 rounded-lg bg-amber-50 text-[#8a6e36] border border-[#8a6e36]/20 hover:bg-amber-100 transition"
-                        >
-                          Resetar senha
-                        </button>
-                        <button
-                          onClick={() => toggleAtivo(user)}
-                          className={`text-xs px-3 py-1.5 rounded-lg transition ${
-                            user.ativo
-                              ? 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100'
-                              : 'bg-green-50 text-green-600 border border-green-200 hover:bg-green-100'
-                          }`}
-                        >
-                          {user.ativo ? 'Desativar' : 'Ativar'}
-                        </button>
+                        <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${
+                          user.ativo ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-600 border-red-200'
+                        }`}>
+                          {user.ativo ? '● Ativo' : '○ Inativo'}
+                        </span>
+                        {user.primeira_senha && (
+                          <span className="text-xs bg-orange-50 text-orange-600 border border-orange-200 px-2 py-0.5 rounded-full">
+                            ⚠️ Troca de senha pendente
+                          </span>
+                        )}
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      <p className="text-sm text-gray-500 mt-1">{user.email}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Desde {formatDate(user.criado_em)}</p>
+
+                      {/* Permissões de exames */}
+                      {user.role !== 'admin' && (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {user.permissoes?.laudos_exames?.length ? (
+                            user.permissoes.laudos_exames.map(t => (
+                              <span key={t} className="text-[10px] bg-violet-50 text-violet-700 border border-violet-200 px-1.5 py-0.5 rounded">
+                                {t}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-[10px] text-gray-400">Sem restrição de exame</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Comissão toggle + Ações */}
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    {/* Toggle comissão */}
+                    <button
+                      onClick={() => {
+                        fetch(`/api/system-users/${user.id}`, {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ recebe_comissao: !user.recebe_comissao }),
+                        }).then(r => r.ok ? r.json() : null).then(u => {
+                          if (u) setUsers(prev => prev.map(x => x.id === u.id ? u : x))
+                        })
+                      }}
+                      title={user.recebe_comissao ? 'Recebe comissão — clique para desativar' : 'Sem comissão — clique para ativar'}
+                      className={`flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg border transition ${
+                        user.recebe_comissao
+                          ? 'bg-[#19202d] text-white border-[#19202d]'
+                          : 'bg-gray-50 text-gray-400 border-gray-200'
+                      }`}
+                    >
+                      💰 {user.recebe_comissao ? 'Comissão' : 'Fixo'}
+                    </button>
+
+                    <button
+                      onClick={() => setPermissoesModal(user)}
+                      className="text-xs px-3 py-2 rounded-lg bg-violet-50 text-violet-700 border border-violet-200 hover:bg-violet-100 transition"
+                    >
+                      🔒 Permissões
+                    </button>
+                    <button
+                      onClick={() => setResetModal(user)}
+                      className="text-xs px-3 py-2 rounded-lg bg-amber-50 text-[#8a6e36] border border-[#8a6e36]/20 hover:bg-amber-100 transition whitespace-nowrap"
+                    >
+                      🔑 Resetar senha
+                    </button>
+                    <button
+                      onClick={() => toggleAtivo(user)}
+                      className={`text-xs px-3 py-2 rounded-lg border transition whitespace-nowrap ${
+                        user.ativo
+                          ? 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100'
+                          : 'bg-green-50 text-green-600 border-green-200 hover:bg-green-100'
+                      }`}
+                    >
+                      {user.ativo ? 'Desativar' : 'Ativar'}
+                    </button>
+                  </div>
+
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </main>

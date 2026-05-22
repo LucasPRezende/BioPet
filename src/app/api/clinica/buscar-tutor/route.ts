@@ -9,12 +9,36 @@ export async function GET(request: NextRequest) {
   const session = await parseClinicaSession(token)
   if (!session) return NextResponse.json({ error: 'Sessão inválida.' }, { status: 401 })
 
-  const telefone = request.nextUrl.searchParams.get('telefone')
-  if (!telefone) return NextResponse.json({ error: 'Parâmetro "telefone" é obrigatório.' }, { status: 400 })
+  // Suporte a busca dinâmica por nome ou telefone (?q=) e busca direta por telefone (?telefone=)
+  const q        = request.nextUrl.searchParams.get('q')?.trim() ?? ''
+  const telParam = request.nextUrl.searchParams.get('telefone')?.trim() ?? ''
+  const termo    = q || telParam
 
-  const digits  = telefone.replace(/\D/g, '')
+  if (!termo) return NextResponse.json([])
+
+  const digits  = termo.replace(/\D/g, '')
   const telNorm = digits.startsWith('55') ? digits : `55${digits}`
+  const isPhone = digits.length >= 8
 
+  // Busca dinâmica — retorna lista
+  if (q) {
+    let query = supabase
+      .from('tutores')
+      .select('id, nome, telefone, pets(id, nome, especie, raca)')
+      .order('nome')
+      .limit(8)
+
+    if (isPhone) {
+      query = query.or(`nome.ilike.%${q}%,telefone.ilike.%${digits}%,telefone.ilike.%${telNorm}%`)
+    } else {
+      query = query.ilike('nome', `%${q}%`)
+    }
+
+    const { data } = await query
+    return NextResponse.json(data ?? [])
+  }
+
+  // Busca direta por telefone — retorna { tutor, pets } (compatibilidade)
   const { data: tutor } = await supabase
     .from('tutores')
     .select('id, nome, telefone')

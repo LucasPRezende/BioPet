@@ -9,7 +9,6 @@ function CadastroForm() {
   const token        = searchParams.get('token') ?? ''
   const router       = useRouter()
 
-  const [email,     setEmail]     = useState('')
   const [password,  setPassword]  = useState('')
   const [confirm,   setConfirm]   = useState('')
   const [error,     setError]     = useState('')
@@ -25,7 +24,6 @@ function CadastroForm() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!email.trim())        { setError('Informe o seu e-mail.'); return }
     if (password !== confirm) { setError('As senhas não coincidem.'); return }
     if (password.length < 6)  { setError('A senha deve ter pelo menos 6 caracteres.'); return }
 
@@ -35,7 +33,7 @@ function CadastroForm() {
     const res = await fetch('/api/vet/cadastro', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, email: email.trim().toLowerCase(), password }),
+      body: JSON.stringify({ token, password }),
     })
 
     if (res.ok) {
@@ -64,20 +62,6 @@ function CadastroForm() {
       <p className="text-sm text-gray-400 text-center mb-2">
         Complete seu cadastro para acessar o portal
       </p>
-      <div>
-        <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
-          E-mail <span className="text-red-400">*</span>
-        </label>
-        <input
-          type="email"
-          value={email}
-          onChange={e => setEmail(e.target.value)}
-          placeholder="seu@email.com"
-          required
-          autoFocus
-          className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#8a6e36]"
-        />
-      </div>
       <div>
         <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
           Nova senha <span className="text-red-400">*</span>

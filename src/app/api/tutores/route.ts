@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await supabase
     .from('tutores')
-    .select('*, pets(id, nome, especie, raca, sexo, falecido), agendamentos(id)')
+    .select('*, pets(id, nome, especie, raca, sexo, pelagem, data_nascimento, castrado, temperamento, falecido), agendamentos(id)')
     .order('criado_em', { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -26,7 +26,8 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json()
   const telefone = body.telefone?.replace(/\D/g, '')
-  const nome = body.nome?.trim() || null
+  const nome     = body.nome?.trim() || null
+  const cpf      = body.cpf?.replace(/\D/g, '') || null
 
   if (!telefone || telefone.length < 10) {
     return NextResponse.json({ error: 'Telefone inválido.' }, { status: 400 })
@@ -36,8 +37,8 @@ export async function POST(request: NextRequest) {
 
   const { data, error } = await supabase
     .from('tutores')
-    .insert({ telefone: telNorm, nome })
-    .select('*, pets(id, nome, especie, raca, sexo, falecido), agendamentos(id)')
+    .insert({ telefone: telNorm, nome, cpf })
+    .select('*, pets(id, nome, especie, raca, sexo, pelagem, data_nascimento, castrado, temperamento, falecido), agendamentos(id)')
     .single()
 
   if (error) {

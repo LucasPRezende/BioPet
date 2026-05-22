@@ -6,7 +6,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 
 export default function VetLoginPage() {
-  const [email,    setEmail]    = useState('')
+  const [whatsapp, setWhatsapp] = useState('')
   const [password, setPassword] = useState('')
   const [error,    setError]    = useState('')
   const [loading,  setLoading]  = useState(false)
@@ -19,7 +19,7 @@ export default function VetLoginPage() {
     const res = await fetch('/api/vet/auth', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ whatsapp, password }),
     })
     if (res.ok) {
       router.push('/vet/dashboard')
@@ -54,13 +54,13 @@ export default function VetLoginPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
-                E-mail
+                WhatsApp
               </label>
               <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="seu@email.com"
+                type="tel"
+                value={whatsapp}
+                onChange={e => setWhatsapp(e.target.value)}
+                placeholder="(24) 99999-9999"
                 required
                 autoFocus
                 className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#8a6e36] focus:border-transparent"

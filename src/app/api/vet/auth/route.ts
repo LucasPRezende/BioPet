@@ -4,20 +4,23 @@ import { verifyPassword, createVetSession } from '@/lib/vet-auth'
 import { clearCookieResponse } from '@/lib/session-helpers'
 
 export async function POST(request: NextRequest) {
-  const { email, password } = await request.json()
+  const { whatsapp, password } = await request.json()
 
-  if (!email || !password) {
-    return NextResponse.json({ error: 'E-mail e senha são obrigatórios.' }, { status: 400 })
+  if (!whatsapp || !password) {
+    return NextResponse.json({ error: 'Telefone e senha são obrigatórios.' }, { status: 400 })
   }
+
+  const digits  = String(whatsapp).replace(/\D/g, '')
+  const telNorm = digits.startsWith('55') ? digits : `55${digits}`
 
   const { data: vet, error } = await supabase
     .from('veterinarios')
     .select('id, senha_hash, convite_aceito')
-    .eq('email', email.toLowerCase().trim())
-    .single()
+    .or(`whatsapp.eq.${telNorm},whatsapp.eq.${digits}`)
+    .maybeSingle()
 
   if (error || !vet || !vet.senha_hash) {
-    return NextResponse.json({ error: 'E-mail ou senha inválidos.' }, { status: 401 })
+    return NextResponse.json({ error: 'Telefone ou senha inválidos.' }, { status: 401 })
   }
 
   const ok = await verifyPassword(password, vet.senha_hash)

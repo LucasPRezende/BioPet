@@ -61,18 +61,25 @@ export async function PATCH(
   if (isNaN(petId)) return NextResponse.json({ error: 'ID inválido.' }, { status: 400 })
 
   const body = await request.json()
-  const nome    = body.nome?.trim()
-  const especie = body.especie?.trim() || null
-  const raca    = body.raca?.trim()    || null
-  const sexo    = body.sexo?.trim()    || null
+  const nome          = body.nome?.trim()
+  const especie       = body.especie?.trim()      || null
+  const raca          = body.raca?.trim()         || null
+  const sexo          = body.sexo?.trim()         || null
+  const pelagem       = body.pelagem?.trim()      || null
+  const data_nascimento = body.data_nascimento    || null
+  const castrado      = typeof body.castrado === 'boolean' ? body.castrado : undefined
+  const temperamento  = body.temperamento?.trim() || null
 
   if (!nome) return NextResponse.json({ error: 'Nome do pet é obrigatório.' }, { status: 400 })
 
+  const updates: Record<string, unknown> = { nome, especie, raca, sexo, pelagem, data_nascimento, temperamento }
+  if (castrado !== undefined) updates.castrado = castrado
+
   const { data, error } = await supabase
     .from('pets')
-    .update({ nome, especie, raca, sexo })
+    .update(updates)
     .eq('id', petId)
-    .select('id, nome, especie, raca, sexo')
+    .select('id, nome, especie, raca, sexo, pelagem, data_nascimento, castrado, temperamento')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

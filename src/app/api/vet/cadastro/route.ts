@@ -3,23 +3,13 @@ import { supabase } from '@/lib/supabase'
 import { hashPassword, createVetSession } from '@/lib/vet-auth'
 
 export async function POST(request: NextRequest) {
-  const { token, email, password } = await request.json()
+  const { token, password } = await request.json()
 
-  if (!token || !email || !password || password.length < 6) {
+  if (!token || !password || password.length < 6) {
     return NextResponse.json(
-      { error: 'E-mail, token e senha (mínimo 6 caracteres) são obrigatórios.' },
+      { error: 'Token e senha (mínimo 6 caracteres) são obrigatórios.' },
       { status: 400 },
     )
-  }
-
-  // Verifica unicidade de e-mail
-  const { data: emailExist } = await supabase
-    .from('veterinarios')
-    .select('id')
-    .eq('email', email.trim().toLowerCase())
-    .maybeSingle()
-  if (emailExist) {
-    return NextResponse.json({ error: 'Este e-mail já está em uso.' }, { status: 409 })
   }
 
   const { data: vet, error } = await supabase
@@ -41,7 +31,6 @@ export async function POST(request: NextRequest) {
   const { error: updateError } = await supabase
     .from('veterinarios')
     .update({
-      email: email.trim().toLowerCase(),
       senha_hash,
       convite_aceito: true,
       atualizado_em: new Date().toISOString(),

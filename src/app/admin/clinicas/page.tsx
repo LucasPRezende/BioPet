@@ -173,6 +173,13 @@ export default function ClinicasPage() {
     return new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
   }
 
+  function fmtTel(tel: string) {
+    const d = tel.replace(/\D/g, '').replace(/^55/, '')
+    if (d.length === 11) return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`
+    if (d.length === 10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`
+    return tel
+  }
+
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-6">
@@ -196,79 +203,89 @@ export default function ClinicasPage() {
           <p className="text-gray-500">Nenhuma clínica cadastrada.</p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-          <div className="h-1 bg-gold-stripe" />
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b">
-                <tr>
-                  {['Nome', 'E-mail', 'Telefone', 'Vets', 'Status', 'Convite', 'Cadastro', 'Ações'].map(h => (
-                    <th key={h} className="text-left px-4 py-3 text-xs font-bold text-[#19202d] uppercase tracking-wide whitespace-nowrap">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {clinicas.map(c => (
-                  <tr key={c.id} className="hover:bg-amber-50/30 transition">
-                    <td className="px-4 py-4 font-semibold text-[#19202d]">{c.nome}</td>
-                    <td className="px-4 py-4 text-gray-500 text-sm">{c.email}</td>
-                    <td className="px-4 py-4 text-gray-500 text-sm">{c.telefone ?? '—'}</td>
-                    <td className="px-4 py-4 text-gray-600 font-semibold text-center">{c.total_vets}</td>
-                    <td className="px-4 py-4">
-                      <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
-                        c.ativo
-                          ? 'bg-green-50 text-green-700 border border-green-200'
-                          : 'bg-red-50 text-red-600 border border-red-200'
+        <div className="space-y-3">
+          {clinicas.map(c => (
+            <div key={c.id} className="bg-white rounded-xl shadow-sm border overflow-hidden">
+              <div className="h-1 bg-gold-stripe" />
+              <div className="p-5 flex flex-wrap items-center gap-4">
+
+                {/* Avatar + Info principal */}
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${c.ativo ? 'bg-[#19202d]' : 'bg-gray-300'}`}>
+                    <span className="text-[#c4a35a] font-bold text-sm">
+                      {c.nome.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-bold text-[#19202d] text-[15px] leading-tight">{c.nome}</p>
+                    <div className="flex flex-wrap items-center gap-2 mt-1">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${
+                        c.ativo ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-600 border-red-200'
                       }`}>
-                        {c.ativo ? 'Ativa' : 'Inativa'}
+                        {c.ativo ? '● Ativa' : '○ Inativa'}
                       </span>
-                    </td>
-                    <td className="px-4 py-4">
-                      <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
-                        c.convite_aceito
-                          ? 'bg-green-50 text-green-700 border border-green-200'
-                          : 'bg-amber-50 text-[#8a6e36] border border-[#8a6e36]/20'
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${
+                        c.convite_aceito ? 'bg-green-50 text-green-700 border-green-200' : 'bg-amber-50 text-[#8a6e36] border-[#8a6e36]/20'
                       }`}>
-                        {c.convite_aceito ? '✓ Aceito' : '⏳ Pendente'}
+                        {c.convite_aceito ? '✓ Acesso liberado' : '⏳ Convite pendente'}
                       </span>
-                    </td>
-                    <td className="px-4 py-4 text-gray-400 text-sm whitespace-nowrap">{fmt(c.criado_em)}</td>
-                    <td className="px-4 py-4">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => openEditar(c)}
-                          className="text-xs px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition whitespace-nowrap"
-                        >
-                          Editar
-                        </button>
-                        {!c.convite_aceito && (
-                          <button
-                            onClick={() => handleReenviar(c)}
-                            disabled={sending === c.id}
-                            className="text-xs px-3 py-1.5 rounded-lg bg-amber-50 text-[#8a6e36] border border-[#8a6e36]/20 hover:bg-amber-100 transition disabled:opacity-50 whitespace-nowrap"
-                          >
-                            {sending === c.id ? 'Enviando...' : '↩ Reenviar convite'}
-                          </button>
-                        )}
-                        <button
-                          onClick={() => handleToggleAtivo(c)}
-                          className={`text-xs px-3 py-1.5 rounded-lg transition whitespace-nowrap ${
-                            c.ativo
-                              ? 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100'
-                              : 'bg-green-50 text-green-700 border border-green-200 hover:bg-green-100'
-                          }`}
-                        >
-                          {c.ativo ? 'Desativar' : 'Ativar'}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                      {c.total_vets > 0 && (
+                        <span className="text-xs text-gray-400">{c.total_vets} vet{c.total_vets !== 1 ? 's' : ''}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Contato */}
+                <div className="text-sm text-gray-500 shrink-0 space-y-0.5">
+                  <p className="flex items-center gap-1.5">
+                    <span className="text-gray-300">✉️</span>{c.email}
+                  </p>
+                  {c.telefone && (
+                    <p className="flex items-center gap-1.5">
+                      <span className="text-gray-300">📱</span>{fmtTel(c.telefone)}
+                    </p>
+                  )}
+                  {c.endereco && (
+                    <p className="text-xs text-gray-400 flex items-center gap-1">
+                      <span>📍</span>{c.endereco}
+                    </p>
+                  )}
+                  <p className="text-xs text-gray-400">Cadastrada em {fmt(c.criado_em)}</p>
+                </div>
+
+                {/* Ações */}
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => openEditar(c)}
+                    className="text-xs px-3 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition"
+                  >
+                    ✏️ Editar
+                  </button>
+                  {!c.convite_aceito && (
+                    <button
+                      onClick={() => handleReenviar(c)}
+                      disabled={sending === c.id}
+                      className="text-xs px-3 py-2 rounded-lg bg-amber-50 text-[#8a6e36] border border-[#8a6e36]/20 hover:bg-amber-100 transition disabled:opacity-50 whitespace-nowrap"
+                    >
+                      {sending === c.id ? 'Enviando...' : '↩ Reenviar convite'}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleToggleAtivo(c)}
+                    className={`text-xs px-3 py-2 rounded-lg transition whitespace-nowrap ${
+                      c.ativo
+                        ? 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100'
+                        : 'bg-green-50 text-green-700 border border-green-200 hover:bg-green-100'
+                    }`}
+                  >
+                    {c.ativo ? 'Desativar' : 'Ativar'}
+                  </button>
+                </div>
+
+              </div>
+            </div>
+          ))}
         </div>
       )}
 

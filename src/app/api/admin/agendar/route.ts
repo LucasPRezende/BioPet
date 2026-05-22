@@ -43,8 +43,9 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json().catch(() => null)
   const {
-    telefone, tutor_nome,
+    telefone, tutor_nome, cpf,
     pet_id, pet_nome, pet_especie, pet_raca,
+    pet_pelagem, pet_nascimento, pet_sexo, pet_castrado, pet_temperamento,
     exames,
     tipo_exame,
     data_hora, duracao_minutos,
@@ -54,7 +55,10 @@ export async function POST(request: NextRequest) {
     pagamento_responsavel,
     bioquimica_selecionados,
     encaixe,
+    notificar,
   } = body ?? {}
+
+  const deveNotificar = notificar !== false
 
   // Suporte a multi-exame (exames[]) e single (tipo_exame)
   const examesArr: ExameInput[] =
@@ -76,7 +80,7 @@ export async function POST(request: NextRequest) {
   // 1. Busca ou cria tutor
   let tutorId: number
   try {
-    tutorId = await upsertTutor(telNorm, tutor_nome)
+    tutorId = await upsertTutor(telNorm, tutor_nome, cpf ?? undefined)
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Erro ao processar tutor.' }, { status: 500 })
   }
@@ -98,7 +102,17 @@ export async function POST(request: NextRequest) {
       petNomeFinal = petExist.nome
     } else {
       const { data: novoPet, error: errPet } = await supabase
-        .from('pets').insert({ tutor_id: tutorId, nome: pet_nome, especie: pet_especie ?? null, raca: pet_raca ?? null }).select('id, nome').single()
+        .from('pets').insert({
+          tutor_id:      tutorId,
+          nome:          pet_nome,
+          especie:       pet_especie       ?? null,
+          raca:          pet_raca          ?? null,
+          pelagem:       pet_pelagem       ?? null,
+          data_nascimento: pet_nascimento  ?? null,
+          sexo:          pet_sexo          ?? null,
+          castrado:      pet_castrado      ?? false,
+          temperamento:  pet_temperamento  ?? null,
+        }).select('id, nome').single()
       if (errPet) return NextResponse.json({ error: errPet.message }, { status: 500 })
       petIdFinal   = novoPet.id
       petNomeFinal = novoPet.nome
@@ -156,8 +170,9 @@ export async function POST(request: NextRequest) {
   // 6. Notificação WhatsApp para o tutor
   const isEncaixe  = encaixe ?? false
   const dataFmt    = formatDataHora(data_hora, isEncaixe)
-  const horaInicio = (data_hora.split('T')[1] ?? '').substring(0, 5)
-  const horaFim    = horaFimStr(data_hora, totalDuracaoMin)
+  const dataFmtData = formatDataHora(data_hora, true)
+  const horaInicio = (data_hora.split('T')[1] ?? '').substring(0, 5).replace(':', 'h').replace(/h00$/, 'h')
+  const horaFim    = horaFimStr(data_hora, totalDuracaoMin).replace(':', 'h').replace(/h00$/, 'h')
   const valorFmt   = valorTotal > 0
     ? valorTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
     : null
@@ -167,59 +182,74 @@ export async function POST(request: NextRequest) {
   if (pet_internado)      avisos.push(`🏥 *Internação:* cobrada diretamente pela clínica, não inclusa no valor acima.`)
 
   if (pagarClinica) {
-    const msgTutor = [
-      `✅ Seu agendamento foi confirmado!`,
-      ``,
-      `🐾 Pet: ${petNomeFinal}`,
-      `  💉 ${tipoExameLabel}`,
-      isEncaixe ? `📅 ${dataFmt}` : `📅 ${dataFmt}`,
-      isEncaixe ? `📍 BioPet Vet — Volta Redonda (horário a confirmar)` : `📍 BioPet Vet — Volta Redonda`,
-      ...(avisos.length > 0 ? [``, ...avisos] : []),
-      ``,
-      `Qualquer dúvida é só chamar! 🐾`,
-    ].join('\n')
-    await sendWhatsAppText(telNorm, msgTutor)
-
-  } else if (pagarPresencial) {
-    const msgTutor = [
-      `✅ Seu agendamento foi confirmado!`,
-      ``,
-      `🐾 Pet: ${petNomeFinal}`,
-      `  💉 ${tipoExameLabel}`,
-      isEncaixe ? `📅 ${dataFmt} (horário a confirmar)` : `📅 ${dataFmt} das ${horaInicio} às ${horaFim}`,
-      valorFmt ? `💰 Total a pagar: ${valorFmt}` : null,
-      ``,
-      `💵 O pagamento será realizado presencialmente na BioPet no dia do exame.`,
-      ...(avisos.length > 0 ? [``, ...avisos] : []),
-      ``,
-      `Dúvidas? É só chamar! 🐾`,
-    ].filter(v => v !== null).join('\n')
-    await sendWhatsAppText(telNorm, msgTutor)
-
-  } else {
-    // Link MP
-    let initPoint = ''
-    try {
-      const mp = await gerarPreferenciaMp(agendamento.id)
-      initPoint = mp.init_point
-    } catch {
-      // Se MP falhar, agendamento já está criado — admin pode reenviar depois
+    if (deveNotificar) {
+      const msgTutor = [
+        `✅ Seu agendamento foi confirmado!`,
+        ``,
+        `🐾 Pet: ${petNomeFinal}`,
+        `  💉 ${tipoExameLabel}`,
+        isEncaixe ? `📅 ${dataFmt} (horário a confirmar)` : `📅 ${dataFmt}`,
+        isEncaixe ? `📍 BioPet Vet — Volta Redonda (horário a confirmar)` : `📍 BioPet Vet — Volta Redonda`,
+        ...(avisos.length > 0 ? [``, ...avisos] : []),
+        ``,
+        `Qualquer dúvida é só chamar! 🐾`,
+      ].join('\n')
+      await sendWhatsAppText(telNorm, msgTutor)
     }
 
-    const msgTutor = [
-      `✅ Seu agendamento foi confirmado!`,
-      ``,
-      `🐾 Pet: ${petNomeFinal}`,
-      `  💉 ${tipoExameLabel}`,
-      isEncaixe ? `📅 ${dataFmt} (horário a confirmar)` : `📅 ${dataFmt} das ${horaInicio} às ${horaFim}`,
-      valorFmt ? `💰 Total: ${valorFmt}` : null,
-      ``,
-      initPoint ? `Para garantir seu horário, efetue o pagamento:\n👉 ${initPoint}` : null,
-      ...(avisos.length > 0 ? [``, ...avisos] : []),
-      ``,
-      `Dúvidas? É só chamar! 🐾`,
-    ].filter(v => v !== null).join('\n')
-    await sendWhatsAppText(telNorm, msgTutor)
+  } else if (pagarPresencial) {
+    if (deveNotificar) {
+      const msgTutor = [
+        `✅ Seu agendamento foi confirmado!`,
+        ``,
+        `🐾 Pet: ${petNomeFinal}`,
+        `  💉 ${tipoExameLabel}`,
+        isEncaixe ? `📅 ${dataFmt} (horário a confirmar)` : `📅 ${dataFmtData} das ${horaInicio} às ${horaFim}`,
+        valorFmt ? `💰 Total a pagar: ${valorFmt}` : null,
+        ``,
+        `💵 O pagamento será realizado presencialmente na BioPet no dia do exame.`,
+        ...(avisos.length > 0 ? [``, ...avisos] : []),
+        ``,
+        `Dúvidas? É só chamar! 🐾`,
+      ].filter(v => v !== null).join('\n')
+      await sendWhatsAppText(telNorm, msgTutor)
+    }
+
+  } else {
+    const formaPagNorm = (forma_pagamento ?? '').toLowerCase()
+    let initPoint = ''
+    if (formaPagNorm.includes('cartao')) {
+      try {
+        const mp = await gerarPreferenciaMp(agendamento.id)
+        initPoint = mp.init_point
+      } catch (err) {
+        console.error('[agendar] erro ao gerar link MP:', err instanceof Error ? err.message : err)
+      }
+    } else {
+      // PIX: link para nossa página de pagamento
+      initPoint = `${process.env.NEXT_PUBLIC_URL}/pagamento/pix/${agendamento.id}`
+      await supabase
+        .from('agendamentos')
+        .update({ mp_init_point: initPoint, status_pagamento: 'a_receber' })
+        .eq('id', agendamento.id)
+    }
+
+    if (deveNotificar) {
+      const msgTutor = [
+        `✅ Seu agendamento foi confirmado!`,
+        ``,
+        `🐾 Pet: ${petNomeFinal}`,
+        `  💉 ${tipoExameLabel}`,
+        isEncaixe ? `📅 ${dataFmt} (horário a confirmar)` : `📅 ${dataFmtData} das ${horaInicio} às ${horaFim}`,
+        valorFmt ? `💰 Total: ${valorFmt}` : null,
+        ``,
+        initPoint ? `Para garantir seu horário, efetue o pagamento:\n👉 ${initPoint}` : null,
+        ...(avisos.length > 0 ? [``, ...avisos] : []),
+        ``,
+        `Dúvidas? É só chamar! 🐾`,
+      ].filter(v => v !== null).join('\n')
+      await sendWhatsAppText(telNorm, msgTutor)
+    }
   }
 
   return NextResponse.json({ agendamento_id: agendamento.id }, { status: 201 })

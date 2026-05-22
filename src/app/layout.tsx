@@ -11,6 +11,11 @@ const font = Plus_Jakarta_Sans({
 export const metadata: Metadata = {
   title: 'BioPet – Laboratório Veterinário',
   description: 'Laboratório Veterinário de Análises Clínicas e Diagnóstico por Imagem',
+  icons: {
+    icon:    '/logo.png',
+    apple:   '/logo.png',
+    shortcut: '/logo.png',
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

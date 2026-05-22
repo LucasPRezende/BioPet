@@ -46,7 +46,27 @@ function brl(n: number) {
 function isHorarioEspecial(hora: string, totalDuracao: number): boolean {
   if (!hora) return false
   const [h, m] = hora.split(':').map(Number)
-  return h * 60 + m + totalDuracao > 16 * 60 + 30
+  return h * 60 + m + totalDuracao > 17 * 60
+}
+
+function formatCPFInput(v: string): string {
+  const d = v.replace(/\D/g, '').slice(0, 11)
+  if (d.length <= 3) return d
+  if (d.length <= 6) return `${d.slice(0,3)}.${d.slice(3)}`
+  if (d.length <= 9) return `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6)}`
+  return `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9)}`
+}
+
+function validarCPF(cpf: string): boolean {
+  const c = cpf.replace(/\D/g, '')
+  if (c.length !== 11 || /^(\d)\1+$/.test(c)) return false
+  const calc = (n: number) => {
+    let s = 0
+    for (let i = 0; i < n; i++) s += parseInt(c[i]) * (n + 1 - i)
+    const r = (s * 10) % 11
+    return r === 10 || r === 11 ? 0 : r
+  }
+  return calc(9) === parseInt(c[9]) && calc(10) === parseInt(c[10])
 }
 
 function calcularValorExame(
@@ -158,16 +178,24 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
 
   // Step 1 — Resp. Legal & Pet
   const [telefone,        setTelefone]        = useState('')
+  const [buscaResultados, setBuscaResultados] = useState<TutorInfo[]>([])
   const [buscando,        setBuscando]        = useState(false)
   const [tutorInfo,       setTutorInfo]       = useState<TutorInfo | null>(null)
   const [tutorNovo,       setTutorNovo]       = useState(false)
   const [tutorNome,       setTutorNome]       = useState('')
+  const [cpfTutor,        setCpfTutor]        = useState('')
   const [petsDisponiveis, setPetsDisponiveis] = useState<PetOpt[]>([])
+  const [notificar,       setNotificar]       = useState(true)
   const [petSelecionado,  setPetSelecionado]  = useState<PetOpt | null>(null)
   const [novoPet,         setNovoPet]         = useState(false)
-  const [petNome,         setPetNome]         = useState('')
-  const [petEspecie,      setPetEspecie]      = useState('')
-  const [petRaca,         setPetRaca]         = useState('')
+  const [petNome,          setPetNome]          = useState('')
+  const [petEspecie,       setPetEspecie]       = useState('')
+  const [petRaca,          setPetRaca]          = useState('')
+  const [petPelagem,       setPetPelagem]       = useState('')
+  const [petNascimento,    setPetNascimento]    = useState('')
+  const [petSexo,          setPetSexo]         = useState('')
+  const [petCastrado,      setPetCastrado]     = useState(false)
+  const [petTemperamento,  setPetTemperamento] = useState('')
 
   // Step 2 — Exames & Info
   const [examesDisponiveis,    setExamesDisponiveis]    = useState<ExameInfo[]>([])
@@ -249,18 +277,59 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
     fetch('/api/comissoes/bioquimica').then(r => r.ok ? r.json() : []).then(d => setBioquimicaExames(d)).finally(() => setLoadingBio(false))
   }, [temBioquimica, bioquimicaExames.length])
 
-  // Carrega horários livres (clinica only)
+  // Carrega horários livres (admin e clinica)
   const fetchHorarios = useCallback(async () => {
-    if (modo !== 'clinica' || !data || examesSelecionados.length === 0) return
+    if (!data || examesSelecionados.length === 0) return
     setLoadingHorarios(true); setHoraSelecionada('')
-    const res = await fetch(`/api/clinica/horarios-livres?data=${data}&duracao=${totalDuracao}`)
+    const url = modo === 'clinica'
+      ? `/api/clinica/horarios-livres?data=${data}&duracao=${totalDuracao}`
+      : `/api/agendamentos/horarios-livres?data=${data}&duracao=${totalDuracao}`
+    const res = await fetch(url)
     if (res.ok) { const d = await res.json(); setHorariosLivres(d.horarios_livres ?? []) }
     setLoadingHorarios(false)
   }, [data, examesSelecionados, totalDuracao, modo])
 
   useEffect(() => { fetchHorarios() }, [fetchHorarios])
 
-  // Busca tutor
+  // Busca dinâmica por nome ou telefone
+  useEffect(() => {
+    const q = telefone.trim()
+    if (q.length < 2 || tutorInfo) { setBuscaResultados([]); return }
+    const timer = setTimeout(async () => {
+      setBuscando(true)
+      if (modo === 'clinica') {
+        // Clínica: busca por telefone ou nome via endpoint atualizado
+        const res = await fetch(`/api/clinica/buscar-tutor?q=${encodeURIComponent(q)}`)
+        if (res.ok) {
+          const d = await res.json()
+          if (Array.isArray(d)) setBuscaResultados(d)
+          else if (d.tutor) setBuscaResultados([d.tutor])
+        }
+      } else {
+        const res = await fetch(`/api/tutores/buscar?q=${encodeURIComponent(q)}`, { credentials: 'include' })
+        if (res.ok) setBuscaResultados(await res.json())
+      }
+      setBuscando(false)
+    }, 350)
+    return () => clearTimeout(timer)
+  }, [telefone, tutorInfo, modo])
+
+  function selecionarTutor(t: TutorInfo & { pets?: PetOpt[]; cpf?: string | null }) {
+    setTutorInfo(t)
+    setTelefone(t.telefone)
+    setTutorNome(t.nome ?? '')
+    setCpfTutor(t.cpf ?? '')
+    setPetsDisponiveis(t.pets ?? [])
+    setBuscaResultados([])
+    setTutorNovo(false)
+  }
+
+  function novoTutorManual() {
+    setTutorNovo(true)
+    setBuscaResultados([])
+    setNovoPet(true)
+  }
+
   async function buscarTutor() {
     if (!telefone.trim()) return
     setBuscando(true); setTutorInfo(null); setPetsDisponiveis([]); setPetSelecionado(null); setTutorNovo(false)
@@ -268,17 +337,18 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
     const tel    = digits.startsWith('55') ? digits : `55${digits}`
 
     if (modo === 'clinica') {
-      const res = await fetch(`/api/clinica/buscar-tutor?telefone=${encodeURIComponent(telefone.trim())}`)
+      const res = await fetch(`/api/clinica/buscar-tutor?q=${encodeURIComponent(telefone.trim())}`)
       if (res.ok) {
         const d = await res.json()
-        if (d.tutor) { setTutorInfo(d.tutor); setPetsDisponiveis(d.pets ?? []); setTutorNome(d.tutor.nome ?? '') }
+        if (Array.isArray(d) && d.length > 0) { selecionarTutor(d[0]); }
+        else if (d.tutor) { selecionarTutor(d.tutor) }
         else { setTutorNovo(true); setNovoPet(true) }
       }
     } else {
       const res = await fetch(`/api/agente/contexto?telefone=${tel}`, { headers: { 'x-api-key': 'biopet_agent_2026' } })
       if (res.ok) {
         const d = await res.json()
-        if (d.tutor) { setTutorInfo(d.tutor); setPetsDisponiveis(d.pets ?? []); setTutorNome(d.tutor.nome ?? '') }
+        if (d.tutor) { selecionarTutor({ ...d.tutor, pets: d.pets ?? [] }) }
         else { setTutorNovo(true); setNovoPet(true) }
       } else { setTutorNovo(true); setNovoPet(true) }
     }
@@ -356,9 +426,20 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
       valor:                 totalValor,
       bioquimica_selecionados: bioquimicaPayload,
       encaixe,
+      notificar,
     }
+    if (cpfTutor.trim()) base.cpf = cpfTutor.replace(/\D/g, '')
     if (petSelecionado && !novoPet) { base.pet_id = petSelecionado.id }
-    else { base.pet_nome = petNome.trim(); base.pet_especie = petEspecie || null; base.pet_raca = petRaca.trim() || null }
+    else {
+      base.pet_nome        = petNome.trim()
+      base.pet_especie     = petEspecie || null
+      base.pet_raca        = petRaca.trim() || null
+      base.pet_pelagem     = petPelagem.trim() || null
+      base.pet_nascimento  = petNascimento || null
+      base.pet_sexo        = petSexo || null
+      base.pet_castrado    = petCastrado
+      base.pet_temperamento = petTemperamento.trim() || null
+    }
     return base
   }
 
@@ -380,10 +461,11 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
 
   function resetar() {
     setConcluido(false); setStep(1)
-    setTelefone(''); setTutorInfo(null); setTutorNovo(false); setTutorNome('')
+    setTelefone(''); setTutorInfo(null); setTutorNovo(false); setTutorNome(''); setCpfTutor(''); setBuscaResultados([])
     setPetSelecionado(null); setNovoPet(false); setPetNome(''); setPetEspecie(''); setPetRaca('')
+    setPetPelagem(''); setPetNascimento(''); setPetSexo(''); setPetCastrado(false); setPetTemperamento('')
     setExamesSelecionados([]); setVetId(''); setObservacoes('')
-    setSedacaoNecessaria(false); setPetInternado(false)
+    setSedacaoNecessaria(false); setPetInternado(false); setNotificar(true)
     setPagamentoResp('tutor'); setFormaPagamento('pix'); setEntregaPagamento('link')
     setData(dataPadrao ?? ''); setHoraSelecionada(''); setEncaixe(false)
     setBioquimicaSelecionados([]); setErro('')
@@ -416,23 +498,40 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
   function renderStep1() {
     return (
       <>
-        <div>
+        <div className="relative">
           <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
-            Telefone do resp. legal (WhatsApp) <span className="text-red-400">*</span>
+            Resp. legal — Telefone ou Nome <span className="text-red-400">*</span>
           </label>
           <div className="flex gap-2">
-            <input type="tel" value={telefone}
+            <input type="text" value={telefone}
               onChange={e => { setTelefone(e.target.value); setTutorInfo(null); setTutorNovo(false); setPetSelecionado(null) }}
               onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), buscarTutor())}
-              placeholder="(24) 99999-9999" className={INPUT} />
+              placeholder="(24) 99999-9999 ou nome" className={INPUT} />
             <button type="button" onClick={buscarTutor} disabled={buscando || !telefone.trim()}
               className="shrink-0 px-4 py-2 bg-amber-50 border border-[#8a6e36]/30 text-[#8a6e36] rounded-lg text-sm font-semibold hover:bg-amber-100 transition disabled:opacity-50">
               {buscando ? '...' : 'Buscar'}
             </button>
           </div>
+          {buscaResultados.length > 0 && !tutorInfo && (
+            <div className="mt-1 bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+              {buscaResultados.map(t => (
+                <button key={t.id} type="button" onClick={() => selecionarTutor(t as TutorInfo & { pets?: PetOpt[] })}
+                  className="w-full text-left px-4 py-3 hover:bg-amber-50 border-b border-gray-100 last:border-0 transition">
+                  <p className="text-sm font-semibold text-[#19202d]">{t.nome ?? '—'}</p>
+                  <p className="text-xs text-gray-400">{t.telefone}</p>
+                </button>
+              ))}
+              <button type="button" onClick={novoTutorManual}
+                className="w-full text-left px-4 py-3 text-[#8a6e36] text-sm font-medium hover:bg-amber-50 border-t border-gray-100">
+                + Cadastrar como novo responsável
+              </button>
+            </div>
+          )}
           {tutorInfo && (
             <p className="text-xs mt-2 px-2.5 py-1.5 rounded-lg bg-green-50 text-green-700 font-medium">
-              ✓ Resp. legal encontrado: {tutorInfo.nome ?? tutorInfo.telefone}
+              ✓ Resp. legal: {tutorInfo.nome ?? tutorInfo.telefone}
+              <button type="button" onClick={() => { setTutorInfo(null); setTelefone(''); setPetsDisponiveis([]); setPetSelecionado(null) }}
+                className="ml-2 text-gray-400 hover:text-red-400">✕</button>
             </p>
           )}
           {tutorNovo && (
@@ -448,6 +547,20 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
               Nome do resp. legal <span className="text-red-400">*</span>
             </label>
             <input type="text" value={tutorNome} onChange={e => setTutorNome(e.target.value)} placeholder="Nome completo" className={INPUT} />
+          </div>
+        )}
+
+        {(tutorInfo || tutorNovo) && (
+          <div>
+            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+              CPF do resp. legal <span className="text-gray-300 font-normal">(opcional)</span>
+            </label>
+            <input type="text" inputMode="numeric" value={cpfTutor}
+              onChange={e => setCpfTutor(formatCPFInput(e.target.value))}
+              placeholder="000.000.000-00" className={INPUT} />
+            {cpfTutor.replace(/\D/g,'').length === 11 && !validarCPF(cpfTutor) && (
+              <p className="text-xs text-red-500 mt-1">CPF inválido — verifique os dígitos.</p>
+            )}
           </div>
         )}
 
@@ -479,12 +592,52 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
                 <p className="text-xs font-semibold text-[#8a6e36]">Dados do novo pet</p>
                 <input type="text" value={petNome} onChange={e => setPetNome(e.target.value)} placeholder="Nome do pet *" className={INPUT} />
                 <div className="grid grid-cols-2 gap-3">
-                  <select value={petEspecie} onChange={e => setPetEspecie(e.target.value)} className={INPUT}>
-                    <option value="">Espécie</option>
-                    {ESPECIES.map(s => <option key={s}>{s}</option>)}
-                  </select>
-                  <input type="text" value={petRaca} onChange={e => setPetRaca(e.target.value)} placeholder="Raça" className={INPUT} />
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Espécie</label>
+                    <select value={petEspecie} onChange={e => setPetEspecie(e.target.value)} className={INPUT}>
+                      <option value="">—</option>
+                      {ESPECIES.map(s => <option key={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Raça</label>
+                    <input type="text" value={petRaca} onChange={e => setPetRaca(e.target.value)} placeholder="Ex: Golden" className={INPUT} />
+                  </div>
                 </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Sexo</label>
+                    <select value={petSexo} onChange={e => setPetSexo(e.target.value)} className={INPUT}>
+                      <option value="">—</option>
+                      <option value="macho">Macho</option>
+                      <option value="femea">Fêmea</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Nascimento</label>
+                    <input type="date" value={petNascimento} onChange={e => setPetNascimento(e.target.value)} className={INPUT} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Pelagem</label>
+                    <input type="text" value={petPelagem} onChange={e => setPetPelagem(e.target.value)} placeholder="Ex: Dourada" className={INPUT} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Temperamento</label>
+                    <select value={petTemperamento} onChange={e => setPetTemperamento(e.target.value)} className={INPUT}>
+                      <option value="">—</option>
+                      <option value="manso">Manso</option>
+                      <option value="medroso">Medroso</option>
+                      <option value="reativo">Reativo</option>
+                      <option value="bravo">Bravo</option>
+                    </select>
+                  </div>
+                </div>
+                <label className="flex items-center gap-2 text-sm text-[#19202d] cursor-pointer">
+                  <input type="checkbox" checked={petCastrado} onChange={e => setPetCastrado(e.target.checked)} className="w-4 h-4 accent-[#8a6e36]" />
+                  Castrado
+                </label>
               </div>
             )}
           </div>
@@ -696,26 +849,36 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
               Horário <span className="text-red-400">*</span>
               {totalDuracao > 0 && <span className="ml-1 text-gray-400 font-normal normal-case">({totalDuracao} min total)</span>}
             </label>
-            {modo === 'admin' ? (
-              <input type="time" value={horaSelecionada} onChange={e => setHoraSelecionada(e.target.value)} className={INPUT} />
-            ) : data ? (
+            {data ? (
               loadingHorarios ? (
                 <p className="text-sm text-gray-400 py-4 text-center">Carregando horários...</p>
               ) : horariosLivres.length === 0 ? (
-                <div className="text-center py-6 bg-gray-50 rounded-xl border border-gray-200">
-                  <p className="text-2xl mb-1">😔</p>
-                  <p className="text-sm text-gray-500">Nenhum horário disponível neste dia.</p>
-                  <p className="text-xs text-gray-400 mt-1">Tente outra data.</p>
-                </div>
+                modo === 'admin' ? (
+                  <input type="time" value={horaSelecionada} onChange={e => setHoraSelecionada(e.target.value)} className={INPUT} />
+                ) : (
+                  <div className="text-center py-6 bg-gray-50 rounded-xl border border-gray-200">
+                    <p className="text-2xl mb-1">😔</p>
+                    <p className="text-sm text-gray-500">Nenhum horário disponível neste dia.</p>
+                    <p className="text-xs text-gray-400 mt-1">Tente outra data.</p>
+                  </div>
+                )
               ) : (
-                <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
-                  {horariosLivres.map(h => (
-                    <button key={h} type="button" onClick={() => setHoraSelecionada(h)}
-                      className={`py-2 rounded-lg text-sm font-semibold border transition ${horaSelecionada === h ? 'bg-[#19202d] text-white border-[#19202d]' : 'border-gray-200 hover:border-[#8a6e36] hover:bg-amber-50'}`}>
-                      {h}
-                    </button>
-                  ))}
-                </div>
+                <>
+                  <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                    {horariosLivres.map(h => (
+                      <button key={h} type="button" onClick={() => setHoraSelecionada(h)}
+                        className={`py-2 rounded-lg text-sm font-semibold border transition ${horaSelecionada === h ? 'bg-[#19202d] text-white border-[#19202d]' : 'border-gray-200 hover:border-[#8a6e36] hover:bg-amber-50'}`}>
+                        {h}
+                      </button>
+                    ))}
+                  </div>
+                  {modo === 'admin' && (
+                    <div className="mt-2">
+                      <p className="text-xs text-gray-400 mb-1">Ou digite um horário personalizado:</p>
+                      <input type="time" value={horaSelecionada} onChange={e => setHoraSelecionada(e.target.value)} className={INPUT} />
+                    </div>
+                  )}
+                </>
               )
             ) : null}
           </div>
@@ -727,6 +890,20 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
               🔄 Encaixe — o atendimento será realizado no dia selecionado sem horário fixo.
             </p>
           </div>
+        )}
+
+        {modo === 'admin' && (
+          <label className="flex items-center justify-between px-4 py-3 rounded-xl border cursor-pointer transition select-none
+            border-green-200 bg-green-50 has-[:not(:checked)]:border-gray-200 has-[:not(:checked)]:bg-gray-50">
+            <span className={`text-sm font-medium ${notificar ? 'text-green-800' : 'text-gray-500'}`}>
+              {notificar ? '📱 Notificar cliente via WhatsApp' : '🔕 Sem notificação ao cliente'}
+            </span>
+            <div className="relative ml-3 shrink-0">
+              <input type="checkbox" className="sr-only peer" checked={notificar} onChange={e => setNotificar(e.target.checked)} />
+              <div className="w-10 h-5 rounded-full transition-colors bg-gray-300 peer-checked:bg-green-500" />
+              <div className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-5" />
+            </div>
+          </label>
         )}
 
         {horaSelecionada && pagamentoResp === 'tutor' && modo === 'clinica' && (
@@ -852,10 +1029,10 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
     )
   }
 
-  // Admin: inner content only — parent provides modal wrapper
+  // Admin: flex layout — content scrolls, navButtons stays at bottom
   return (
     <>
-      <div className="p-5 overflow-y-auto max-h-[72vh]">{formContent}</div>
+      <div className="p-5 flex-1 overflow-y-auto min-h-0">{formContent}</div>
       {navButtons}
       {errorBlock}
     </>

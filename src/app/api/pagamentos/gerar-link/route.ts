@@ -16,11 +16,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'agendamento_id é obrigatório.' }, { status: 400 })
   }
 
+  const id = Number(agendamento_id)
+
   try {
-    const result = await gerarPreferenciaMp(Number(agendamento_id))
+    const result = await gerarPreferenciaMp(id)
     return NextResponse.json(result)
   } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Erro ao gerar preferência.'
+    const msg = err instanceof Error ? err.message : 'Erro ao gerar link de pagamento.'
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }

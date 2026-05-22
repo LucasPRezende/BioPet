@@ -6,13 +6,14 @@ import { gerarPreferenciaMp } from '@/lib/mp-preference'
 
 const DIAS_PT = ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado']
 
-function formatDataHora(isoStr: string): string {
+function formatDataHora(isoStr: string, somenteData = false): string {
   const [datePart, timePart = '00:00'] = isoStr.split('T')
   const [year, month, day] = datePart.split('-').map(Number)
   const [hour, minute]     = timePart.split(':').map(Number)
   const d = new Date(year, month - 1, day, hour, minute)
   const dd = String(day).padStart(2, '0')
   const mm = String(month).padStart(2, '0')
+  if (somenteData) return `${DIAS_PT[d.getDay()]}, ${dd}/${mm}`
   const hh = String(hour).padStart(2, '0')
   const minStr = minute > 0 ? `:${String(minute).padStart(2, '0')}` : ''
   return `${DIAS_PT[d.getDay()]}, ${dd}/${mm} às ${hh}h${minStr}`
@@ -67,11 +68,12 @@ export async function POST(
   const entrega        = (ag as Record<string, unknown>).entrega_pagamento as string ?? 'link'
   const sedacao        = (ag as Record<string, unknown>).sedacao_necessaria as boolean ?? false
   const internado      = (ag as Record<string, unknown>).pet_internado as boolean ?? false
-  const pagarClinica   = pagResp === 'clinica' || formaPag === 'pix_presencial' || ag.clinica_id != null
+  const pagarClinica    = pagResp === 'clinica' || formaPag === 'pix_presencial'
   const pagarPresencial = !pagarClinica && entrega === 'presencial'
-  const dataFmt        = formatDataHora(ag.data_hora)
-  const horaInicio    = (ag.data_hora.split('T')[1] ?? '').substring(0, 5)
-  const horaFim       = horaFimStr(ag.data_hora, ag.duracao_minutos)
+  const dataFmt         = formatDataHora(ag.data_hora)
+  const dataFmtData     = formatDataHora(ag.data_hora, true)
+  const horaInicio      = (ag.data_hora.split('T')[1] ?? '').substring(0, 5).replace(':', 'h').replace(/h00$/, 'h')
+  const horaFim         = horaFimStr(ag.data_hora, ag.duracao_minutos).replace(':', 'h').replace(/h00$/, 'h')
   const valorFmt      = ag.valor != null
     ? Number(ag.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
     : null
@@ -176,7 +178,7 @@ export async function POST(
         ``,
         `🐾 Pet: ${pet?.nome ?? '—'}`,
         `  💉 ${listaExames}`,
-        `📅 ${dataFmt} das ${horaInicio} às ${horaFim}`,
+        `📅 ${dataFmtData} das ${horaInicio} às ${horaFim}`,
         valorFmt ? `💰 Total a pagar: ${valorFmt}` : null,
         ``,
         `💵 O pagamento será realizado presencialmente na BioPet no dia do exame.`,
@@ -208,11 +210,20 @@ export async function POST(
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
     let initPoint = ''
-    try {
-      const mp = await gerarPreferenciaMp(agId)
-      initPoint = mp.init_point
-    } catch {
-      // Se MP falhar, confirma mesmo assim — admin pode reenviar depois
+    if (formaPag.includes('cartao')) {
+      try {
+        const mp = await gerarPreferenciaMp(agId)
+        initPoint = mp.init_point
+      } catch (err) {
+        console.error('[confirmar] erro ao gerar link MP:', err instanceof Error ? err.message : err)
+      }
+    } else {
+      // PIX: link para nossa página de pagamento
+      initPoint = `${process.env.NEXT_PUBLIC_URL}/pagamento/pix/${agId}`
+      await supabase
+        .from('agendamentos')
+        .update({ mp_init_point: initPoint, status_pagamento: 'a_receber' })
+        .eq('id', agId)
     }
 
     if (tutor?.telefone) {
@@ -223,7 +234,7 @@ export async function POST(
         ``,
         `🐾 Pet: ${pet?.nome ?? '—'}`,
         `  💉 ${listaExames}`,
-        `📅 ${dataFmt} das ${horaInicio} às ${horaFim}`,
+        `📅 ${dataFmtData} das ${horaInicio} às ${horaFim}`,
         valorFmt ? `💰 Total: ${valorFmt}` : null,
         ``,
         initPoint ? `Para garantir seu horário, efetue o pagamento:\n👉 ${initPoint}` : null,

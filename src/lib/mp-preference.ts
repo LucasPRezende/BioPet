@@ -1,7 +1,7 @@
 import { MercadoPagoConfig, Preference } from 'mercadopago'
 import { supabase } from './supabase'
 
-const client = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN! })
+const client = new MercadoPagoConfig({ accessToken: (process.env.MP_ACCESS_TOKEN ?? '').trim() })
 
 export async function gerarPreferenciaMp(agendamentoId: number): Promise<{
   init_point: string
@@ -42,16 +42,12 @@ export async function gerarPreferenciaMp(agendamentoId: number): Promise<{
           },
         ]
 
-  // Para cartão: limita parcelas a 3x. Para pix/débito: sem restrição (MP já exibe PIX em destaque)
   const formaPag = (ag.forma_pagamento ?? '').toLowerCase()
   let paymentMethods: Record<string, unknown> | undefined
 
-  if (formaPag === 'cartao' || formaPag === 'cartao_3x') {
-    paymentMethods = {
-      installments:        3,
-      default_installments: 3,
-    }
-  }
+  // Parcelamento sem juros controlado pela configuração da conta no painel MP
+  // Não forçamos installments via API para não sobrescrever o "parcelado vendedor"
+  void formaPag
 
   const preference = await new Preference(client).create({
     body: {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { MercadoPagoConfig, Payment } from 'mercadopago'
 import { supabase } from '@/lib/supabase'
+import { sendWhatsAppText } from '@/lib/evolution'
 
 const client = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN! })
 
@@ -71,18 +72,21 @@ export async function POST(request: NextRequest) {
           return response
         }
 
-        // Busca nome do tutor para a notificação
+        // Busca dados do agendamento para notificação e WhatsApp
         const { data: ag } = await supabase
           .from('agendamentos')
-          .select('tutores(nome)')
+          .select('tipo_exame, tutores(nome, telefone), pets(nome)')
           .eq('id', agendamentoId)
           .single()
 
         const tutoresRaw = ag?.tutores as unknown
-        const nomeTutor =
-          (Array.isArray(tutoresRaw)
-            ? (tutoresRaw[0] as { nome: string } | null)?.nome
-            : (tutoresRaw as { nome: string } | null)?.nome) ?? null
+        const tutor = (Array.isArray(tutoresRaw)
+          ? (tutoresRaw[0] as { nome: string; telefone: string } | null)
+          : (tutoresRaw as { nome: string; telefone: string } | null))
+        const nomeTutor = tutor?.nome ?? null
+        const petNome = Array.isArray(ag?.pets)
+          ? (ag.pets[0] as { nome: string })?.nome
+          : ((ag?.pets ?? null) as { nome: string } | null)?.nome
 
         const { error: updateError } = await supabase
           .from('agendamentos')
@@ -101,7 +105,7 @@ export async function POST(request: NextRequest) {
           tipo_evento:      'pagamento_confirmado',
           agendamento_id:   agendamentoId,
           nome_tutor:       nomeTutor,
-          mensagem_cliente: 'Pagamento confirmado via Mercado Pago',
+          mensagem_cliente: 'Pagamento PIX confirmado via Mercado Pago',
           visualizado:      false,
           motivo:           'pagamento_confirmado',
           telefone:         '',
@@ -109,6 +113,22 @@ export async function POST(request: NextRequest) {
 
         if (notifError) {
           console.error(`[webhook/mp] erro ao inserir notificação:`, notifError.message)
+        }
+
+        if (tutor?.telefone) {
+          const digits = tutor.telefone.replace(/\D/g, '')
+          const tel    = digits.startsWith('55') ? digits : `55${digits}`
+          const msg = [
+            `✅ Pagamento PIX confirmado!`,
+            ``,
+            `🐾 Pet: ${petNome ?? '—'}`,
+            `💉 ${ag?.tipo_exame ?? '—'}`,
+            ``,
+            `Seu agendamento está garantido. Até logo! 🐾`,
+          ].join('\n')
+          await sendWhatsAppText(tel, msg).catch(e =>
+            console.error('[webhook/mp] erro ao enviar WhatsApp:', e)
+          )
         }
       }
     }

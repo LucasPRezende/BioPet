@@ -338,16 +338,18 @@ function NovoAgendamentoModal({ dataPadrao, onClose, onCreated }: {
   onCreated:  () => void
 }) {
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4 py-6 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg my-auto overflow-hidden">
-        <div className="bg-[#19202d] px-5 py-4 flex items-center justify-between">
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4 py-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden">
+        <div className="bg-[#19202d] px-5 py-4 flex items-center justify-between shrink-0">
           <div>
             <p className="text-white font-bold text-sm">Novo agendamento</p>
             <p className="text-gray-400 text-xs mt-0.5">Cadastro manual</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl leading-none">×</button>
         </div>
-        <AgendamentoForm modo="admin" dataPadrao={dataPadrao} onClose={onClose} onCreated={onCreated} />
+        <div className="flex flex-col flex-1 min-h-0">
+          <AgendamentoForm modo="admin" dataPadrao={dataPadrao} onClose={onClose} onCreated={onCreated} />
+        </div>
       </div>
     </div>
   )
