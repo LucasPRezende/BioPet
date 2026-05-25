@@ -2,6 +2,48 @@
  * Integração com Evolution API para envio de mensagens WhatsApp.
  */
 
+export async function sendWhatsAppDocument(
+  whatsapp: string,
+  mediaUrl: string,
+  fileName: string,
+  caption: string,
+): Promise<boolean> {
+  const apiUrl   = process.env.EVOLUTION_API_URL
+  const apiKey   = process.env.EVOLUTION_API_KEY
+  const instance = process.env.EVOLUTION_INSTANCE
+
+  if (!apiUrl || !apiKey || !instance) {
+    console.warn('[Evolution API] Variáveis não configuradas.')
+    return false
+  }
+
+  const digits = whatsapp.replace(/\D/g, '')
+  const number = digits.startsWith('55') ? digits : `55${digits}`
+
+  try {
+    const res = await fetch(`${apiUrl}/message/sendMedia/${instance}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: apiKey },
+      body: JSON.stringify({
+        number,
+        mediatype: 'document',
+        mimetype:  'application/pdf',
+        media:     mediaUrl,
+        fileName,
+        caption,
+      }),
+    })
+    if (!res.ok) {
+      console.error(`[Evolution API] sendMedia erro ${res.status}:`, await res.text())
+      return false
+    }
+    return true
+  } catch (err) {
+    console.error('[Evolution API] Falha na requisição sendMedia:', err)
+    return false
+  }
+}
+
 export async function sendWhatsAppText(whatsapp: string, text: string): Promise<boolean> {
   const apiUrl   = process.env.EVOLUTION_API_URL
   const apiKey   = process.env.EVOLUTION_API_KEY

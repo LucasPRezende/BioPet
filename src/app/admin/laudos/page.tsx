@@ -21,6 +21,7 @@ interface Laudo {
 interface Vet { id: number; nome: string }
 
 type WaStatus = 'idle' | 'sending' | 'sent' | 'error'
+type Destino  = 'tutor' | 'vet' | 'ambos'
 
 export default function LaudosPage() {
   const [laudos,   setLaudos]   = useState<Laudo[]>([])
@@ -29,6 +30,7 @@ export default function LaudosPage() {
   const [isAdmin,  setIsAdmin]  = useState(false)
   const [copied,   setCopied]   = useState<number | null>(null)
   const [waStatus, setWaStatus] = useState<Record<number, WaStatus>>({})
+  const [waModal,  setWaModal]  = useState<Laudo | null>(null)
 
   // Filtros
   const [busca,   setBusca]   = useState('')
@@ -80,10 +82,15 @@ export default function LaudosPage() {
     setTimeout(() => setCopied(null), 2500)
   }
 
-  async function sendWhatsApp(laudo: Laudo) {
+  async function sendWhatsApp(laudo: Laudo, destino: Destino) {
+    setWaModal(null)
     setWaStatus(s => ({ ...s, [laudo.id]: 'sending' }))
     try {
-      const res = await fetch(`/api/laudos/${laudo.id}/whatsapp`, { method: 'POST' })
+      const res = await fetch(`/api/laudos/${laudo.id}/whatsapp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ destino }),
+      })
       setWaStatus(s => ({ ...s, [laudo.id]: res.ok ? 'sent' : 'error' }))
     } catch {
       setWaStatus(s => ({ ...s, [laudo.id]: 'error' }))
@@ -224,7 +231,7 @@ export default function LaudosPage() {
                           }`}>
                           {copied === laudo.id ? '✓' : '🔗'}
                         </button>
-                        <button onClick={() => sendWhatsApp(laudo)}
+                        <button onClick={() => setWaModal(laudo)}
                           disabled={waStatus[laudo.id] === 'sending' || waStatus[laudo.id] === 'sent'}
                           className={`text-xs px-2.5 py-1.5 rounded-lg font-medium transition whitespace-nowrap ${
                             waStatus[laudo.id] === 'sent'    ? 'bg-green-100 text-green-700 cursor-default'
@@ -243,6 +250,38 @@ export default function LaudosPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de destino do WhatsApp */}
+      {waModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={() => setWaModal(null)}>
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-80 mx-4"
+            onClick={e => e.stopPropagation()}>
+            <p className="text-sm font-semibold text-[#19202d] mb-1">Enviar laudo via WhatsApp</p>
+            <p className="text-xs text-gray-400 mb-5">
+              <span className="font-medium text-gray-600">{waModal.nome_pet}</span> — para quem deseja enviar?
+            </p>
+            <div className="flex flex-col gap-2">
+              <button onClick={() => sendWhatsApp(waModal, 'tutor')}
+                className="w-full py-2.5 rounded-xl bg-[#19202d] hover:bg-[#232d3f] text-white text-sm font-semibold transition">
+                Tutor
+              </button>
+              <button onClick={() => sendWhatsApp(waModal, 'vet')}
+                className="w-full py-2.5 rounded-xl border border-[#8a6e36]/30 bg-amber-50 hover:bg-amber-100 text-[#8a6e36] text-sm font-semibold transition">
+                Veterinário
+              </button>
+              <button onClick={() => sendWhatsApp(waModal, 'ambos')}
+                className="w-full py-2.5 rounded-xl bg-green-500 hover:bg-green-600 text-white text-sm font-semibold transition">
+                Ambos
+              </button>
+              <button onClick={() => setWaModal(null)}
+                className="w-full py-2 text-xs text-gray-400 hover:text-gray-600 transition">
+                Cancelar
+              </button>
+            </div>
           </div>
         </div>
       )}

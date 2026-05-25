@@ -126,7 +126,32 @@ export async function POST(
   if (sedacao)   avisos.push(`⚠️ *Sedação:* cobrada diretamente pela clínica, não inclusa no valor acima.`)
   if (internado) avisos.push(`🏥 *Internação:* cobrada diretamente pela clínica, não inclusa no valor acima.`)
 
-  if (pagarClinica) {
+  if (formaPag === 'gratuito') {
+    // ── EXAME GRATUITO ────────────────────────────────────────────────────────
+    const { error } = await supabase
+      .from('agendamentos')
+      .update({ status: 'agendado', status_pagamento: 'pago' })
+      .eq('id', agId)
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    if (tutor?.telefone) {
+      const digits  = tutor.telefone.replace(/\D/g, '')
+      const tel     = digits.startsWith('55') ? digits : `55${digits}`
+      await sendWhatsAppText(tel, [
+        `✅ Seu agendamento foi confirmado!`,
+        ``,
+        `🐾 Pet: ${pet?.nome ?? '—'}`,
+        `  💉 ${listaExames}`,
+        `📅 ${dataFmt}`,
+        `📍 BioPet Vet — Volta Redonda`,
+        ...(avisos.length > 0 ? [``, ...avisos] : []),
+        ``,
+        `Qualquer dúvida é só chamar! 🐾`,
+      ].join('\n'))
+    }
+
+  } else if (pagarClinica) {
     // ── CLÍNICA PAGA ──────────────────────────────────────────────────────────
     const { error } = await supabase
       .from('agendamentos')

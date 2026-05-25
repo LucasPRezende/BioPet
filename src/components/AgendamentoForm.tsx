@@ -43,7 +43,11 @@ function brl(n: number) {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
-function isHorarioEspecial(hora: string, totalDuracao: number): boolean {
+function isHorarioEspecial(hora: string, totalDuracao: number, data?: string): boolean {
+  if (data) {
+    const dia = new Date(`${data}T12:00:00`).getDay()
+    if (dia === 0 || dia === 6) return true // sábado ou domingo
+  }
   if (!hora) return false
   const [h, m] = hora.split(':').map(Number)
   return h * 60 + m + totalDuracao > 17 * 60
@@ -208,6 +212,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
   const [pagamentoResp,        setPagamentoResp]        = useState<'tutor' | 'clinica'>('tutor')
   const [formaPagamento,       setFormaPagamento]       = useState<'pix' | 'cartao'>('pix')
   const [entregaPagamento,     setEntregaPagamento]     = useState<'link' | 'presencial'>('link')
+  const [gratuito,             setGratuito]             = useState(false)
 
   // Bioquímica
   const [bioquimicaExames,       setBioquimicaExames]       = useState<BioquimicaExame[]>([])
@@ -229,7 +234,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
   // Derivados
   const temBioquimica   = examesSelecionados.some(e => e.tipo_exame === 'Bioquímica')
   const totalDuracao    = examesSelecionados.reduce((s, e) => s + e.duracao_minutos, 0)
-  const especial        = isHorarioEspecial(horaSelecionada, totalDuracao)
+  const especial        = isHorarioEspecial(horaSelecionada, totalDuracao, data)
   const vetNome         = vets.find(v => String(v.id) === vetId)?.nome ?? null
   const dataFmt         = data ? new Date(`${data}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' }) : ''
   const totalBioquimica = bioquimicaSelecionados.reduce((s, id) => {
@@ -240,7 +245,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
     const b = bioquimicaExames.find(x => x.id === id)
     return s + (b?.preco_pix ?? 0)
   }, 0)
-  const totalValor = examesSelecionados.reduce((s, e) => {
+  const totalValor = gratuito ? 0 : examesSelecionados.reduce((s, e) => {
     if (e.tipo_exame === 'Bioquímica') {
       return s + (pagamentoResp === 'clinica' ? totalBioquimicaPix : totalBioquimica)
     }
@@ -420,9 +425,9 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
       observacoes:           observacoes.trim() || null,
       sedacao_necessaria:    sedacaoNecessaria,
       pet_internado:         petInternado,
-      pagamento_responsavel: pagamentoResp,
-      forma_pagamento:       pagamentoResp === 'tutor' ? formaPagamento : 'a confirmar',
-      entrega_pagamento:     pagamentoResp === 'tutor' ? entregaPagamento : null,
+      pagamento_responsavel: gratuito ? 'tutor' : pagamentoResp,
+      forma_pagamento:       gratuito ? 'gratuito' : pagamentoResp === 'tutor' ? formaPagamento : 'a confirmar',
+      entrega_pagamento:     gratuito ? null : pagamentoResp === 'tutor' ? entregaPagamento : null,
       valor:                 totalValor,
       bioquimica_selecionados: bioquimicaPayload,
       encaixe,
@@ -466,7 +471,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
     setPetPelagem(''); setPetNascimento(''); setPetSexo(''); setPetCastrado(false); setPetTemperamento('')
     setExamesSelecionados([]); setVetId(''); setObservacoes('')
     setSedacaoNecessaria(false); setPetInternado(false); setNotificar(true)
-    setPagamentoResp('tutor'); setFormaPagamento('pix'); setEntregaPagamento('link')
+    setPagamentoResp('tutor'); setFormaPagamento('pix'); setEntregaPagamento('link'); setGratuito(false)
     setData(dataPadrao ?? ''); setHoraSelecionada(''); setEncaixe(false)
     setBioquimicaSelecionados([]); setErro('')
   }
@@ -772,37 +777,57 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
           </p>
         )}
 
-        {/* Responsável pelo pagamento */}
-        <RadioGroup<'tutor' | 'clinica'>
-          label="Responsável pelo pagamento *"
-          value={pagamentoResp}
-          onChange={setPagamentoResp}
-          options={[
-            { value: 'tutor',   label: 'Tutor paga diretamente à BioPet' },
-            { value: 'clinica', label: 'Clínica já pagou / vai pagar' },
-          ]}
-        />
+        {/* Exame gratuito (só admin) */}
+        {modo === 'admin' && (
+          <label className={`flex items-center justify-between px-4 py-3 rounded-xl border cursor-pointer transition select-none ${
+            gratuito ? 'border-violet-300 bg-violet-50' : 'border-gray-200 bg-gray-50'
+          }`}>
+            <span className={`text-sm font-medium ${gratuito ? 'text-violet-800' : 'text-gray-500'}`}>
+              {gratuito ? '🎁 Exame gratuito — sem cobrança' : '💳 Exame com pagamento'}
+            </span>
+            <div className="relative ml-3 shrink-0">
+              <input type="checkbox" className="sr-only peer" checked={gratuito} onChange={e => setGratuito(e.target.checked)} />
+              <div className="w-10 h-5 rounded-full transition-colors bg-gray-300 peer-checked:bg-violet-500" />
+              <div className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-5" />
+            </div>
+          </label>
+        )}
 
-        {pagamentoResp === 'tutor' && (
+        {/* Responsável pelo pagamento */}
+        {!gratuito && (
           <>
-            <RadioGroup<'pix' | 'cartao'>
-              label="Forma de pagamento"
-              value={formaPagamento}
-              onChange={setFormaPagamento}
+            <RadioGroup<'tutor' | 'clinica'>
+              label="Responsável pelo pagamento *"
+              value={pagamentoResp}
+              onChange={setPagamentoResp}
               options={[
-                { value: 'pix',    label: 'Pix / Dinheiro' },
-                { value: 'cartao', label: 'Cartão até 3x' },
+                { value: 'tutor',   label: 'Tutor paga diretamente à BioPet' },
+                { value: 'clinica', label: 'Clínica já pagou / vai pagar' },
               ]}
             />
-            <RadioGroup<'link' | 'presencial'>
-              label="Entrega do pagamento"
-              value={entregaPagamento}
-              onChange={setEntregaPagamento}
-              options={[
-                { value: 'link',       label: 'Enviar link',  desc: 'Tutor paga pelo WhatsApp' },
-                { value: 'presencial', label: 'Presencial',   desc: 'Tutor paga na BioPet' },
-              ]}
-            />
+
+            {pagamentoResp === 'tutor' && (
+              <>
+                <RadioGroup<'pix' | 'cartao'>
+                  label="Forma de pagamento"
+                  value={formaPagamento}
+                  onChange={setFormaPagamento}
+                  options={[
+                    { value: 'pix',    label: 'Pix / Dinheiro' },
+                    { value: 'cartao', label: 'Cartão até 3x' },
+                  ]}
+                />
+                <RadioGroup<'link' | 'presencial'>
+                  label="Entrega do pagamento"
+                  value={entregaPagamento}
+                  onChange={setEntregaPagamento}
+                  options={[
+                    { value: 'link',       label: 'Enviar link',  desc: 'Tutor paga pelo WhatsApp' },
+                    { value: 'presencial', label: 'Presencial',   desc: 'Tutor paga na BioPet' },
+                  ]}
+                />
+              </>
+            )}
           </>
         )}
 

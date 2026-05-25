@@ -278,6 +278,7 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
               <label className="block text-xs font-semibold text-gray-500 mb-1">Forma de pagamento</label>
               <select value={formaPag} onChange={e => setFormaPag(e.target.value)} className={INPUT}>
                 <option value="">A confirmar</option>
+                <option value="gratuito">Gratuito</option>
                 <option value="pix">Pix / Dinheiro</option>
                 <option value="cartao_debito">Cartão débito</option>
                 <option value="cartao_credito">Cartão crédito</option>
