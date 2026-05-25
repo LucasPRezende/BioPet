@@ -12,3 +12,4 @@ Novo Index/
 context-pdfs/.gemini-cache.json
 
 .vercel
+scripts/atualizar-env-vps.sh
