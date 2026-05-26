@@ -47,7 +47,12 @@ export async function PATCH(
     }
     updates.role = body.role
   }
-  if (body.ativo !== undefined) updates.ativo = body.ativo
+  if (body.ativo !== undefined) {
+    if (body.ativo === false && adminSession.userId === id) {
+      return NextResponse.json({ error: 'Você não pode desativar sua própria conta.' }, { status: 400 })
+    }
+    updates.ativo = body.ativo
+  }
   if (body.recebe_comissao !== undefined) updates.recebe_comissao = body.recebe_comissao
   if (body.permissoes !== undefined) updates.permissoes = body.permissoes
 

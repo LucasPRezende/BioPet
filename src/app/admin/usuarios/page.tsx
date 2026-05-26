@@ -322,6 +322,7 @@ export default function UsuariosPage() {
   useEffect(() => { fetchUsers() }, [fetchUsers])
 
   async function toggleAtivo(user: SystemUser) {
+    if (user.ativo && !confirm(`Desativar "${user.nome}"? Ele não conseguirá mais fazer login.`)) return
     const res = await fetch(`/api/system-users/${user.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
