@@ -31,10 +31,13 @@ export default async function PIXPage({ params }: { params: Promise<{ token: str
     ? (tutorRaw[0] as { cpf: string | null })?.cpf
     : (tutorRaw as { cpf: string | null } | null)?.cpf) ?? ''
 
-  const exames = ag.agendamento_exames as { tipo_exame: string; valor: number }[] | null
-  const valor  = exames && exames.length > 0
-    ? exames.reduce((s, e) => s + Number(e.valor), 0)
-    : Number(ag.valor) || 0
+  const exames    = ag.agendamento_exames as { tipo_exame: string; valor: number }[] | null
+  const agValor   = Number(ag.valor) || 0
+  const examesSum = exames && exames.length > 0 ? exames.reduce((s, e) => s + Number(e.valor), 0) : 0
+  // Usa soma dos exames apenas se bater com o total — protege contra agendamento_exames stale após edição
+  const valor = exames && exames.length > 0 && Math.abs(examesSum - agValor) < 0.01
+    ? examesSum
+    : agValor
 
   return (
     <PIXPayment

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { supabase } from '@/lib/supabase'
+
+export const dynamic = 'force-dynamic'
 import { sendVetInvite } from '@/lib/evolution'
 
 export async function GET() {

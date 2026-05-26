@@ -40,6 +40,7 @@ export async function PATCH(
     status, observacoes, valor, forma_pagamento,
     data_hora, entrega_pagamento, pagamento_responsavel,
     sedacao_necessaria, pet_internado, veterinario_id,
+    status_pagamento, agendamento_exames_update,
   } = body ?? {}
 
   const STATUSES = ['pendente', 'agendado', 'em atendimento', 'concluído', 'cancelado']
@@ -58,19 +59,31 @@ export async function PATCH(
   if (sedacao_necessaria   !== undefined) update.sedacao_necessaria   = sedacao_necessaria
   if (pet_internado        !== undefined) update.pet_internado        = pet_internado
   if (veterinario_id       !== undefined) update.veterinario_id       = veterinario_id === '' ? null : Number(veterinario_id)
+  if (status_pagamento     !== undefined) update.status_pagamento     = status_pagamento
 
-  if (Object.keys(update).length === 0) {
+  if (Object.keys(update).length === 0 && !agendamento_exames_update) {
     return NextResponse.json({ error: 'Nenhum campo para atualizar.' }, { status: 400 })
   }
 
-  const { data, error } = await supabase
-    .from('agendamentos')
-    .update(update)
-    .eq('id', Number(params.id))
-    .select()
-    .single()
+  if (Object.keys(update).length > 0) {
+    const { data, error } = await supabase
+      .from('agendamentos')
+      .update(update)
+      .eq('id', Number(params.id))
+      .select()
+      .single()
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  }
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (Array.isArray(agendamento_exames_update) && agendamento_exames_update.length > 0) {
+    for (const ex of agendamento_exames_update as { tipo_exame: string; valor: number | null }[]) {
+      await supabase
+        .from('agendamento_exames')
+        .update({ valor: ex.valor })
+        .eq('agendamento_id', Number(params.id))
+        .eq('tipo_exame', ex.tipo_exame)
+    }
+  }
 
-  return NextResponse.json(data)
+  return NextResponse.json({ ok: true })
 }

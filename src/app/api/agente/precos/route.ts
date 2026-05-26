@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
+export const dynamic = 'force-dynamic'
+
 // Rota pública — sem autenticação
 export async function GET() {
   const [{ data, error }, { data: bioData }] = await Promise.all([

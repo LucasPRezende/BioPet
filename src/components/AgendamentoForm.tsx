@@ -78,7 +78,7 @@ function calcularValorExame(
   formaPagamento: 'pix' | 'cartao',
   especial: boolean,
 ): number {
-  if (!exame.varia_por_horario) return exame.valor_pix ?? 0
+  if (!exame.varia_por_horario) return formaPagamento === 'cartao' ? (exame.valor_cartao ?? exame.valor_pix ?? 0) : (exame.valor_pix ?? 0)
   if (especial) {
     return formaPagamento === 'cartao'
       ? (exame.valor_especial_cartao ?? exame.valor_cartao ?? 0)
@@ -177,7 +177,7 @@ function RadioGroup<T extends string>({
 
 export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: AgendamentoFormProps) {
   const router     = useRouter()
-  const totalSteps = modo === 'admin' ? 3 : 4
+  const totalSteps = 4
   const [step, setStep] = useState(1)
 
   // Step 1 — Resp. Legal & Pet
@@ -395,7 +395,6 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
     setErro('')
     const err = step === 1 ? validarStep1() : step === 2 ? validarStep2() : step === 3 ? validarStep3() : null
     if (err) { setErro(err); return }
-    if (modo === 'admin' && step === totalSteps) { confirmar(); return }
     setStep(s => s + 1)
   }
 
@@ -974,11 +973,12 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
             { label: 'Exame(s)',    value: examesSelecionados.map(e => e.tipo_exame === 'Bioquímica' && bioquimicaSelecionados.length > 0 ? `Bioquímica (${bioquimicaSelecionados.map(id => bioquimicaExames.find(x => x.id === id)?.nome ?? '').join(', ')})` : e.tipo_exame).join(', ') },
             { label: 'Duração',     value: `${totalDuracao} min` },
             { label: 'Data',        value: dataFmt },
-            { label: 'Horário',     value: horaSelecionada },
+            { label: 'Horário',     value: encaixe ? 'Encaixe (sem horário fixo)' : horaSelecionada },
             vetNome           ? { label: 'Veterinário', value: vetNome } : null,
             sedacaoNecessaria ? { label: 'Sedação',     value: '⚠️ Necessária' } : null,
             petInternado      ? { label: 'Internado',   value: '🏥 Sim' } : null,
-            { label: 'Pagamento', value: pagamentoResp === 'clinica' ? 'Clínica' : `Tutor — ${formaPagamento === 'cartao' ? 'Cartão' : 'Pix'} · ${entregaPagamento === 'link' ? 'Link WhatsApp' : 'Presencial'} · ${brl(totalValor)}` },
+            { label: 'Pagamento', value: gratuito ? '🎁 Gratuito' : pagamentoResp === 'clinica' ? 'Clínica' : `Tutor — ${formaPagamento === 'cartao' ? 'Cartão' : 'Pix'} · ${entregaPagamento === 'link' ? 'Link WhatsApp' : 'Presencial'} · ${brl(totalValor)}` },
+            modo === 'admin' ? { label: 'Notificar', value: notificar ? '📱 Sim (WhatsApp)' : '🔕 Não' } : null,
             observacoes ? { label: 'Observações', value: observacoes } : null,
           ].filter(Boolean).map(row => (
             <div key={row!.label} className="flex gap-3 px-4 py-3">
@@ -989,9 +989,15 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
         </div>
         <div className="bg-amber-50 border border-[#8a6e36]/20 rounded-xl px-4 py-3">
           <p className="text-xs text-[#8a6e36] font-medium">
-            ⚠️ Este agendamento ficará como <strong>pendente</strong> até a BioPet confirmar.
-            {pagamentoResp === 'tutor' && entregaPagamento === 'link' && ' Após confirmação, o link de pagamento será enviado pelo WhatsApp.'}
-            {pagamentoResp === 'tutor' && entregaPagamento === 'presencial' && ' O tutor realizará o pagamento presencialmente na BioPet.'}
+            {modo === 'admin' ? (
+              <>✅ Revise os dados acima e clique em <strong>Criar agendamento</strong> para confirmar.</>
+            ) : (
+              <>
+                ⚠️ Este agendamento ficará como <strong>pendente</strong> até a BioPet confirmar.
+                {pagamentoResp === 'tutor' && entregaPagamento === 'link' && ' Após confirmação, o link de pagamento será enviado pelo WhatsApp.'}
+                {pagamentoResp === 'tutor' && entregaPagamento === 'presencial' && ' O tutor realizará o pagamento presencialmente na BioPet.'}
+              </>
+            )}
           </p>
         </div>
       </div>

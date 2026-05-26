@@ -46,8 +46,9 @@ const NAV: NavGroup[] = [
   {
     title: 'FINANCEIRO',
     items: [
-      { icon: '📊', label: 'Dashboard', href: '/admin/dashboard' },
-      { icon: '💰', label: 'Preços',    href: '/admin/comissoes' },
+      { icon: '📊', label: 'Dashboard',  href: '/admin/dashboard'  },
+      { icon: '💰', label: 'Preços',     href: '/admin/comissoes'  },
+      { icon: '🩸', label: 'Extrações',  href: '/admin/extracoes'  },
     ],
   },
   {

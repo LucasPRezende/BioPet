@@ -20,6 +20,24 @@ interface AgExame {
   valor:      number | null
 }
 
+interface ComissaoInfo {
+  tipo_exame:                string
+  varia_por_horario:         boolean
+  preco_exame:               number | null
+  preco_pix_comercial:       number | null
+  preco_cartao_comercial:    number | null
+  preco_pix_fora_horario:    number | null
+  preco_cartao_fora_horario: number | null
+}
+
+function isEspecial(hora: string, totalMin: number, data: string): boolean {
+  const dia = new Date(`${data}T12:00:00`).getDay()
+  if (dia === 0 || dia === 6) return true
+  if (!hora) return false
+  const [h, m] = hora.split(':').map(Number)
+  return h * 60 + m + totalMin > 17 * 60
+}
+
 interface Agendamento {
   id:                    number
   tipo_exame:            string
@@ -205,12 +223,12 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
   onClose: () => void
   onSaved: (updated: Partial<Agendamento>) => void
 }) {
-  const dataStr  = ag.data_hora.split('T')[0]
-  const horaStr  = ag.encaixe ? '' : (ag.data_hora.split('T')[1] ?? '').substring(0, 5)
+  const dataStr = ag.data_hora.split('T')[0]
+  const horaStr = ag.encaixe ? '' : (ag.data_hora.split('T')[1] ?? '').substring(0, 5)
 
   const [data,      setData]      = useState(dataStr)
   const [hora,      setHora]      = useState(horaStr)
-  const [formaPag,  setFormaPag]  = useState(ag.forma_pagamento ?? '')
+  const [formaPag,  setFormaPag]  = useState(ag.forma_pagamento ?? 'a confirmar')
   const [entrega,   setEntrega]   = useState(ag.entrega_pagamento ?? 'link')
   const [pagResp,   setPagResp]   = useState(ag.pagamento_responsavel ?? 'tutor')
   const [sedacao,   setSedacao]   = useState(ag.sedacao_necessaria ?? false)
@@ -221,26 +239,133 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
   const [saving,    setSaving]    = useState(false)
   const [error,     setError]     = useState('')
 
-  useEffect(() => { fetch('/api/veterinarios').then(r => r.ok ? r.json() : []).then(setVets) }, [])
+  // Recálculo de valor
+  const [comissoes,   setComissoes]   = useState<ComissaoInfo[]>([])
+  const [novoValor,   setNovoValor]   = useState<number | null>(ag.valor ?? null)
+  const [fase,        setFase]        = useState<'form' | 'confirmar'>('form')
+  const [enviarLink,  setEnviarLink]  = useState(true)
+  const [enviandoLink, setEnviandoLink] = useState(false)
 
   const INPUT = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8a6e36] bg-white'
 
-  async function handleSave(e: React.FormEvent) {
-    e.preventDefault()
+  useEffect(() => { fetch('/api/veterinarios').then(r => r.ok ? r.json() : []).then(setVets) }, [])
+  useEffect(() => { fetch('/api/comissoes').then(r => r.ok ? r.json() : []).then(setComissoes) }, [])
+
+  // Recalcula valor quando muda forma de pag, responsável, data ou hora
+  useEffect(() => {
+    const exames = ag.agendamento_exames ?? []
+    if (exames.length === 0 || comissoes.length === 0) return
+    if (formaPag === 'gratuito') { setNovoValor(0); return }
+    if (!data) return
+
+    const isPix    = pagResp === 'clinica' || !formaPag.includes('cartao')
+    const especial = ag.encaixe ? false : isEspecial(hora, ag.duracao_minutos ?? 0, data)
+    const comMap   = new Map(comissoes.map(c => [c.tipo_exame, c]))
+    const bioRows  = ag.agendamento_bioquimica ?? []
+
+    const calc = exames.reduce((sum, ex) => {
+      if (ex.tipo_exame === 'Bioquímica') {
+        return sum + bioRows.reduce((s, b) => s + Number(isPix ? b.valor_pix : b.valor_cartao), 0)
+      }
+      const info = comMap.get(ex.tipo_exame)
+      if (!info) return sum
+      const pixNormal    = info.preco_pix_comercial    ?? info.preco_exame ?? 0
+      const cartaoNormal = info.preco_cartao_comercial ?? info.preco_exame ?? 0
+      if (!info.varia_por_horario) {
+        return sum + (isPix ? pixNormal : cartaoNormal)
+      }
+      if (especial) {
+        return sum + (isPix
+          ? (info.preco_pix_fora_horario    ?? pixNormal)
+          : (info.preco_cartao_fora_horario ?? cartaoNormal))
+      }
+      return sum + (isPix ? pixNormal : cartaoNormal)
+    }, 0)
+
+    setNovoValor(calc)
+  }, [formaPag, pagResp, data, hora, comissoes, ag])
+
+  const valorOriginal = ag.valor ?? 0
+  const valorMudou    = novoValor !== null && Math.abs(novoValor - valorOriginal) > 0.01
+  const podeEnviarLink = pagResp === 'tutor' && entrega === 'link' &&
+    formaPag !== 'gratuito' && formaPag !== '' && formaPag !== 'a confirmar' && formaPag !== '—'
+
+  async function salvar() {
     setSaving(true); setError('')
     const dataHora = ag.encaixe ? `${data}T00:00:00` : `${data}T${hora}:00`
+
+    // Recalcula o valor sincronamente no momento do save — garante que o preço correto
+    // seja enviado mesmo quando o useEffect não rodou (race condition com carga de comissoes)
+    let valorFinal: number | null = novoValor
+    let examesAtualizados: AgExame[] | undefined
+    const exsAg = ag.agendamento_exames ?? []
+    if (formaPag === 'gratuito') {
+      valorFinal = 0
+    } else if (comissoes.length > 0 && exsAg.length > 0) {
+      const isPix  = pagResp === 'clinica' || !formaPag.includes('cartao')
+      const esp    = ag.encaixe ? false : isEspecial(hora, ag.duracao_minutos ?? 0, data)
+      const cMap   = new Map(comissoes.map(c => [c.tipo_exame, c]))
+      const bios   = ag.agendamento_bioquimica ?? []
+      const examesCalc: AgExame[] = exsAg.map(ex => {
+        if (ex.tipo_exame === 'Bioquímica') {
+          const val = bios.reduce((s, b) => s + Number(isPix ? b.valor_pix : b.valor_cartao), 0)
+          return { ...ex, valor: val }
+        }
+        const info = cMap.get(ex.tipo_exame)
+        if (!info) return ex
+        const pNorm = info.preco_pix_comercial    ?? info.preco_exame ?? 0
+        const cNorm = info.preco_cartao_comercial ?? info.preco_exame ?? 0
+        if (!info.varia_por_horario) return { ...ex, valor: isPix ? pNorm : cNorm }
+        const pEsp = info.preco_pix_fora_horario    ?? pNorm
+        const cEsp = info.preco_cartao_fora_horario ?? cNorm
+        return { ...ex, valor: esp ? (isPix ? pEsp : cEsp) : (isPix ? pNorm : cNorm) }
+      })
+      const calc = examesCalc.reduce((s, ex) => s + (ex.valor ?? 0), 0)
+      if (calc > 0) { valorFinal = calc; examesAtualizados = examesCalc }
+    }
+
     const body: Record<string, unknown> = {
-      data_hora: dataHora, forma_pagamento: formaPag || null,
-      entrega_pagamento: entrega, pagamento_responsavel: pagResp,
-      sedacao_necessaria: sedacao, pet_internado: internado,
-      veterinario_id: vetId || '', observacoes: obs.trim() || null,
+      data_hora:             dataHora,
+      forma_pagamento:       formaPag || null,
+      entrega_pagamento:     entrega,
+      pagamento_responsavel: pagResp,
+      sedacao_necessaria:    sedacao,
+      pet_internado:         internado,
+      veterinario_id:        vetId || '',
+      observacoes:           obs.trim() || null,
+      ...(valorFinal !== null && { valor: valorFinal }),
+      ...(examesAtualizados && { agendamento_exames_update: examesAtualizados }),
     }
     const res = await fetch(`/api/agendamentos/${ag.id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     })
-    if (res.ok) { onSaved({ ...body, data_hora: dataHora }); onClose() }
-    else { const d = await res.json(); setError(d.error ?? 'Erro ao salvar.') }
+    if (!res.ok) {
+      const d = await res.json(); setError(d.error ?? 'Erro ao salvar.')
+      setSaving(false); return
+    }
+
+    if (fase === 'confirmar' && enviarLink && podeEnviarLink) {
+      setEnviandoLink(true)
+      await fetch('/api/pagamentos/regerar-link', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agendamento_id: ag.id }),
+      })
+      setEnviandoLink(false)
+    }
+
+    onSaved({
+      ...body,
+      data_hora: dataHora,
+      ...(examesAtualizados ? { agendamento_exames: examesAtualizados } : {}),
+    })
+    onClose()
     setSaving(false)
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (valorMudou && fase === 'form') { setFase('confirmar'); return }
+    salvar()
   }
 
   return (
@@ -248,84 +373,162 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md my-auto overflow-hidden">
         <div className="bg-[#19202d] px-5 py-4 flex items-center justify-between">
           <div>
-            <p className="text-white font-bold text-sm">Editar agendamento</p>
+            <p className="text-white font-bold text-sm">
+              {fase === 'confirmar' ? 'Confirmar alteração de valor' : 'Editar agendamento'}
+            </p>
             <p className="text-gray-400 text-xs mt-0.5">{ag.pets?.nome ?? '—'} · #{ag.id}</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl leading-none">×</button>
         </div>
-        <form onSubmit={handleSave} className="p-5 space-y-4">
-          <div className="flex gap-3">
-            <div className="flex-1">
-              <label className="block text-xs font-semibold text-gray-500 mb-1">Data</label>
-              <input type="date" value={data} onChange={e => setData(e.target.value)} required className={INPUT} />
+
+        {fase === 'confirmar' ? (
+          // ── Tela de confirmação ────────────────────────────────────────────
+          <div className="p-5 space-y-4">
+            <p className="text-sm text-gray-600">
+              A alteração na forma de pagamento resultou em um novo valor para este agendamento.
+            </p>
+
+            <div className="bg-gray-50 border border-gray-200 rounded-xl divide-y divide-gray-100">
+              <div className="flex justify-between items-center px-4 py-3">
+                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Valor atual</span>
+                <span className="text-sm font-semibold text-gray-500 line-through">{formatBRL(valorOriginal)}</span>
+              </div>
+              <div className="flex justify-between items-center px-4 py-3">
+                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Novo valor</span>
+                <span className="text-base font-bold text-[#19202d]">{formatBRL(novoValor)}</span>
+              </div>
+              <div className="flex justify-between items-center px-4 py-3">
+                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Forma de pag.</span>
+                <span className="text-sm text-gray-700 capitalize">{formaPag || 'A confirmar'}</span>
+              </div>
             </div>
-            {!ag.encaixe && (
-              <div className="w-28">
-                <label className="block text-xs font-semibold text-gray-500 mb-1">Hora</label>
-                <input type="time" value={hora} onChange={e => setHora(e.target.value)} required className={INPUT} />
+
+            {podeEnviarLink && (
+              <label className={`flex items-center gap-3 px-4 py-3 rounded-xl border cursor-pointer transition select-none ${
+                enviarLink ? 'border-green-300 bg-green-50' : 'border-gray-200 bg-gray-50'
+              }`}>
+                <input type="checkbox" checked={enviarLink} onChange={e => setEnviarLink(e.target.checked)}
+                  className="w-4 h-4 accent-green-600 shrink-0" />
+                <div>
+                  <p className={`text-sm font-semibold ${enviarLink ? 'text-green-800' : 'text-gray-500'}`}>
+                    Enviar novo link de pagamento
+                  </p>
+                  <p className="text-xs text-gray-400 mt-0.5">Manda o novo link via WhatsApp para o tutor</p>
+                </div>
+              </label>
+            )}
+
+            {error && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
+
+            <div className="flex gap-3 pt-1">
+              <button type="button" onClick={() => setFase('form')}
+                className="flex-1 border border-gray-200 text-gray-500 py-2.5 rounded-lg text-sm hover:bg-gray-50 transition">
+                ← Voltar
+              </button>
+              <button type="button" onClick={salvar} disabled={saving || enviandoLink}
+                className="flex-1 bg-[#c4a35a] hover:bg-[#b8944e] text-white font-bold py-2.5 rounded-lg text-sm transition disabled:opacity-40">
+                {saving || enviandoLink ? 'Salvando...' : 'Confirmar e salvar'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          // ── Formulário de edição ───────────────────────────────────────────
+          <form onSubmit={handleSubmit} className="p-5 space-y-4">
+            <div className="flex gap-3">
+              <div className="flex-1">
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Data</label>
+                <input type="date" value={data} onChange={e => setData(e.target.value)} required className={INPUT} />
+              </div>
+              {!ag.encaixe && (
+                <div className="w-28">
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Hora</label>
+                  <input type="time" value={hora} onChange={e => setHora(e.target.value)} required className={INPUT} />
+                </div>
+              )}
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">Veterinário responsável</label>
+              <select value={vetId} onChange={e => setVetId(e.target.value)} className={INPUT}>
+                <option value="">Não informado</option>
+                {vets.map(v => <option key={v.id} value={v.id}>{v.nome}</option>)}
+              </select>
+            </div>
+            <div className="flex gap-3">
+              <div className="flex-1">
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Forma de pagamento</label>
+                <select value={formaPag} onChange={e => setFormaPag(e.target.value)} className={INPUT}>
+                  <option value="a confirmar">A confirmar</option>
+                  <option value="">—</option>
+                  <option value="gratuito">Gratuito</option>
+                  <option value="pix">Pix / Dinheiro</option>
+                  <option value="cartao">Cartão (até 3x)</option>
+                </select>
+              </div>
+              <div className="flex-1">
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Entrega</label>
+                <select value={entrega} onChange={e => setEntrega(e.target.value)} className={INPUT}>
+                  <option value="link">Por link</option>
+                  <option value="presencial">Presencial</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">Pagamento responsável</label>
+              <select value={pagResp} onChange={e => setPagResp(e.target.value)} className={INPUT}>
+                <option value="tutor">Tutor</option>
+                <option value="clinica">Clínica</option>
+              </select>
+            </div>
+
+            {/* Aviso de recálculo de valor */}
+            {novoValor !== null && (ag.agendamento_exames ?? []).length > 0 && formaPag !== 'gratuito' && (
+              <div className={`flex items-center justify-between px-4 py-3 rounded-xl border text-sm ${
+                valorMudou
+                  ? 'bg-amber-50 border-amber-200'
+                  : 'bg-gray-50 border-gray-200'
+              }`}>
+                <span className={`text-xs font-semibold uppercase tracking-wide ${valorMudou ? 'text-amber-700' : 'text-gray-400'}`}>
+                  {valorMudou ? '⚠️ Novo valor calculado' : 'Valor'}
+                </span>
+                <div className="text-right">
+                  {valorMudou && (
+                    <span className="text-xs text-gray-400 line-through mr-2">{formatBRL(valorOriginal)}</span>
+                  )}
+                  <span className={`font-bold ${valorMudou ? 'text-amber-800' : 'text-gray-700'}`}>
+                    {formatBRL(novoValor)}
+                  </span>
+                </div>
               </div>
             )}
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1">Veterinário responsável</label>
-            <select value={vetId} onChange={e => setVetId(e.target.value)} className={INPUT}>
-              <option value="">Não informado</option>
-              {vets.map(v => <option key={v.id} value={v.id}>{v.nome}</option>)}
-            </select>
-          </div>
-          <div className="flex gap-3">
-            <div className="flex-1">
-              <label className="block text-xs font-semibold text-gray-500 mb-1">Forma de pagamento</label>
-              <select value={formaPag} onChange={e => setFormaPag(e.target.value)} className={INPUT}>
-                <option value="">A confirmar</option>
-                <option value="gratuito">Gratuito</option>
-                <option value="pix">Pix / Dinheiro</option>
-                <option value="cartao_debito">Cartão débito</option>
-                <option value="cartao_credito">Cartão crédito</option>
-              </select>
-            </div>
-            <div className="flex-1">
-              <label className="block text-xs font-semibold text-gray-500 mb-1">Entrega</label>
-              <select value={entrega} onChange={e => setEntrega(e.target.value)} className={INPUT}>
-                <option value="link">Por link</option>
-                <option value="presencial">Presencial</option>
-              </select>
-            </div>
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1">Pagamento responsável</label>
-            <select value={pagResp} onChange={e => setPagResp(e.target.value)} className={INPUT}>
-              <option value="tutor">Tutor</option>
-              <option value="clinica">Clínica</option>
-            </select>
-          </div>
-          <div className="flex gap-6">
-            <div>
-              <p className="text-xs font-semibold text-gray-500 mb-1.5">Sedação necessária?</p>
-              <SimNaoBtn value={sedacao} onChange={setSedacao} />
+
+            <div className="flex gap-6">
+              <div>
+                <p className="text-xs font-semibold text-gray-500 mb-1.5">Sedação necessária?</p>
+                <SimNaoBtn value={sedacao} onChange={setSedacao} />
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-500 mb-1.5">Pet internado?</p>
+                <SimNaoBtn value={internado} onChange={setInternado} />
+              </div>
             </div>
             <div>
-              <p className="text-xs font-semibold text-gray-500 mb-1.5">Pet internado?</p>
-              <SimNaoBtn value={internado} onChange={setInternado} />
+              <label className="block text-xs font-semibold text-gray-500 mb-1">Observações</label>
+              <textarea value={obs} onChange={e => setObs(e.target.value)} rows={2}
+                className={INPUT + ' resize-none'} placeholder="Opcional" />
             </div>
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1">Observações</label>
-            <textarea value={obs} onChange={e => setObs(e.target.value)} rows={2}
-              className={INPUT + ' resize-none'} placeholder="Opcional" />
-          </div>
-          {error && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
-          <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onClose}
-              className="flex-1 border border-gray-200 text-gray-500 py-2.5 rounded-lg text-sm hover:bg-gray-50 transition">
-              Cancelar
-            </button>
-            <button type="submit" disabled={saving}
-              className="flex-1 bg-[#19202d] hover:bg-[#232d3f] text-white font-semibold py-2.5 rounded-lg text-sm transition disabled:opacity-40">
-              {saving ? 'Salvando...' : 'Salvar alterações'}
-            </button>
-          </div>
-        </form>
+            {error && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
+            <div className="flex gap-3 pt-1">
+              <button type="button" onClick={onClose}
+                className="flex-1 border border-gray-200 text-gray-500 py-2.5 rounded-lg text-sm hover:bg-gray-50 transition">
+                Cancelar
+              </button>
+              <button type="submit" disabled={saving}
+                className="flex-1 bg-[#19202d] hover:bg-[#232d3f] text-white font-semibold py-2.5 rounded-lg text-sm transition disabled:opacity-40">
+                {saving ? 'Salvando...' : valorMudou ? 'Salvar →' : 'Salvar alterações'}
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   )
@@ -397,12 +600,29 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
     totalExames += val
     return { ...ex, val, isBio }
   })
-  const repasse = totalExames > 0 ? totalExames : (ag.valor ?? 0)
+  // Usa soma dos exames só se bater com ag.valor — protege contra agendamento_exames stale após edição de forma de pag.
+  const valorMismatch = totalExames > 0 && Math.abs(totalExames - (ag.valor ?? 0)) > 0.01
+  const repasse = valorMismatch ? (ag.valor ?? 0) : totalExames || (ag.valor ?? 0)
+  // Quando há mismatch (agendamento_exames stale), corrige a exibição:
+  // - Único exame não-Bio: usa ag.valor diretamente
+  // - Múltiplos exames não-Bio: oculta preço individual (val=0) pois está stale; total via repasse
+  // - Bio: sempre correto (armazena valor_pix e valor_cartao separados)
+  const examesDisplay = valorMismatch
+    ? examesComVal.map(ex => {
+        if (ex.isBio) return ex
+        if (examesComVal.length === 1) return { ...ex, val: ag.valor ?? 0 }
+        return { ...ex, val: 0 }
+      })
+    : examesComVal
 
   async function handleStatusChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const s = e.target.value; setStatus(s)
-    await fetch(`/api/agendamentos/${ag.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: s }) })
-    onUpdated(ag.id, { status: s })
+    const novoPagStatusDropdown = s === 'cancelado'
+      ? (statusPag === 'pago' ? 'estorno_pendente' : 'cancelado')
+      : undefined
+    const body: Record<string, unknown> = { status: s, ...(novoPagStatusDropdown ? { status_pagamento: novoPagStatusDropdown } : {}) }
+    await fetch(`/api/agendamentos/${ag.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    onUpdated(ag.id, { status: s, ...(novoPagStatusDropdown ? { status_pagamento: novoPagStatusDropdown } : {}) })
   }
   async function handleConfirmar() {
     setConfirming(true)
@@ -421,8 +641,9 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
   async function handleCancelar() {
     const ok = window.confirm('Cancelar este agendamento? Esta ação não pode ser desfeita.')
     if (!ok) return
-    const res = await fetch(`/api/agendamentos/${ag.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'cancelado' }) })
-    if (res.ok) { setStatus('cancelado'); onUpdated(ag.id, { status: 'cancelado' }) }
+    const novoPagStatus = statusPag === 'pago' ? 'estorno_pendente' : 'cancelado'
+    const res = await fetch(`/api/agendamentos/${ag.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'cancelado', status_pagamento: novoPagStatus }) })
+    if (res.ok) { setStatus('cancelado'); onUpdated(ag.id, { status: 'cancelado', status_pagamento: novoPagStatus }) }
   }
   async function handleConfirmarPagamento() {
     setConfirmingPag(true)
@@ -486,6 +707,7 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
               {statusPag === 'pago_clinica' && <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">🔵 Pago (Clínica)</span>}
               {statusPag === 'a_receber' && ag.pagamento_responsavel === 'clinica' && <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">🔵 A receber (Clínica)</span>}
               {statusPag === 'a_receber' && ag.pagamento_responsavel !== 'clinica' && <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-yellow-50 text-yellow-700 border border-yellow-200">🟡 A receber</span>}
+              {statusPag === 'estorno_pendente' && <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-red-50 text-red-700 border border-red-200">🔴 Estorno pendente</span>}
             </div>
 
             {ag.observacoes && (
@@ -503,7 +725,7 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
                   </div>
                 ) : (
                   <>
-                    {examesComVal.map((ex, i) => (
+                    {examesDisplay.map((ex, i) => (
                       <div key={i}>
                         <div className="flex justify-between items-center text-sm">
                           <span className="font-semibold text-[#8a6e36] bg-amber-50 px-2 py-0.5 rounded">{ex.tipo_exame}</span>

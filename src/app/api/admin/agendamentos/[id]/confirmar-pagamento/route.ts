@@ -18,7 +18,7 @@ export async function POST(
 
   const { data: ag } = await supabase
     .from('agendamentos')
-    .select('id, status_pagamento, pagamento_responsavel, clinica_id')
+    .select('id, status_pagamento, pagamento_responsavel, clinica_id, mp_preference_id')
     .eq('id', agId)
     .single()
 
@@ -29,9 +29,29 @@ export async function POST(
 
   const novoStatus = (ag.pagamento_responsavel === 'clinica' || ag.clinica_id != null) ? 'pago_clinica' : 'pago'
 
+  const updatePayload: Record<string, unknown> = { status_pagamento: novoStatus }
+
+  // Expira preferência MP para que o link de cartão pare de funcionar
+  if (ag.mp_preference_id) {
+    try {
+      await fetch(`https://api.mercadopago.com/checkout/preferences/${ag.mp_preference_id}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${(process.env.MP_ACCESS_TOKEN ?? '').trim()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ expires: true, expiration_date_to: new Date(Date.now() - 1000).toISOString() }),
+      })
+    } catch (err) {
+      console.warn('[confirmar-pagamento] falha ao expirar preferência MP:', err)
+    }
+    updatePayload.mp_preference_id = null
+    updatePayload.mp_init_point    = null
+  }
+
   const { error } = await supabase
     .from('agendamentos')
-    .update({ status_pagamento: novoStatus })
+    .update(updatePayload)
     .eq('id', agId)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

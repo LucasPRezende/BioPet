@@ -23,24 +23,27 @@ export async function gerarPreferenciaMp(agendamentoId: number): Promise<{
   const petNome: string =
     (Array.isArray(ag.pets) ? ag.pets[0]?.nome : (ag.pets as { nome: string } | null)?.nome) ?? '—'
 
-  const items =
-    examesRows && examesRows.length > 0
-      ? examesRows.map(e => ({
-          id:          `exame-${e.id}`,
-          title:       `BioPet — ${e.tipo_exame} — ${petNome}`,
-          quantity:    1,
-          unit_price:  Number(e.valor),
-          currency_id: 'BRL',
-        }))
-      : [
-          {
-            id:          `ag-${ag.id}`,
-            title:       `BioPet — ${ag.tipo_exame} — ${petNome}`,
-            quantity:    1,
-            unit_price:  Number(ag.valor) || 0,
-            currency_id: 'BRL',
-          },
-        ]
+  const agValor    = Number(ag.valor) || 0
+  const examesSum  = (examesRows ?? []).reduce((s, e) => s + Number(e.valor), 0)
+  // Se os valores individuais batem com o total do agendamento, usa detalhado.
+  // Caso contrário (ex: forma de pagamento foi editada), usa o total atualizado como item único.
+  const useDetalhado = examesRows && examesRows.length > 0 && Math.abs(examesSum - agValor) < 0.01
+
+  const items = useDetalhado
+    ? examesRows!.map(e => ({
+        id:          `exame-${e.id}`,
+        title:       `BioPet — ${e.tipo_exame} — ${petNome}`,
+        quantity:    1,
+        unit_price:  Number(e.valor),
+        currency_id: 'BRL',
+      }))
+    : [{
+        id:          `ag-${ag.id}`,
+        title:       `BioPet — ${ag.tipo_exame} — ${petNome}`,
+        quantity:    1,
+        unit_price:  agValor,
+        currency_id: 'BRL',
+      }]
 
   const formaPag = (ag.forma_pagamento ?? '').toLowerCase()
   let paymentMethods: Record<string, unknown> | undefined

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { supabase } from '@/lib/supabase'
+
+export const dynamic = 'force-dynamic'
 import { parseVetSession } from '@/lib/vet-auth'
 
 async function getVetId(): Promise<number | null> {
