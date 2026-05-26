@@ -161,7 +161,7 @@ export default function ExtracoesPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-[#19202d]">Extrações · Hemogasimetria</h1>
+          <h1 className="text-2xl font-bold text-[#19202d]">Extrações · Hemogasometria</h1>
           <p className="text-sm text-gray-500 mt-0.5">Comissões dos veterinários por coleta de sangue</p>
         </div>
         <div className="flex items-center gap-2 self-start sm:self-auto">
