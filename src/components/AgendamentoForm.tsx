@@ -483,7 +483,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
           <h2 className="text-xl font-bold text-[#19202d]">Solicitação enviada!</h2>
           <p className="text-gray-500 text-sm">A BioPet confirmará o agendamento em breve.</p>
           <div className="flex gap-3 pt-2">
-            <button onClick={() => router.push('/clinica/agendamentos')}
+            <button onClick={() => { window.location.href = '/clinica/agendamentos' }}
               className="flex-1 bg-[#19202d] hover:bg-[#232d3f] text-white font-semibold py-2.5 rounded-lg text-sm transition">
               Ver agendamentos
             </button>

@@ -62,12 +62,11 @@ function ClinicaSidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
           {NAV.map(item => {
             const active = isActive(item.href)
             return (
-              <Link
+              <button
                 key={item.href}
-                href={item.href}
-                onClick={onClose}
+                onClick={() => { onClose(); window.location.href = item.href }}
                 className={[
-                  'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150',
+                  'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 text-left',
                   active
                     ? 'bg-white/15 text-white border-l-2 border-[#c4a35a] pl-[10px]'
                     : 'text-white/65 hover:bg-white/10 hover:text-white',
@@ -75,7 +74,7 @@ function ClinicaSidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
               >
                 <span className="text-[15px] w-5 text-center shrink-0">{item.icon}</span>
                 <span className="flex-1 truncate">{item.label}</span>
-              </Link>
+              </button>
             )
           })}
         </nav>

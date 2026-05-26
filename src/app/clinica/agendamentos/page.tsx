@@ -69,7 +69,7 @@ export default function AgendamentosClinicaPage() {
   const load = useCallback(async () => {
     setLoading(true)
     const url = filtro ? `/api/clinica/agendamentos?status=${filtro}` : '/api/clinica/agendamentos'
-    const res = await fetch(url)
+    const res = await fetch(url, { cache: 'no-store' })
     if (res.status === 401) { router.push('/clinica/login'); return }
     if (res.ok) {
       const d = await res.json()
@@ -79,6 +79,12 @@ export default function AgendamentosClinicaPage() {
   }, [filtro, router])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    const onFocus = () => load()
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [load])
 
   async function cancelar(id: number) {
     if (!confirm('Cancelar este agendamento?')) return
