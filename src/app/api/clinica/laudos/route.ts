@@ -18,21 +18,31 @@ export async function GET(request: NextRequest) {
   const dataIni  = searchParams.get('data_ini')
   const dataFim  = searchParams.get('data_fim')
 
-  // Busca veterinários vinculados à clínica
+  // Vet IDs vinculados à clínica
   const { data: vets, error: vetsError } = await supabase
     .from('veterinarios')
     .select('id')
     .eq('clinica_id', clinicaId)
-
   if (vetsError) return NextResponse.json({ error: vetsError.message }, { status: 500 })
-
   const vetIds = (vets ?? []).map(v => v.id)
-  if (vetIds.length === 0) return NextResponse.json([])
+
+  // Agendamento IDs da clínica (para incluir laudos gerados pelo admin)
+  const { data: ags } = await supabase
+    .from('agendamentos')
+    .select('id')
+    .eq('clinica_id', clinicaId)
+  const agIds = (ags ?? []).map(a => a.id)
+
+  if (vetIds.length === 0 && agIds.length === 0) return NextResponse.json([])
+
+  const orParts: string[] = []
+  if (vetIds.length > 0) orParts.push(`veterinario_id.in.(${vetIds.join(',')})`)
+  if (agIds.length > 0)  orParts.push(`agendamento_id.in.(${agIds.join(',')})`)
 
   let query = supabase
     .from('laudos')
     .select('id, nome_pet, especie, tutor, tipo, original_name, token, criado_em, veterinario_id')
-    .in('veterinario_id', vetIds)
+    .or(orParts.join(','))
     .order('criado_em', { ascending: false })
 
   if (busca) {

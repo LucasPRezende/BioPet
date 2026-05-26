@@ -41,6 +41,7 @@ export async function PATCH(
     data_hora, entrega_pagamento, pagamento_responsavel,
     sedacao_necessaria, pet_internado, veterinario_id,
     status_pagamento, agendamento_exames_update,
+    exames_remover, exames_adicionar,
   } = body ?? {}
 
   const STATUSES = ['pendente', 'agendado', 'em atendimento', 'concluído', 'cancelado']
@@ -61,7 +62,11 @@ export async function PATCH(
   if (veterinario_id       !== undefined) update.veterinario_id       = veterinario_id === '' ? null : Number(veterinario_id)
   if (status_pagamento     !== undefined) update.status_pagamento     = status_pagamento
 
-  if (Object.keys(update).length === 0 && !agendamento_exames_update) {
+  const hasExameChanges =
+    (Array.isArray(exames_remover)  && exames_remover.length  > 0) ||
+    (Array.isArray(exames_adicionar) && exames_adicionar.length > 0)
+
+  if (Object.keys(update).length === 0 && !agendamento_exames_update && !hasExameChanges) {
     return NextResponse.json({ error: 'Nenhum campo para atualizar.' }, { status: 400 })
   }
 
@@ -83,6 +88,42 @@ export async function PATCH(
         .eq('agendamento_id', Number(params.id))
         .eq('tipo_exame', ex.tipo_exame)
     }
+  }
+
+  if (Array.isArray(exames_remover) && exames_remover.length > 0) {
+    await supabase
+      .from('agendamento_exames')
+      .delete()
+      .eq('agendamento_id', Number(params.id))
+      .in('tipo_exame', exames_remover as string[])
+  }
+
+  if (Array.isArray(exames_adicionar) && exames_adicionar.length > 0) {
+    const novos = exames_adicionar as { tipo_exame: string; duracao_minutos: number; valor: number | null }[]
+    await supabase
+      .from('agendamento_exames')
+      .insert(novos.map(e => ({
+        agendamento_id:   Number(params.id),
+        tipo_exame:       e.tipo_exame,
+        duracao_minutos:  e.duracao_minutos,
+        valor:            e.valor,
+        horario_especial: false,
+      })))
+  }
+
+  if (hasExameChanges) {
+    const { data: restantes } = await supabase
+      .from('agendamento_exames')
+      .select('tipo_exame, duracao_minutos')
+      .eq('agendamento_id', Number(params.id))
+
+    const novaDuracao   = (restantes ?? []).reduce((s, e) => s + (e.duracao_minutos ?? 0), 0)
+    const novoTipoExame = (restantes ?? []).map(e => e.tipo_exame).join(', ')
+
+    await supabase
+      .from('agendamentos')
+      .update({ duracao_minutos: novaDuracao, tipo_exame: novoTipoExame })
+      .eq('id', Number(params.id))
   }
 
   return NextResponse.json({ ok: true })

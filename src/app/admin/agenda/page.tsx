@@ -22,6 +22,7 @@ interface AgExame {
 
 interface ComissaoInfo {
   tipo_exame:                string
+  duracao_minutos:           number | null
   varia_por_horario:         boolean
   preco_exame:               number | null
   preco_pix_comercial:       number | null
@@ -226,15 +227,17 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
   const dataStr = ag.data_hora.split('T')[0]
   const horaStr = ag.encaixe ? '' : (ag.data_hora.split('T')[1] ?? '').substring(0, 5)
 
-  const [data,      setData]      = useState(dataStr)
-  const [hora,      setHora]      = useState(horaStr)
-  const [formaPag,  setFormaPag]  = useState(ag.forma_pagamento ?? 'a confirmar')
-  const [entrega,   setEntrega]   = useState(ag.entrega_pagamento ?? 'link')
-  const [pagResp,   setPagResp]   = useState(ag.pagamento_responsavel ?? 'tutor')
-  const [sedacao,   setSedacao]   = useState(ag.sedacao_necessaria ?? false)
-  const [internado, setInternado] = useState(ag.pet_internado ?? false)
-  const [vetId,     setVetId]     = useState(String(ag.veterinario_id ?? ''))
-  const [obs,       setObs]       = useState(ag.observacoes ?? '')
+  const [data,         setData]         = useState(dataStr)
+  const [hora,         setHora]         = useState(horaStr)
+  const [formaPag,     setFormaPag]     = useState(ag.forma_pagamento ?? 'a confirmar')
+  const [entrega,      setEntrega]      = useState(ag.entrega_pagamento ?? 'link')
+  const [pagResp,      setPagResp]      = useState(ag.pagamento_responsavel ?? 'tutor')
+  const [sedacao,      setSedacao]      = useState(ag.sedacao_necessaria ?? false)
+  const [internado,    setInternado]    = useState(ag.pet_internado ?? false)
+  const [vetId,        setVetId]        = useState(String(ag.veterinario_id ?? ''))
+  const [obs,          setObs]          = useState(ag.observacoes ?? '')
+  const [examesAtivos,       setExamesAtivos]       = useState<AgExame[]>(ag.agendamento_exames ?? [])
+  const [exameParaAdicionar, setExameParaAdicionar] = useState('')
   const [vets,      setVets]      = useState<{ id: number; nome: string }[]>([])
   const [saving,    setSaving]    = useState(false)
   const [error,     setError]     = useState('')
@@ -251,16 +254,17 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
   useEffect(() => { fetch('/api/veterinarios').then(r => r.ok ? r.json() : []).then(setVets) }, [])
   useEffect(() => { fetch('/api/comissoes').then(r => r.ok ? r.json() : []).then(setComissoes) }, [])
 
-  // Recalcula valor quando muda forma de pag, responsável, data ou hora
+  // Recalcula valor quando muda forma de pag, responsável, data, hora ou exames ativos
   useEffect(() => {
-    const exames = ag.agendamento_exames ?? []
+    const exames = examesAtivos
     if (exames.length === 0 || comissoes.length === 0) return
     if (formaPag === 'gratuito') { setNovoValor(0); return }
     if (!data) return
 
-    const isPix    = pagResp === 'clinica' || !formaPag.includes('cartao')
-    const especial = ag.encaixe ? false : isEspecial(hora, ag.duracao_minutos ?? 0, data)
-    const comMap   = new Map(comissoes.map(c => [c.tipo_exame, c]))
+    const isPix        = pagResp === 'clinica' || !formaPag.includes('cartao')
+    const comMap       = new Map(comissoes.map(c => [c.tipo_exame, c]))
+    const duracaoAtiva = exames.reduce((s, ex) => s + (comMap.get(ex.tipo_exame)?.duracao_minutos ?? 0), 0)
+    const especial     = ag.encaixe ? false : isEspecial(hora, duracaoAtiva, data)
     const bioRows  = ag.agendamento_bioquimica ?? []
 
     const calc = exames.reduce((sum, ex) => {
@@ -283,12 +287,35 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
     }, 0)
 
     setNovoValor(calc)
-  }, [formaPag, pagResp, data, hora, comissoes, ag])
+  }, [formaPag, pagResp, data, hora, comissoes, examesAtivos, ag])
 
   const valorOriginal = ag.valor ?? 0
   const valorMudou    = novoValor !== null && Math.abs(novoValor - valorOriginal) > 0.01
   const podeEnviarLink = pagResp === 'tutor' && entrega === 'link' &&
     formaPag !== 'gratuito' && formaPag !== '' && formaPag !== 'a confirmar' && formaPag !== '—'
+
+  function adicionarExame() {
+    if (!exameParaAdicionar) return
+    const info = comissoes.find(c => c.tipo_exame === exameParaAdicionar)
+    if (!info) return
+    const isPix        = pagResp === 'clinica' || !formaPag.includes('cartao')
+    const cMap         = new Map(comissoes.map(c => [c.tipo_exame, c]))
+    const newAtivos    = [...examesAtivos, { tipo_exame: exameParaAdicionar, valor: null as number | null }]
+    const duracaoAtiva = newAtivos.reduce((s, ex) => s + (cMap.get(ex.tipo_exame)?.duracao_minutos ?? 0), 0)
+    const esp          = ag.encaixe ? false : isEspecial(hora, duracaoAtiva, data)
+    const pixNorm      = info.preco_pix_comercial    ?? info.preco_exame ?? 0
+    const carNorm      = info.preco_cartao_comercial ?? info.preco_exame ?? 0
+    let valor: number
+    if (!info.varia_por_horario) {
+      valor = isPix ? pixNorm : carNorm
+    } else if (esp) {
+      valor = isPix ? (info.preco_pix_fora_horario ?? pixNorm) : (info.preco_cartao_fora_horario ?? carNorm)
+    } else {
+      valor = isPix ? pixNorm : carNorm
+    }
+    setExamesAtivos(prev => [...prev, { tipo_exame: exameParaAdicionar, valor }])
+    setExameParaAdicionar('')
+  }
 
   async function salvar() {
     setSaving(true); setError('')
@@ -298,13 +325,14 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
     // seja enviado mesmo quando o useEffect não rodou (race condition com carga de comissoes)
     let valorFinal: number | null = novoValor
     let examesAtualizados: AgExame[] | undefined
-    const exsAg = ag.agendamento_exames ?? []
+    const exsAg = examesAtivos
     if (formaPag === 'gratuito') {
       valorFinal = 0
     } else if (comissoes.length > 0 && exsAg.length > 0) {
-      const isPix  = pagResp === 'clinica' || !formaPag.includes('cartao')
-      const esp    = ag.encaixe ? false : isEspecial(hora, ag.duracao_minutos ?? 0, data)
-      const cMap   = new Map(comissoes.map(c => [c.tipo_exame, c]))
+      const isPix        = pagResp === 'clinica' || !formaPag.includes('cartao')
+      const cMap         = new Map(comissoes.map(c => [c.tipo_exame, c]))
+      const duracaoAtiva = exsAg.reduce((s, ex) => s + (cMap.get(ex.tipo_exame)?.duracao_minutos ?? 0), 0)
+      const esp          = ag.encaixe ? false : isEspecial(hora, duracaoAtiva, data)
       const bios   = ag.agendamento_bioquimica ?? []
       const examesCalc: AgExame[] = exsAg.map(ex => {
         if (ex.tipo_exame === 'Bioquímica') {
@@ -324,6 +352,18 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
       if (calc > 0) { valorFinal = calc; examesAtualizados = examesCalc }
     }
 
+    const originais            = ag.agendamento_exames ?? []
+    const examesRemovidosTipos = originais
+      .filter(e => !examesAtivos.some(a => a.tipo_exame === e.tipo_exame))
+      .map(e => e.tipo_exame)
+    const examesAdicionados    = examesAtivos.filter(e => !originais.some(o => o.tipo_exame === e.tipo_exame))
+    const cMapSave             = new Map(comissoes.map(c => [c.tipo_exame, c]))
+    const examesAdicionarPayload = examesAdicionados.map(e => ({
+      tipo_exame:      e.tipo_exame,
+      duracao_minutos: cMapSave.get(e.tipo_exame)?.duracao_minutos ?? 30,
+      valor:           examesAtualizados?.find(u => u.tipo_exame === e.tipo_exame)?.valor ?? e.valor,
+    }))
+
     const body: Record<string, unknown> = {
       data_hora:             dataHora,
       forma_pagamento:       formaPag || null,
@@ -335,6 +375,8 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
       observacoes:           obs.trim() || null,
       ...(valorFinal !== null && { valor: valorFinal }),
       ...(examesAtualizados && { agendamento_exames_update: examesAtualizados }),
+      ...(examesRemovidosTipos.length > 0 && { exames_remover: examesRemovidosTipos }),
+      ...(examesAdicionarPayload.length > 0 && { exames_adicionar: examesAdicionarPayload }),
     }
     const res = await fetch(`/api/agendamentos/${ag.id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
@@ -355,8 +397,8 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
 
     onSaved({
       ...body,
-      data_hora: dataHora,
-      ...(examesAtualizados ? { agendamento_exames: examesAtualizados } : {}),
+      data_hora:          dataHora,
+      agendamento_exames: examesAtualizados ?? examesAtivos,
     })
     onClose()
     setSaving(false)
@@ -434,6 +476,54 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
         ) : (
           // ── Formulário de edição ───────────────────────────────────────────
           <form onSubmit={handleSubmit} className="p-5 space-y-4">
+            {examesAtivos.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Exames agendados</p>
+                <div className="space-y-1.5">
+                  {examesAtivos.map(ex => (
+                    <div key={ex.tipo_exame} className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg border border-gray-200">
+                      <div>
+                        <span className="text-sm text-[#19202d] font-medium">{ex.tipo_exame}</span>
+                        {ex.valor != null && <span className="text-xs text-gray-400 ml-2">{formatBRL(ex.valor)}</span>}
+                      </div>
+                      {examesAtivos.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => setExamesAtivos(prev => prev.filter(e => e.tipo_exame !== ex.tipo_exame))}
+                          className="text-xs text-red-500 hover:text-red-700 border border-red-200 bg-red-50 hover:bg-red-100 px-2 py-0.5 rounded transition shrink-0 ml-3"
+                        >
+                          Remover
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {/* Adicionar exame */}
+                {comissoes.filter(c => !examesAtivos.some(a => a.tipo_exame === c.tipo_exame)).length > 0 && (
+                  <div className="mt-2 flex gap-2">
+                    <select
+                      value={exameParaAdicionar}
+                      onChange={e => setExameParaAdicionar(e.target.value)}
+                      className={INPUT + ' flex-1 text-xs'}
+                    >
+                      <option value="">+ Adicionar exame...</option>
+                      {comissoes
+                        .filter(c => !examesAtivos.some(a => a.tipo_exame === c.tipo_exame))
+                        .map(c => <option key={c.tipo_exame} value={c.tipo_exame}>{c.tipo_exame}</option>)
+                      }
+                    </select>
+                    <button
+                      type="button"
+                      onClick={adicionarExame}
+                      disabled={!exameParaAdicionar}
+                      className="shrink-0 px-3 py-2 bg-[#19202d] text-white text-xs font-semibold rounded-lg disabled:opacity-40 hover:bg-[#232d3f] transition"
+                    >
+                      Adicionar
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
             <div className="flex gap-3">
               <div className="flex-1">
                 <label className="block text-xs font-semibold text-gray-500 mb-1">Data</label>
@@ -481,7 +571,7 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
             </div>
 
             {/* Aviso de recálculo de valor */}
-            {novoValor !== null && (ag.agendamento_exames ?? []).length > 0 && formaPag !== 'gratuito' && (
+            {novoValor !== null && examesAtivos.length > 0 && formaPag !== 'gratuito' && (
               <div className={`flex items-center justify-between px-4 py-3 rounded-xl border text-sm ${
                 valorMudou
                   ? 'bg-amber-50 border-amber-200'

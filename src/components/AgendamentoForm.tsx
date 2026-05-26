@@ -181,6 +181,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
   const [step, setStep] = useState(1)
 
   // Step 1 — Resp. Legal & Pet
+  const [buscaQuery,      setBuscaQuery]      = useState('')
   const [telefone,        setTelefone]        = useState('')
   const [buscaResultados, setBuscaResultados] = useState<TutorInfo[]>([])
   const [buscando,        setBuscando]        = useState(false)
@@ -219,6 +220,9 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
   const [bioquimicaSelecionados, setBioquimicaSelecionados] = useState<number[]>([])
   const [loadingBio,             setLoadingBio]             = useState(false)
 
+  // Raio-X estudos adicionais
+  const [estudosAdicionaisQtd, setEstudosAdicionaisQtd] = useState(0)
+
   // Step 3 — Data & Hora
   const [data,            setData]            = useState(dataPadrao ?? '')
   const [horariosLivres,  setHorariosLivres]  = useState<string[]>([])
@@ -232,12 +236,16 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
   const [concluido, setConcluido] = useState(false)
 
   // Derivados
-  const temBioquimica   = examesSelecionados.some(e => e.tipo_exame === 'Bioquímica')
-  const totalDuracao    = examesSelecionados.reduce((s, e) => s + e.duracao_minutos, 0)
-  const especial        = isHorarioEspecial(horaSelecionada, totalDuracao, data)
-  const vetNome         = vets.find(v => String(v.id) === vetId)?.nome ?? null
-  const dataFmt         = data ? new Date(`${data}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' }) : ''
-  const totalBioquimica = bioquimicaSelecionados.reduce((s, id) => {
+  const acrescimoExame   = examesDisponiveis.find(e => e.tipo_exame.toLowerCase().includes('acréscim') || e.tipo_exame.toLowerCase().includes('acrescim'))
+  const examesVisiveis   = examesDisponiveis.filter(e => !e.tipo_exame.toLowerCase().includes('acréscim') && !e.tipo_exame.toLowerCase().includes('acrescim'))
+  const raioXSelecionado = examesSelecionados.some(e => e.tipo_exame.toLowerCase().includes('raio') && !e.tipo_exame.toLowerCase().includes('acréscim'))
+  const temBioquimica    = examesSelecionados.some(e => e.tipo_exame === 'Bioquímica')
+  const totalDuracao     = examesSelecionados.reduce((s, e) => s + e.duracao_minutos, 0)
+                         + (acrescimoExame ? estudosAdicionaisQtd * acrescimoExame.duracao_minutos : 0)
+  const especial         = isHorarioEspecial(horaSelecionada, totalDuracao, data)
+  const vetNome          = vets.find(v => String(v.id) === vetId)?.nome ?? null
+  const dataFmt          = data ? new Date(`${data}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' }) : ''
+  const totalBioquimica  = bioquimicaSelecionados.reduce((s, id) => {
     const b = bioquimicaExames.find(x => x.id === id)
     return s + (b ? (formaPagamento === 'cartao' ? b.preco_cartao : b.preco_pix) : 0)
   }, 0)
@@ -245,12 +253,16 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
     const b = bioquimicaExames.find(x => x.id === id)
     return s + (b?.preco_pix ?? 0)
   }, 0)
+  const valorUnitarioAcrescimo = acrescimoExame
+    ? calcularValorExame(acrescimoExame, pagamentoResp === 'clinica' ? 'pix' : formaPagamento, especial)
+    : 0
+  const valorAcrescimo = estudosAdicionaisQtd * valorUnitarioAcrescimo
   const totalValor = gratuito ? 0 : examesSelecionados.reduce((s, e) => {
     if (e.tipo_exame === 'Bioquímica') {
       return s + (pagamentoResp === 'clinica' ? totalBioquimicaPix : totalBioquimica)
     }
     return s + calcularValorExame(e, pagamentoResp === 'clinica' ? 'pix' : formaPagamento, especial)
-  }, 0)
+  }, 0) + valorAcrescimo
 
   // Carrega exames e vets
   useEffect(() => {
@@ -298,12 +310,11 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
 
   // Busca dinâmica por nome ou telefone
   useEffect(() => {
-    const q = telefone.trim()
+    const q = buscaQuery.trim()
     if (q.length < 2 || tutorInfo) { setBuscaResultados([]); return }
     const timer = setTimeout(async () => {
       setBuscando(true)
       if (modo === 'clinica') {
-        // Clínica: busca por telefone ou nome via endpoint atualizado
         const res = await fetch(`/api/clinica/buscar-tutor?q=${encodeURIComponent(q)}`)
         if (res.ok) {
           const d = await res.json()
@@ -317,7 +328,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
       setBuscando(false)
     }, 350)
     return () => clearTimeout(timer)
-  }, [telefone, tutorInfo, modo])
+  }, [buscaQuery, tutorInfo, modo])
 
   function selecionarTutor(t: TutorInfo & { pets?: PetOpt[]; cpf?: string | null }) {
     setTutorInfo(t)
@@ -330,32 +341,37 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
   }
 
   function novoTutorManual() {
-    setTutorNovo(true)
+    const q      = buscaQuery.trim()
+    const digits = q.replace(/\D/g, '')
     setBuscaResultados([])
+    setTutorNovo(true)
     setNovoPet(true)
+    if (digits.length >= 8) setTelefone(q)
+    else if (q) setTutorNome(q)
   }
 
   async function buscarTutor() {
-    if (!telefone.trim()) return
-    setBuscando(true); setTutorInfo(null); setPetsDisponiveis([]); setPetSelecionado(null); setTutorNovo(false)
-    const digits = telefone.replace(/\D/g, '')
+    if (!buscaQuery.trim()) return
+    const q      = buscaQuery.trim()
+    const digits = q.replace(/\D/g, '')
     const tel    = digits.startsWith('55') ? digits : `55${digits}`
+    setBuscando(true); setTutorInfo(null); setPetsDisponiveis([]); setPetSelecionado(null); setTutorNovo(false)
 
     if (modo === 'clinica') {
-      const res = await fetch(`/api/clinica/buscar-tutor?q=${encodeURIComponent(telefone.trim())}`)
+      const res = await fetch(`/api/clinica/buscar-tutor?q=${encodeURIComponent(q)}`)
       if (res.ok) {
         const d = await res.json()
-        if (Array.isArray(d) && d.length > 0) { selecionarTutor(d[0]); }
+        if (Array.isArray(d) && d.length > 0) { selecionarTutor(d[0]) }
         else if (d.tutor) { selecionarTutor(d.tutor) }
-        else { setTutorNovo(true); setNovoPet(true) }
+        else { setTutorNovo(true); setNovoPet(true); if (digits.length >= 8) setTelefone(q); else setTutorNome(q) }
       }
     } else {
       const res = await fetch(`/api/agente/contexto?telefone=${tel}`, { headers: { 'x-api-key': 'biopet_agent_2026' } })
       if (res.ok) {
         const d = await res.json()
         if (d.tutor) { selecionarTutor({ ...d.tutor, pets: d.pets ?? [] }) }
-        else { setTutorNovo(true); setNovoPet(true) }
-      } else { setTutorNovo(true); setNovoPet(true) }
+        else { setTutorNovo(true); setNovoPet(true); if (digits.length >= 8) setTelefone(q); else setTutorNome(q) }
+      } else { setTutorNovo(true); setNovoPet(true); if (digits.length >= 8) setTelefone(q) }
     }
     setBuscando(false)
   }
@@ -363,7 +379,11 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
   function toggleExame(exame: ExameInfo) {
     setExamesSelecionados(prev => {
       const exists = prev.find(e => e.tipo_exame === exame.tipo_exame)
-      if (exists) { if (exame.tipo_exame === 'Bioquímica') setBioquimicaSelecionados([]); return prev.filter(e => e.tipo_exame !== exame.tipo_exame) }
+      if (exists) {
+        if (exame.tipo_exame === 'Bioquímica') setBioquimicaSelecionados([])
+        if (exame.tipo_exame.toLowerCase().includes('raio')) setEstudosAdicionaisQtd(0)
+        return prev.filter(e => e.tipo_exame !== exame.tipo_exame)
+      }
       return [...prev, exame]
     })
     setHoraSelecionada('')
@@ -376,6 +396,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
   function validarStep1(): string | null {
     if (!telefone.trim()) return 'Informe o telefone do responsável legal.'
     if (tutorNovo && !tutorNome.trim()) return 'Informe o nome do responsável legal.'
+    if (cpfTutor.replace(/\D/g, '').length === 11 && !validarCPF(cpfTutor)) return 'CPF inválido — verifique os dígitos.'
     if (!petSelecionado && !novoPet) return 'Selecione ou cadastre um pet.'
     if (novoPet && !petNome.trim()) return 'Informe o nome do pet.'
     return null
@@ -409,6 +430,14 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
       }
       return { tipo_exame: e.tipo_exame, duracao_minutos: e.duracao_minutos, valor, horario_especial: especial }
     })
+    if (acrescimoExame && estudosAdicionaisQtd > 0) {
+      examesPayload.push({
+        tipo_exame:       acrescimoExame.tipo_exame,
+        duracao_minutos:  acrescimoExame.duracao_minutos * estudosAdicionaisQtd,
+        valor:            valorAcrescimo,
+        horario_especial: especial,
+      })
+    }
     const bioquimicaPayload = bioquimicaSelecionados.map(id => {
       const b = bioquimicaExames.find(x => x.id === id)!
       return { bioquimica_exame_id: id, valor_pix: b.preco_pix, valor_cartao: b.preco_cartao }
@@ -417,7 +446,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
       telefone:              telefone.trim(),
       tutor_nome:            tutorNome.trim() || null,
       exames:                examesPayload,
-      tipo_exame:            examesSelecionados.map(e => e.tipo_exame).join(', '),
+      tipo_exame:            [...examesSelecionados.map(e => e.tipo_exame), ...(acrescimoExame && estudosAdicionaisQtd > 0 ? [acrescimoExame.tipo_exame] : [])].join(', '),
       duracao_minutos:       totalDuracao,
       data_hora:             dataHora,
       veterinario_id:        vetId ? Number(vetId) : null,
@@ -465,14 +494,14 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
 
   function resetar() {
     setConcluido(false); setStep(1)
-    setTelefone(''); setTutorInfo(null); setTutorNovo(false); setTutorNome(''); setCpfTutor(''); setBuscaResultados([])
+    setBuscaQuery(''); setTelefone(''); setTutorInfo(null); setTutorNovo(false); setTutorNome(''); setCpfTutor(''); setBuscaResultados([])
     setPetSelecionado(null); setNovoPet(false); setPetNome(''); setPetEspecie(''); setPetRaca('')
     setPetPelagem(''); setPetNascimento(''); setPetSexo(''); setPetCastrado(false); setPetTemperamento('')
     setExamesSelecionados([]); setVetId(''); setObservacoes('')
     setSedacaoNecessaria(false); setPetInternado(false); setNotificar(true)
     setPagamentoResp('tutor'); setFormaPagamento('pix'); setEntregaPagamento('link'); setGratuito(false)
     setData(dataPadrao ?? ''); setHoraSelecionada(''); setEncaixe(false)
-    setBioquimicaSelecionados([]); setErro('')
+    setBioquimicaSelecionados([]); setEstudosAdicionaisQtd(0); setErro('')
   }
 
   if (modo === 'clinica' && concluido) {
@@ -506,16 +535,18 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
           <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
             Resp. legal — Telefone ou Nome <span className="text-red-400">*</span>
           </label>
-          <div className="flex gap-2">
-            <input type="text" value={telefone}
-              onChange={e => { setTelefone(e.target.value); setTutorInfo(null); setTutorNovo(false); setPetSelecionado(null) }}
-              onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), buscarTutor())}
-              placeholder="(24) 99999-9999 ou nome" className={INPUT} />
-            <button type="button" onClick={buscarTutor} disabled={buscando || !telefone.trim()}
-              className="shrink-0 px-4 py-2 bg-amber-50 border border-[#8a6e36]/30 text-[#8a6e36] rounded-lg text-sm font-semibold hover:bg-amber-100 transition disabled:opacity-50">
-              {buscando ? '...' : 'Buscar'}
-            </button>
-          </div>
+          {!tutorInfo && !tutorNovo && (
+            <div className="flex gap-2">
+              <input type="text" value={buscaQuery}
+                onChange={e => { setBuscaQuery(e.target.value); setTutorInfo(null); setTutorNovo(false); setPetSelecionado(null) }}
+                onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), buscarTutor())}
+                placeholder="(24) 99999-9999 ou nome" className={INPUT} />
+              <button type="button" onClick={buscarTutor} disabled={buscando || !buscaQuery.trim()}
+                className="shrink-0 px-4 py-2 bg-amber-50 border border-[#8a6e36]/30 text-[#8a6e36] rounded-lg text-sm font-semibold hover:bg-amber-100 transition disabled:opacity-50">
+                {buscando ? '...' : 'Buscar'}
+              </button>
+            </div>
+          )}
           {buscaResultados.length > 0 && !tutorInfo && (
             <div className="mt-1 bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
               {buscaResultados.map(t => (
@@ -532,18 +563,37 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
             </div>
           )}
           {tutorInfo && (
-            <p className="text-xs mt-2 px-2.5 py-1.5 rounded-lg bg-green-50 text-green-700 font-medium">
-              ✓ Resp. legal: {tutorInfo.nome ?? tutorInfo.telefone}
-              <button type="button" onClick={() => { setTutorInfo(null); setTelefone(''); setPetsDisponiveis([]); setPetSelecionado(null) }}
-                className="ml-2 text-gray-400 hover:text-red-400">✕</button>
+            <p className="text-xs mt-2 px-2.5 py-1.5 rounded-lg bg-green-50 text-green-700 font-medium flex items-center justify-between">
+              <span>✓ Resp. legal: {tutorInfo.nome ?? tutorInfo.telefone}</span>
+              <button type="button" onClick={() => { setTutorInfo(null); setBuscaQuery(''); setTelefone(''); setPetsDisponiveis([]); setPetSelecionado(null) }}
+                className="ml-2 text-gray-400 hover:text-red-400 shrink-0">✕</button>
             </p>
           )}
           {tutorNovo && (
-            <p className="text-xs mt-2 px-2.5 py-1.5 rounded-lg bg-amber-50 text-[#8a6e36] font-medium">
-              Resp. legal novo — será cadastrado automaticamente
+            <p className="text-xs mt-2 px-2.5 py-1.5 rounded-lg bg-amber-50 text-[#8a6e36] font-medium flex items-center justify-between">
+              <span>Resp. legal novo — será cadastrado automaticamente</span>
+              <button type="button" onClick={() => { setTutorNovo(false); setBuscaQuery(''); setTelefone(''); setTutorNome(''); setNovoPet(false); setBuscaResultados([]) }}
+                className="ml-2 text-gray-400 hover:text-red-400 shrink-0">✕</button>
             </p>
           )}
         </div>
+
+        {/* Telefone separado — exibido após seleção ou em novo tutor */}
+        {(tutorInfo || tutorNovo) && (
+          <div>
+            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+              Telefone <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="tel"
+              value={telefone}
+              onChange={e => setTelefone(e.target.value)}
+              readOnly={!!tutorInfo}
+              placeholder="(24) 99999-9999"
+              className={INPUT + (tutorInfo ? ' bg-gray-50 text-gray-500' : '')}
+            />
+          </div>
+        )}
 
         {tutorNovo && (
           <div>
@@ -656,13 +706,14 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
         {/* Exames */}
         <div>
           <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Exames <span className="text-red-400">*</span></label>
-          {examesDisponiveis.length === 0 ? (
+          {examesVisiveis.length === 0 ? (
             <p className="text-sm text-gray-400 py-4 text-center">Nenhum exame disponível.</p>
           ) : (
             <div className="space-y-2">
-              {examesDisponiveis.map(ex => {
-                const sel = examesSelecionados.some(e => e.tipo_exame === ex.tipo_exame)
+              {examesVisiveis.map(ex => {
+                const sel   = examesSelecionados.some(e => e.tipo_exame === ex.tipo_exame)
                 const isBio = ex.tipo_exame === 'Bioquímica'
+                const isRaio = ex.tipo_exame.toLowerCase().includes('raio')
                 return (
                   <div key={ex.tipo_exame}>
                     <button type="button" onClick={() => toggleExame(ex)}
@@ -681,6 +732,26 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
                         </div>
                       </div>
                     </button>
+
+                    {isRaio && sel && acrescimoExame && (
+                      <div className="mt-2 ml-4 p-3 bg-blue-50 border border-blue-200 rounded-xl">
+                        <p className="text-xs font-semibold text-blue-700 mb-2">📐 Estudos adicionais</p>
+                        <div className="flex items-center gap-3">
+                          <button type="button" onClick={() => setEstudosAdicionaisQtd(q => Math.max(0, q - 1))}
+                            className="w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-600 font-bold hover:bg-gray-100 transition">−</button>
+                          <span className="text-sm font-bold text-[#19202d] w-4 text-center">{estudosAdicionaisQtd}</span>
+                          <button type="button" onClick={() => setEstudosAdicionaisQtd(q => q + 1)}
+                            className="w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-600 font-bold hover:bg-gray-100 transition">+</button>
+                          {estudosAdicionaisQtd > 0 ? (
+                            <span className="text-xs text-blue-700 font-medium">
+                              + {brl(valorAcrescimo)} ({estudosAdicionaisQtd}× {brl(valorUnitarioAcrescimo)})
+                            </span>
+                          ) : (
+                            <span className="text-xs text-blue-400">0 estudos adicionais</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
 
                     {isBio && sel && (
                       <div className="mt-2 ml-4 p-3 bg-amber-50 border border-[#8a6e36]/20 rounded-xl space-y-2">
@@ -739,6 +810,12 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
                   <span>{e.tipo_exame}</span><span className="font-medium">{e.duracao_minutos} min</span>
                 </div>
               ))}
+              {estudosAdicionaisQtd > 0 && acrescimoExame && (
+                <div className="flex justify-between text-blue-600">
+                  <span>Raio-X +{estudosAdicionaisQtd} estudo{estudosAdicionaisQtd > 1 ? 's' : ''} adicional</span>
+                  <span className="font-medium">{acrescimoExame.duracao_minutos * estudosAdicionaisQtd} min</span>
+                </div>
+              )}
               <div className="border-t border-gray-200 pt-1.5 flex justify-between font-semibold text-[#19202d]">
                 <span>Duração total</span><span>{totalDuracao} min</span>
               </div>
@@ -977,7 +1054,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
             vetNome           ? { label: 'Veterinário', value: vetNome } : null,
             sedacaoNecessaria ? { label: 'Sedação',     value: '⚠️ Necessária' } : null,
             petInternado      ? { label: 'Internado',   value: '🏥 Sim' } : null,
-            { label: 'Pagamento', value: gratuito ? '🎁 Gratuito' : pagamentoResp === 'clinica' ? 'Clínica' : `Tutor — ${formaPagamento === 'cartao' ? 'Cartão' : 'Pix'} · ${entregaPagamento === 'link' ? 'Link WhatsApp' : 'Presencial'} · ${brl(totalValor)}` },
+            { label: 'Pagamento', value: gratuito ? '🎁 Gratuito' : pagamentoResp === 'clinica' ? `Clínica · Repasse BioPet: ${brl(totalValor)}` : `Tutor — ${formaPagamento === 'cartao' ? 'Cartão' : 'Pix'} · ${entregaPagamento === 'link' ? 'Link WhatsApp' : 'Presencial'} · ${brl(totalValor)}` },
             modo === 'admin' ? { label: 'Notificar', value: notificar ? '📱 Sim (WhatsApp)' : '🔕 Não' } : null,
             observacoes ? { label: 'Observações', value: observacoes } : null,
           ].filter(Boolean).map(row => (
@@ -996,6 +1073,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
                 ⚠️ Este agendamento ficará como <strong>pendente</strong> até a BioPet confirmar.
                 {pagamentoResp === 'tutor' && entregaPagamento === 'link' && ' Após confirmação, o link de pagamento será enviado pelo WhatsApp.'}
                 {pagamentoResp === 'tutor' && entregaPagamento === 'presencial' && ' O tutor realizará o pagamento presencialmente na BioPet.'}
+                {pagamentoResp === 'clinica' && <> A clínica receberá o pagamento do tutor. O valor de repasse esperado pela BioPet é <strong>{brl(totalValor)}</strong>.</>}
               </>
             )}
           </p>
