@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from('agendamentos')
-    .select('id, tipo_exame, data_hora, status, observacoes, criado_em, tutores(id, nome, telefone), pets(id, nome, especie, raca), veterinarios(id, nome)')
+    .select('id, tipo_exame, data_hora, status, observacoes, criado_em, veterinario_id, tutores(id, nome, telefone), pets(id, nome, especie, raca)')
     .eq('clinica_id', session.clinicaId)
     .order('data_hora', { ascending: false })
 

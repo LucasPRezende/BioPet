@@ -5,15 +5,15 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
 interface Agendamento {
-  id:          number
-  tipo_exame:  string
-  data_hora:   string
-  status:      string
-  observacoes: string | null
-  criado_em:   string
-  tutores:     { nome: string | null; telefone: string } | null
-  pets:        { nome: string; especie: string | null; raca: string | null } | null
-  veterinarios: { nome: string } | null
+  id:             number
+  tipo_exame:     string
+  data_hora:      string
+  status:         string
+  observacoes:    string | null
+  criado_em:      string
+  veterinario_id: number | null
+  tutores:        { nome: string | null; telefone: string } | null
+  pets:           { nome: string; especie: string | null; raca: string | null } | null
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -149,9 +149,8 @@ export default function AgendamentosClinicaPage() {
         ) : (
           <div className="space-y-3">
             {agendamentos.map(ag => {
-              const tutor = Array.isArray(ag.tutores)     ? ag.tutores[0]     : ag.tutores
-              const pet   = Array.isArray(ag.pets)        ? ag.pets[0]        : ag.pets
-              const vet   = Array.isArray(ag.veterinarios) ? ag.veterinarios[0] : ag.veterinarios
+              const tutor = Array.isArray(ag.tutores) ? ag.tutores[0] : ag.tutores
+              const pet   = Array.isArray(ag.pets)    ? ag.pets[0]    : ag.pets
               const podeCancelar = ['pendente', 'agendado'].includes(ag.status)
 
               return (
@@ -186,7 +185,7 @@ export default function AgendamentosClinicaPage() {
                             {ag.tipo_exame}
                           </span>
                           <span className="font-medium">{formatDataHora(ag.data_hora)}</span>
-                          {vet && <span className="text-gray-400">Vet: {vet.nome}</span>}
+                          {ag.veterinario_id && <span className="text-gray-400">Vet vinculado</span>}
                         </div>
 
                         {ag.observacoes && (
