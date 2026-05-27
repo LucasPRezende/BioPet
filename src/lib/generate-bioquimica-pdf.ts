@@ -115,7 +115,7 @@ function toBase64(filePath: string): string | null {
 }
 
 export async function generateBioquimicaPDF(data: BioquimicaPDFData): Promise<Buffer> {
-  const templatePath = path.join(process.cwd(), 'template', 'Laudo Veterinario.html')
+  const templatePath = path.join(process.cwd(), 'template', 'Laudo Veterinario - final.html')
   let html = fs.readFileSync(templatePath, 'utf-8')
 
   // Embed images as base64

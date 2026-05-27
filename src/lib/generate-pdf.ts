@@ -157,7 +157,7 @@ async function drawHeaderFooterOnAllPages(bodyPdfBuffer: Buffer): Promise<Buffer
 
 function buildBodyHtml(data: LaudoFormData, imagensBuffers: Buffer[]): string {
   // Reaproveita os estilos do template original (variáveis, tipografia, cards)
-  const templatePath = path.join(process.cwd(), 'template', 'Laudo Veterinario.html')
+  const templatePath = path.join(process.cwd(), 'template', 'Laudo Veterinario - final.html')
   const tpl          = fs.readFileSync(templatePath, 'utf-8')
   const styleMatch   = tpl.match(/<style>([\s\S]*?)<\/style>/)
   // Remove o @page do template (que tem margin:0) — vamos definir o nosso depois
