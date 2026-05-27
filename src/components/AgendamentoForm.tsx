@@ -993,6 +993,23 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
           </div>
         )}
 
+        {especial && !encaixe && modo === 'admin' && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 space-y-1">
+            <p className="text-sm font-semibold text-amber-800">⚠️ Horário especial</p>
+            <p className="text-xs text-amber-700">
+              {data && (new Date(`${data}T12:00:00`).getDay() === 0 || new Date(`${data}T12:00:00`).getDay() === 6)
+                ? 'Atendimento em fim de semana — tarifa diferenciada aplicada.'
+                : 'Término do atendimento após 17h — tarifa diferenciada aplicada.'}
+            </p>
+            {totalValor > 0 && (
+              <p className="text-sm font-semibold text-amber-900 pt-0.5">
+                Valor calculado: {brl(totalValor)}
+                {pagamentoResp === 'clinica' ? ' (repasse BioPet)' : ''}
+              </p>
+            )}
+          </div>
+        )}
+
         {modo === 'admin' && (
           <label className="flex items-center justify-between px-4 py-3 rounded-xl border cursor-pointer transition select-none
             border-green-200 bg-green-50 has-[:not(:checked)]:border-gray-200 has-[:not(:checked)]:bg-gray-50">
