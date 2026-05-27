@@ -58,6 +58,7 @@ const NAV: NavGroup[] = [
       { icon: '👥', label: 'Usuários',      href: '/admin/usuarios',               adminOnly: true },
       { icon: '🔔', label: 'Notificações',  href: '/admin/notificacoes',           badge: true     },
       { icon: '🤖', label: 'Agente',        href: '/admin/configuracoes/agente',   adminOnly: true },
+      { icon: '📅', label: 'Feriados',      href: '/admin/configuracoes/feriados', adminOnly: true },
       { icon: '🩺', label: 'Veterinários',  href: '/admin/veterinarios',           adminOnly: true },
       { icon: '🏥', label: 'Clínicas',      href: '/admin/clinicas',               adminOnly: true },
     ],

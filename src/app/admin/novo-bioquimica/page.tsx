@@ -280,8 +280,9 @@ export default function NovoBioquimicaPage() {
   const [submitError, setSubmitError] = useState('')
   const [rawTexts,   setRawTexts]   = useState<string[]>([])
   const [showRaw,    setShowRaw]    = useState(false)
-  const [tutorId,    setTutorId]    = useState<number | null>(null)
-  const [petId,      setPetId]      = useState<number | null>(null)
+  const [tutorId,           setTutorId]           = useState<number | null>(null)
+  const [petId,             setPetId]             = useState<number | null>(null)
+  const [petDataNascimento, setPetDataNascimento] = useState<string | null>(null)
   const [vetId,      setVetId]      = useState<number | null>(null)
   const [vetModal,   setVetModal]   = useState(false)
   const [referencias,  setReferencias]  = useState<Referencia[]>([])
@@ -597,14 +598,23 @@ export default function NovoBioquimicaPage() {
                 }}
                 onPetSelect={pet => {
                   const idadeAuto = pet.data_nascimento ? calcIdadeDeNascimento(pet.data_nascimento) : null
-                  setForm(p => ({
-                    ...p,
-                    nome_pet: pet.nome    || p.nome_pet,
-                    especie:  pet.especie ?? p.especie,
-                    raca:     pet.raca    ?? '',
-                    sexo:     pet.sexo    ?? '',
-                    ...(idadeAuto ? { idade: idadeAuto } : {}),
-                  }))
+                  if (idadeAuto) faixaManualRef.current = false
+                  setPetDataNascimento(pet.data_nascimento ?? null)
+                  setForm(p => {
+                    const novaEspecie = pet.especie ?? p.especie
+                    const faixaAuto   = idadeAuto && novaEspecie
+                      ? calcFaixaEtaria(novaEspecie, idadeAuto)
+                      : null
+                    return {
+                      ...p,
+                      nome_pet: pet.nome    || p.nome_pet,
+                      especie:  novaEspecie,
+                      raca:     pet.raca    ?? '',
+                      sexo:     pet.sexo    ?? '',
+                      ...(idadeAuto                              ? { idade:       idadeAuto } : {}),
+                      ...(faixaAuto && faixaAuto !== 'todos'     ? { faixa_etaria: faixaAuto } : {}),
+                    }
+                  })
                   setPetId(pet.id)
                 }}
                 inputClass={INPUT}
@@ -643,6 +653,12 @@ export default function NovoBioquimicaPage() {
                   <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Idade</label>
                   <input type="text" name="idade" value={form.idade} onChange={handleFormChange}
                     placeholder="Ex: 3 anos" className={INPUT} />
+                  {petDataNascimento && (
+                    <p className="text-[11px] text-gray-400 mt-1">
+                      Nasc.{' '}
+                      {new Date(petDataNascimento + 'T12:00:00').toLocaleDateString('pt-BR')}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">

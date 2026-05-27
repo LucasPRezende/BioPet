@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { ESPECIES } from '@/lib/especies'
+import { isHorarioEspecial as isHorarioEspecialLib } from '@/lib/feriados'
 
 // ─── Interfaces ────────────────────────────────────────────────────────────────
 
@@ -43,14 +44,8 @@ function brl(n: number) {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
-function isHorarioEspecial(hora: string, totalDuracao: number, data?: string): boolean {
-  if (data) {
-    const dia = new Date(`${data}T12:00:00`).getDay()
-    if (dia === 0 || dia === 6) return true // sábado ou domingo
-  }
-  if (!hora) return false
-  const [h, m] = hora.split(':').map(Number)
-  return h * 60 + m + totalDuracao > 17 * 60
+function isHorarioEspecial(hora: string, totalDuracao: number, data?: string, feriadoDatas?: string[], horarioFim?: string): boolean {
+  return isHorarioEspecialLib(hora, totalDuracao, data, feriadoDatas, horarioFim)
 }
 
 function formatCPFInput(v: string): string {
@@ -229,6 +224,8 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
   const [loadingHorarios, setLoadingHorarios] = useState(false)
   const [horaSelecionada, setHoraSelecionada] = useState('')
   const [encaixe,         setEncaixe]         = useState(false)
+  const [feriadoDatas,    setFeriadoDatas]    = useState<string[]>([])
+  const [horarioFim,      setHorarioFim]      = useState('17:00')
 
   // Geral
   const [enviando,  setEnviando]  = useState(false)
@@ -242,7 +239,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
   const temBioquimica    = examesSelecionados.some(e => e.tipo_exame === 'Bioquímica')
   const totalDuracao     = examesSelecionados.reduce((s, e) => s + e.duracao_minutos, 0)
                          + (acrescimoExame ? estudosAdicionaisQtd * acrescimoExame.duracao_minutos : 0)
-  const especial         = isHorarioEspecial(horaSelecionada, totalDuracao, data)
+  const especial         = isHorarioEspecial(horaSelecionada, totalDuracao, data, feriadoDatas, horarioFim)
   const vetNome          = vets.find(v => String(v.id) === vetId)?.nome ?? null
   const dataFmt          = data ? new Date(`${data}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' }) : ''
   const totalBioquimica  = bioquimicaSelecionados.reduce((s, id) => {
@@ -265,6 +262,16 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
   }, 0) + valorAcrescimo
 
   // Carrega exames e vets
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/feriados').then(r => r.ok ? r.json() : []),
+      fetch('/api/feriados/horario').then(r => r.ok ? r.json() : { horario_fim: '17:00' }),
+    ]).then(([feriados, horario]) => {
+      setFeriadoDatas((feriados as { data: string }[]).map(f => f.data))
+      setHorarioFim(horario.horario_fim ?? '17:00')
+    })
+  }, [])
+
   useEffect(() => {
     if (modo === 'clinica') {
       fetch('/api/clinica/exames-permitidos').then(r => r.ok ? r.json() : { exames: [] }).then(d => setExamesDisponiveis(d.exames ?? []))

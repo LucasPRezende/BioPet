@@ -37,10 +37,12 @@ function fmtDT(s: string) {
   return new Date(s).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
-function isComercial(dataHora: string, inicio: string, fim: string) {
+function isComercial(dataHora: string, inicio: string, fim: string, feriados: string[] = []) {
   const d = new Date(dataHora)
   const dow = d.getDay()
   if (dow === 0 || dow === 6) return false
+  const dateStr = d.toLocaleDateString('en-CA')
+  if (feriados.includes(dateStr)) return false
   const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
   const atual = d.getHours() * 60 + d.getMinutes()
   return atual >= toMin(inicio) && atual < toMin(fim)
@@ -49,6 +51,7 @@ function isComercial(dataHora: string, inicio: string, fim: string) {
 export default function NovaRevisaoPage() {
   const router = useRouter()
 
+  const [feriadoDatas, setFeriadoDatas] = useState<string[]>([])
   const [busca,      setBusca]      = useState('')
   const [resultados, setResultados] = useState<AgendamentoOriginal[]>([])
   const [buscando,   setBuscando]   = useState(false)
@@ -66,6 +69,7 @@ export default function NovaRevisaoPage() {
 
   useEffect(() => {
     fetch('/api/veterinarios').then(r => r.ok ? r.json() : []).then(setVets).catch(() => {})
+    fetch('/api/feriados').then(r => r.ok ? r.json() : []).then((d: { data: string }[]) => setFeriadoDatas(d.map(f => f.data)))
   }, [])
 
   async function handleBuscar(e: React.FormEvent) {
@@ -96,7 +100,7 @@ export default function NovaRevisaoPage() {
     }
   }
 
-  const comercial  = dataHora && config ? isComercial(dataHora, config.horario_inicio, config.horario_fim) : false
+  const comercial  = dataHora && config ? isComercial(dataHora, config.horario_inicio, config.horario_fim, feriadoDatas) : false
   const valorBase  = config ? (comercial ? config.valor_horario_comercial : config.valor_fora_comercial) : 0
   const valorLaudo = config && !config.gera_laudo && laudoSolic ? config.valor_laudo_extra : 0
   const valorTotal = valorBase + valorLaudo
