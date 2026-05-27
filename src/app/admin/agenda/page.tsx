@@ -245,6 +245,7 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
 
   // Recálculo de valor
   const [comissoes,   setComissoes]   = useState<ComissaoInfo[]>([])
+  const comissoesRef                  = useRef<ComissaoInfo[]>([])
   const [novoValor,   setNovoValor]   = useState<number | null>(ag.valor ?? null)
   const [fase,        setFase]        = useState<'form' | 'confirmar'>('form')
   const [enviarLink,  setEnviarLink]  = useState(true)
@@ -253,17 +254,23 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
   const INPUT = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8a6e36] bg-white'
 
   useEffect(() => { fetch('/api/veterinarios').then(r => r.ok ? r.json() : []).then(setVets) }, [])
-  useEffect(() => { fetch('/api/comissoes').then(r => r.ok ? r.json() : []).then(setComissoes) }, [])
-
-  // Recalcula valor quando muda forma de pag, responsável, data, hora ou exames ativos
   useEffect(() => {
+    fetch('/api/comissoes').then(r => r.ok ? r.json() : []).then((data: ComissaoInfo[]) => {
+      comissoesRef.current = data
+      setComissoes(data)
+    })
+  }, [])
+
+  // Recalcula valor apenas quando o usuário muda algum campo (não ao carregar comissões)
+  useEffect(() => {
+    const comissoesCur = comissoesRef.current
     const exames = examesAtivos
-    if (exames.length === 0 || comissoes.length === 0) return
+    if (exames.length === 0 || comissoesCur.length === 0) return
     if (formaPag === 'gratuito') { setNovoValor(0); return }
     if (!data) return
 
     const isPix        = pagResp === 'clinica' || !formaPag.includes('cartao')
-    const comMap       = new Map(comissoes.map(c => [c.tipo_exame, c]))
+    const comMap       = new Map(comissoesCur.map(c => [c.tipo_exame, c]))
     const duracaoAtiva = exames.reduce((s, ex) => s + (ex.duracao_minutos ?? comMap.get(ex.tipo_exame)?.duracao_minutos ?? 0), 0)
     const especial     = ag.encaixe ? false : isEspecial(hora, duracaoAtiva, data)
     const bioRows  = ag.agendamento_bioquimica ?? []
@@ -288,7 +295,8 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
     }, 0)
 
     setNovoValor(calc)
-  }, [formaPag, pagResp, data, hora, comissoes, examesAtivos, ag])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formaPag, pagResp, data, hora, examesAtivos, ag])
 
   const valorOriginal = ag.valor ?? 0
   const valorMudou    = novoValor !== null && Math.abs(novoValor - valorOriginal) > 0.01
