@@ -271,9 +271,17 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
     if (formaPag === 'gratuito') { setNovoValor(0); return }
     if (!data) return
 
-    const isPix        = pagResp === 'clinica' || !formaPag.includes('cartao')
-    const comMap       = new Map(comissoesCur.map(c => [c.tipo_exame, c]))
-    const duracaoAtiva = exames.reduce((s, ex) => s + (ex.duracao_minutos ?? comMap.get(ex.tipo_exame)?.duracao_minutos ?? 0), 0)
+    const isPix   = pagResp === 'clinica' || !formaPag.includes('cartao')
+    const comMap  = new Map(comissoesCur.map(c => [c.tipo_exame, c]))
+
+    // Calcula duração usando ag.duracao_minutos como base + ajuste por exames add/removidos
+    // Isso evita depender de duracao_minutos null no banco para exames antigos
+    const originais    = ag.agendamento_exames ?? []
+    const adicionados  = exames.filter(e => !originais.some(o => o.tipo_exame === e.tipo_exame))
+    const removidos    = originais.filter(e => !exames.some(a => a.tipo_exame === e.tipo_exame))
+    const duracaoAdd   = adicionados.reduce((s, ex) => s + (comMap.get(ex.tipo_exame)?.duracao_minutos ?? ex.duracao_minutos ?? 0), 0)
+    const duracaoRem   = removidos.reduce((s, ex) => s + (ex.duracao_minutos ?? comMap.get(ex.tipo_exame)?.duracao_minutos ?? 0), 0)
+    const duracaoAtiva = (ag.duracao_minutos ?? 0) + duracaoAdd - duracaoRem
     const especial     = ag.encaixe ? false : isEspecial(hora, duracaoAtiva, data)
     const bioRows  = ag.agendamento_bioquimica ?? []
 
@@ -309,10 +317,9 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
     if (!exameParaAdicionar) return
     const info = comissoes.find(c => c.tipo_exame === exameParaAdicionar)
     if (!info) return
-    const isPix        = pagResp === 'clinica' || !formaPag.includes('cartao')
-    const cMap         = new Map(comissoes.map(c => [c.tipo_exame, c]))
-    const newAtivos    = [...examesAtivos, { tipo_exame: exameParaAdicionar, valor: null as number | null, duracao_minutos: info.duracao_minutos ?? null }]
-    const duracaoAtiva = newAtivos.reduce((s, ex) => s + (ex.duracao_minutos ?? cMap.get(ex.tipo_exame)?.duracao_minutos ?? 0), 0)
+    const isPix      = pagResp === 'clinica' || !formaPag.includes('cartao')
+    // Usa ag.duracao_minutos como base + duração do novo exame — evita depender de null no banco
+    const duracaoAtiva = (ag.duracao_minutos ?? 0) + (info.duracao_minutos ?? 0)
     const esp          = ag.encaixe ? false : isEspecial(hora, duracaoAtiva, data)
     const pixNorm      = info.preco_pix_comercial    ?? info.preco_exame ?? 0
     const carNorm      = info.preco_cartao_comercial ?? info.preco_exame ?? 0
@@ -341,9 +348,14 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
     if (formaPag === 'gratuito') {
       valorFinal = 0
     } else if (comissoes.length > 0 && exsAg.length > 0) {
-      const isPix        = pagResp === 'clinica' || !formaPag.includes('cartao')
-      const cMap         = new Map(comissoes.map(c => [c.tipo_exame, c]))
-      const duracaoAtiva = exsAg.reduce((s, ex) => s + (ex.duracao_minutos ?? cMap.get(ex.tipo_exame)?.duracao_minutos ?? 0), 0)
+      const isPix   = pagResp === 'clinica' || !formaPag.includes('cartao')
+      const cMap    = new Map(comissoes.map(c => [c.tipo_exame, c]))
+      const originaisS   = ag.agendamento_exames ?? []
+      const adicionadosS = exsAg.filter(e => !originaisS.some(o => o.tipo_exame === e.tipo_exame))
+      const removidosS   = originaisS.filter(e => !exsAg.some(a => a.tipo_exame === e.tipo_exame))
+      const duracaoAddS  = adicionadosS.reduce((s, ex) => s + (cMap.get(ex.tipo_exame)?.duracao_minutos ?? ex.duracao_minutos ?? 0), 0)
+      const duracaoRemS  = removidosS.reduce((s, ex) => s + (ex.duracao_minutos ?? cMap.get(ex.tipo_exame)?.duracao_minutos ?? 0), 0)
+      const duracaoAtiva = (ag.duracao_minutos ?? 0) + duracaoAddS - duracaoRemS
       const esp          = ag.encaixe ? false : isEspecial(hora, duracaoAtiva, data)
       const bios   = ag.agendamento_bioquimica ?? []
       const examesCalc: AgExame[] = exsAg.map(ex => {
