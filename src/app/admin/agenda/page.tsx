@@ -246,6 +246,7 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
   // Recálculo de valor
   const [comissoes,   setComissoes]   = useState<ComissaoInfo[]>([])
   const comissoesRef                  = useRef<ComissaoInfo[]>([])
+  const userChangedRef                = useRef(false)
   const [novoValor,   setNovoValor]   = useState<number | null>(ag.valor ?? null)
   const [fase,        setFase]        = useState<'form' | 'confirmar'>('form')
   const [enviarLink,  setEnviarLink]  = useState(true)
@@ -261,8 +262,9 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
     })
   }, [])
 
-  // Recalcula valor apenas quando o usuário muda algum campo (não ao carregar comissões)
+  // Recalcula valor apenas quando o usuário muda algum campo (não ao abrir o modal)
   useEffect(() => {
+    if (!userChangedRef.current) return
     const comissoesCur = comissoesRef.current
     const exames = examesAtivos
     if (exames.length === 0 || comissoesCur.length === 0) return
@@ -322,6 +324,7 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
     } else {
       valor = isPix ? pixNorm : carNorm
     }
+    userChangedRef.current = true
     setExamesAtivos(prev => [...prev, { tipo_exame: exameParaAdicionar, valor, duracao_minutos: info.duracao_minutos ?? null }])
     setExameParaAdicionar('')
   }
@@ -498,7 +501,7 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
                       {examesAtivos.length > 1 && (
                         <button
                           type="button"
-                          onClick={() => setExamesAtivos(prev => prev.filter(e => e.tipo_exame !== ex.tipo_exame))}
+                          onClick={() => { userChangedRef.current = true; setExamesAtivos(prev => prev.filter(e => e.tipo_exame !== ex.tipo_exame)) }}
                           className="text-xs text-red-500 hover:text-red-700 border border-red-200 bg-red-50 hover:bg-red-100 px-2 py-0.5 rounded transition shrink-0 ml-3"
                         >
                           Remover
@@ -536,12 +539,12 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
             <div className="flex gap-3">
               <div className="flex-1">
                 <label className="block text-xs font-semibold text-gray-500 mb-1">Data</label>
-                <input type="date" value={data} onChange={e => setData(e.target.value)} required className={INPUT} />
+                <input type="date" value={data} onChange={e => { userChangedRef.current = true; setData(e.target.value) }} required className={INPUT} />
               </div>
               {!ag.encaixe && (
                 <div className="w-28">
                   <label className="block text-xs font-semibold text-gray-500 mb-1">Hora</label>
-                  <input type="time" value={hora} onChange={e => setHora(e.target.value)} required className={INPUT} />
+                  <input type="time" value={hora} onChange={e => { userChangedRef.current = true; setHora(e.target.value) }} required className={INPUT} />
                 </div>
               )}
             </div>
@@ -555,7 +558,7 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
             <div className="flex gap-3">
               <div className="flex-1">
                 <label className="block text-xs font-semibold text-gray-500 mb-1">Forma de pagamento</label>
-                <select value={formaPag} onChange={e => setFormaPag(e.target.value)} className={INPUT}>
+                <select value={formaPag} onChange={e => { userChangedRef.current = true; setFormaPag(e.target.value) }} className={INPUT}>
                   <option value="a confirmar">A confirmar</option>
                   <option value="">—</option>
                   <option value="gratuito">Gratuito</option>
@@ -573,7 +576,7 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-500 mb-1">Pagamento responsável</label>
-              <select value={pagResp} onChange={e => setPagResp(e.target.value)} className={INPUT}>
+              <select value={pagResp} onChange={e => { userChangedRef.current = true; setPagResp(e.target.value) }} className={INPUT}>
                 <option value="tutor">Tutor</option>
                 <option value="clinica">Clínica</option>
               </select>
