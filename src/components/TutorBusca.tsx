@@ -4,16 +4,17 @@ import { useState, useEffect, useRef } from 'react'
 import { ESPECIES } from '@/lib/especies'
 const SEXOS    = ['Macho', 'Fêmea', 'Não informado']
 
-interface Pet { id: number; nome: string; especie: string | null; raca: string | null; sexo: string | null }
+interface Pet { id: number; nome: string; especie: string | null; raca: string | null; sexo: string | null; data_nascimento: string | null }
 
 interface Tutor { id: number; nome: string; telefone: string; pets: Pet[] }
 
 export interface PetSelecionado {
-  nome:    string
-  especie: string | null
-  raca:    string | null
-  sexo:    string | null
-  id:      number | null
+  nome:             string
+  especie:          string | null
+  raca:             string | null
+  sexo:             string | null
+  id:               number | null
+  data_nascimento?: string | null
 }
 
 export interface TutorSelecionado {
@@ -143,7 +144,7 @@ export default function TutorBusca({ selectedPetNome, onTutorChange, onPetSelect
     if (res.ok) {
       const pet: Pet = await res.json()
       setTutor(t => t ? { ...t, pets: [...t.pets, pet] } : t)
-      onPetSelect({ nome: pet.nome, especie: pet.especie, raca: pet.raca, sexo: pet.sexo, id: pet.id })
+      onPetSelect({ nome: pet.nome, especie: pet.especie, raca: pet.raca, sexo: pet.sexo, id: pet.id, data_nascimento: pet.data_nascimento })
       setPetForm({ nome: '', especie: '', raca: '', sexo: '' })
       setNovoPetOpen(false)
     } else {
@@ -270,7 +271,7 @@ export default function TutorBusca({ selectedPetNome, onTutorChange, onPetSelect
                 <button
                   key={p.id}
                   type="button"
-                  onClick={() => onPetSelect({ nome: p.nome, especie: p.especie, raca: p.raca, sexo: p.sexo, id: p.id })}
+                  onClick={() => onPetSelect({ nome: p.nome, especie: p.especie, raca: p.raca, sexo: p.sexo, id: p.id, data_nascimento: p.data_nascimento })}
                   className={`text-xs px-3 py-1.5 rounded-lg border transition ${
                     selectedPetNome === p.nome
                       ? 'bg-[#19202d] text-white border-[#19202d]'

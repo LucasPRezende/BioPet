@@ -17,6 +17,39 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(data)
 }
 
+export async function POST(request: NextRequest) {
+  const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value
+  if (!cookie) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 })
+  const session = await parseSystemSession(cookie)
+  if (!session || session.role !== 'admin') return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 })
+
+  const body = await request.json().catch(() => null)
+  const tipos: string[] = body?.tipos
+  if (!Array.isArray(tipos) || tipos.length === 0)
+    return NextResponse.json({ error: 'Lista de tipos obrigatória.' }, { status: 400 })
+
+  const rows = tipos.map(tipo_exame => ({
+    tipo_exame,
+    permite_revisao:         false,
+    prazo_dias:              30,
+    max_revisoes:            1,
+    valor_horario_comercial: 0,
+    valor_fora_comercial:    0,
+    gera_laudo:              false,
+    valor_laudo_extra:       0,
+    horario_inicio:          '09:00',
+    horario_fim:             '16:30',
+  }))
+
+  const { data, error } = await supabase
+    .from('revisao_config')
+    .upsert(rows, { onConflict: 'tipo_exame', ignoreDuplicates: true })
+    .select()
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json(data, { status: 201 })
+}
+
 export async function PATCH(request: NextRequest) {
   const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value
   if (!cookie) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 })

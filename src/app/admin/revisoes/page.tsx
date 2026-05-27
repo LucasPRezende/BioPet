@@ -17,6 +17,11 @@ interface RevisaoConfig {
   horario_fim: string
 }
 
+interface ExamePreco {
+  id: number
+  tipo_exame: string
+}
+
 interface Revisao {
   id: number
   tipo_exame: string
@@ -58,7 +63,11 @@ export default function RevisoesPage() {
   const [loading,   setLoading]   = useState(true)
   const [statusFil, setStatusFil] = useState('')
   const [tab,       setTab]       = useState<'lista' | 'config'>('lista')
-  const [savingCfg, setSavingCfg] = useState<number | null>(null)
+  const [savingCfg,      setSavingCfg]      = useState<number | null>(null)
+  const [showImport,     setShowImport]     = useState(false)
+  const [examesPrecos,   setExamesPrecos]   = useState<ExamePreco[]>([])
+  const [selectedTipos,  setSelectedTipos]  = useState<Set<string>>(new Set())
+  const [importing,      setImporting]      = useState(false)
 
   const loadRevisoes = useCallback(async () => {
     setLoading(true)
@@ -90,6 +99,42 @@ export default function RevisoesPage() {
 
   function updateConfig(id: number, field: string, value: unknown) {
     setConfigs(cs => cs.map(c => c.id === id ? { ...c, [field]: value } : c))
+  }
+
+  async function openImportModal() {
+    const res = await fetch('/api/comissoes')
+    if (res.ok) {
+      const data: ExamePreco[] = await res.json()
+      setExamesPrecos(data)
+      const jaImportados = new Set(configs.map(c => c.tipo_exame))
+      const novos = data.filter(e => !jaImportados.has(e.tipo_exame)).map(e => e.tipo_exame)
+      setSelectedTipos(new Set(novos))
+    }
+    setShowImport(true)
+  }
+
+  function toggleTipo(tipo: string) {
+    setSelectedTipos(prev => {
+      const next = new Set(prev)
+      next.has(tipo) ? next.delete(tipo) : next.add(tipo)
+      return next
+    })
+  }
+
+  async function importarExames() {
+    if (selectedTipos.size === 0) return
+    setImporting(true)
+    const res = await fetch('/api/revisoes/config', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ tipos: Array.from(selectedTipos) }),
+    })
+    if (res.ok) {
+      const updated = await fetch('/api/revisoes/config').then(r => r.ok ? r.json() : [])
+      setConfigs(updated)
+      setShowImport(false)
+    }
+    setImporting(false)
   }
 
   return (
@@ -196,9 +241,16 @@ export default function RevisoesPage() {
       {/* Configurações */}
       {tab === 'config' && (
         <div className="space-y-4">
+          <div className="flex justify-end">
+            <button onClick={openImportModal}
+              className="flex items-center gap-1.5 text-sm bg-white border border-gray-200 hover:border-[#8a6e36] hover:text-[#8a6e36] text-gray-600 px-3 py-2 rounded-lg transition font-medium shadow-sm">
+              <span className="text-base leading-none">↓</span>
+              Importar exames de Preços
+            </button>
+          </div>
           {configs.length === 0 && (
             <div className="text-center py-16 bg-white rounded-xl shadow-sm border text-gray-400">
-              Nenhum tipo de exame configurado. Execute a migration_v16.sql no Supabase.
+              Nenhum tipo de exame configurado ainda. Use o botão acima para importar.
             </div>
           )}
           {configs.map(cfg => (
@@ -271,6 +323,62 @@ export default function RevisoesPage() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+      {/* Modal importar exames de preços */}
+      {showImport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 max-h-[80vh] flex flex-col">
+            <div className="px-6 py-4 border-b flex items-center justify-between">
+              <h2 className="font-bold text-[#19202d]">Importar exames de Preços</h2>
+              <button onClick={() => setShowImport(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+            </div>
+
+            <div className="px-6 py-3 overflow-y-auto flex-1">
+              {examesPrecos.length === 0 ? (
+                <p className="text-gray-400 text-sm py-4 text-center">Nenhum exame encontrado em Preços.</p>
+              ) : (
+                <ul className="divide-y divide-gray-100">
+                  {examesPrecos.map(e => {
+                    const jaExiste = configs.some(c => c.tipo_exame === e.tipo_exame)
+                    return (
+                      <li key={e.id} className="flex items-center gap-3 py-2.5">
+                        <input
+                          type="checkbox"
+                          id={`imp-${e.id}`}
+                          checked={jaExiste || selectedTipos.has(e.tipo_exame)}
+                          disabled={jaExiste}
+                          onChange={() => !jaExiste && toggleTipo(e.tipo_exame)}
+                          className="accent-[#8a6e36] w-4 h-4 flex-shrink-0"
+                        />
+                        <label htmlFor={`imp-${e.id}`}
+                          className={`text-sm flex-1 ${jaExiste ? 'text-gray-400 cursor-not-allowed' : 'text-[#19202d] cursor-pointer'}`}>
+                          {e.tipo_exame}
+                          {jaExiste && <span className="ml-2 text-xs text-green-600">(já importado)</span>}
+                        </label>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </div>
+
+            <div className="px-6 py-4 border-t flex items-center justify-between gap-3">
+              <p className="text-xs text-gray-400">
+                {selectedTipos.size} selecionado{selectedTipos.size !== 1 ? 's' : ''}
+              </p>
+              <div className="flex gap-2">
+                <button onClick={() => setShowImport(false)}
+                  className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition">
+                  Cancelar
+                </button>
+                <button onClick={importarExames} disabled={importing || selectedTipos.size === 0}
+                  className="text-sm px-4 py-2 rounded-lg bg-[#19202d] hover:bg-[#232d3f] text-white font-semibold transition disabled:opacity-50">
+                  {importing ? 'Importando...' : 'Importar'}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

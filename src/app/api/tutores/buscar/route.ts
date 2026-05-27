@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from('tutores')
-    .select('id, nome, telefone, pets(id, nome, especie, raca, sexo)')
+    .select('id, nome, telefone, pets(id, nome, especie, raca, sexo, data_nascimento)')
     .order('nome')
     .limit(10)
 

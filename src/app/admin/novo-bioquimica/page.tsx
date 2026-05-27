@@ -19,6 +19,17 @@ interface Referencia {
   unidade:      string | null
 }
 
+function calcIdadeDeNascimento(dataNasc: string): string {
+  const nasc = new Date(dataNasc)
+  const hoje = new Date()
+  let anos = hoje.getFullYear() - nasc.getFullYear()
+  let meses = hoje.getMonth() - nasc.getMonth()
+  if (hoje.getDate() < nasc.getDate()) meses--
+  if (meses < 0) { anos--; meses += 12 }
+  if (anos < 1) return `${meses} ${meses === 1 ? 'mês' : 'meses'}`
+  return `${anos} ${anos === 1 ? 'ano' : 'anos'}`
+}
+
 function calcFaixaEtaria(especie: string, idadeStr: string): string {
   const num = parseFloat(idadeStr)
   if (isNaN(num)) return 'todos'
@@ -585,12 +596,14 @@ export default function NovoBioquimicaPage() {
                   setTutorId(t.id)
                 }}
                 onPetSelect={pet => {
+                  const idadeAuto = pet.data_nascimento ? calcIdadeDeNascimento(pet.data_nascimento) : null
                   setForm(p => ({
                     ...p,
                     nome_pet: pet.nome    || p.nome_pet,
                     especie:  pet.especie ?? p.especie,
                     raca:     pet.raca    ?? '',
                     sexo:     pet.sexo    ?? '',
+                    ...(idadeAuto ? { idade: idadeAuto } : {}),
                   }))
                   setPetId(pet.id)
                 }}
