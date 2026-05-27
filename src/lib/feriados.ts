@@ -74,6 +74,7 @@ export function isHorarioEspecial(
   data?: string,
   feriadoDatas?: string[],
   horarioFim = '17:00',
+  horarioInicio = '08:00',
 ): boolean {
   if (data) {
     if (feriadoDatas?.includes(data)) return true
@@ -81,7 +82,28 @@ export function isHorarioEspecial(
     if (dia === 0 || dia === 6) return true
   }
   if (!hora) return false
-  const [h, m] = hora.split(':').map(Number)
-  const [fh, fm] = horarioFim.split(':').map(Number)
-  return h * 60 + m + totalDuracao > fh * 60 + fm
+  const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
+  const inicioMin = toMin(hora)
+  if (inicioMin < toMin(horarioInicio)) return true
+  return inicioMin + totalDuracao > toMin(horarioFim)
+}
+
+export type MotivoEspecial = 'feriado' | 'fimdesemana' | 'antes' | 'depois' | null
+
+export function motivoHorarioEspecial(
+  hora: string,
+  totalDuracao: number,
+  data: string,
+  feriadoDatas: string[],
+  horarioFim = '17:00',
+  horarioInicio = '08:00',
+): MotivoEspecial {
+  if (feriadoDatas.includes(data)) return 'feriado'
+  const dia = new Date(`${data}T12:00:00`).getDay()
+  if (dia === 0 || dia === 6) return 'fimdesemana'
+  if (!hora) return null
+  const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
+  if (toMin(hora) < toMin(horarioInicio)) return 'antes'
+  if (toMin(hora) + totalDuracao > toMin(horarioFim)) return 'depois'
+  return null
 }

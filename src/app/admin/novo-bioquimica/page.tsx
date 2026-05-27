@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { EXAM_CODES, type MindrayResult } from '@/lib/mindray-types'
 import TutorBusca from '@/components/TutorBusca'
 import { ESPECIES, ESPECIE_PARA_REF } from '@/lib/especies'
+import { calcFaixaEtaria, type FaixaConfig } from '@/lib/faixas-etarias'
 
 interface Referencia {
   id:           number
@@ -28,24 +29,6 @@ function calcIdadeDeNascimento(dataNasc: string): string {
   if (meses < 0) { anos--; meses += 12 }
   if (anos < 1) return `${meses} ${meses === 1 ? 'mês' : 'meses'}`
   return `${anos} ${anos === 1 ? 'ano' : 'anos'}`
-}
-
-function calcFaixaEtaria(especie: string, idadeStr: string): string {
-  const num = parseFloat(idadeStr)
-  if (isNaN(num)) return 'todos'
-  const anos = idadeStr.toLowerCase().includes('mes') || idadeStr.toLowerCase().includes('mês') ? num / 12 : num
-  const esp = especie.toLowerCase()
-  if (esp === 'canina') {
-    if (anos < 1) return 'filhote'
-    if (anos <= 7) return 'adulto'
-    return 'idoso'
-  }
-  if (esp === 'felina') {
-    if (anos < 1) return 'filhote'
-    if (anos <= 10) return 'adulto'
-    return 'idoso'
-  }
-  return 'todos'
 }
 
 function especieParaBanco(especie: string): string {
@@ -283,6 +266,7 @@ export default function NovoBioquimicaPage() {
   const [tutorId,           setTutorId]           = useState<number | null>(null)
   const [petId,             setPetId]             = useState<number | null>(null)
   const [petDataNascimento, setPetDataNascimento] = useState<string | null>(null)
+  const [faixaConfigs,      setFaixaConfigs]      = useState<FaixaConfig[]>([])
   const [vetId,      setVetId]      = useState<number | null>(null)
   const [vetModal,   setVetModal]   = useState(false)
   const [referencias,  setReferencias]  = useState<Referencia[]>([])
@@ -296,6 +280,13 @@ export default function NovoBioquimicaPage() {
   useEffect(() => { loadVets() }, [loadVets])
 
   useEffect(() => {
+    fetch('/api/bioquimica/faixas-etarias')
+      .then(r => r.json())
+      .then((d: FaixaConfig[]) => setFaixaConfigs(d))
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
     fetch('/api/bioquimica/exames')
       .then(r => r.json())
       .then((d: { codigo: string | null; nome: string }[]) =>
@@ -304,14 +295,12 @@ export default function NovoBioquimicaPage() {
       .catch(() => {})
   }, [])
 
-  // Auto-suggest faixa_etaria when especie/idade change, unless user chose manually
+  // Recalcula faixa_etaria quando especie/idade mudam manualmente
   useEffect(() => {
-    if (!form.especie || faixaManualRef.current) return
-    const sugestao = calcFaixaEtaria(form.especie, form.idade)
-    if (sugestao !== 'todos') {
-      setForm(p => ({ ...p, faixa_etaria: sugestao }))
-    }
-  }, [form.especie, form.idade])
+    if (!form.especie || !form.idade || faixaManualRef.current) return
+    const sugestao = calcFaixaEtaria(form.especie, form.idade, faixaConfigs)
+    setForm(p => ({ ...p, faixa_etaria: sugestao }))
+  }, [form.especie, form.idade, faixaConfigs])
 
   // Fetch references whenever especie or faixa_etaria changes; auto-fills method when only one exists
   useEffect(() => {
@@ -598,24 +587,25 @@ export default function NovoBioquimicaPage() {
                 }}
                 onPetSelect={pet => {
                   const idadeAuto = pet.data_nascimento ? calcIdadeDeNascimento(pet.data_nascimento) : null
-                  if (idadeAuto) faixaManualRef.current = false
                   setPetDataNascimento(pet.data_nascimento ?? null)
+                  setPetId(pet.id)
+                  faixaManualRef.current = false
                   setForm(p => {
-                    const novaEspecie = pet.especie ?? p.especie
-                    const faixaAuto   = idadeAuto && novaEspecie
-                      ? calcFaixaEtaria(novaEspecie, idadeAuto)
-                      : null
+                    const especie = pet.especie ?? p.especie
+                    const idade   = idadeAuto   ?? p.idade
+                    const faixa   = especie && idade
+                      ? calcFaixaEtaria(especie, idade, faixaConfigs)
+                      : p.faixa_etaria
                     return {
                       ...p,
-                      nome_pet: pet.nome    || p.nome_pet,
-                      especie:  novaEspecie,
-                      raca:     pet.raca    ?? '',
-                      sexo:     pet.sexo    ?? '',
-                      ...(idadeAuto                              ? { idade:       idadeAuto } : {}),
-                      ...(faixaAuto && faixaAuto !== 'todos'     ? { faixa_etaria: faixaAuto } : {}),
+                      nome_pet:     pet.nome || p.nome_pet,
+                      especie,
+                      raca:         pet.raca ?? '',
+                      sexo:         pet.sexo ?? '',
+                      idade,
+                      faixa_etaria: faixa,
                     }
                   })
-                  setPetId(pet.id)
                 }}
                 inputClass={INPUT}
               />

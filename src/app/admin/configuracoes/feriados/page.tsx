@@ -24,6 +24,8 @@ export default function FeriadosPage() {
   const [feriados,   setFeriados]   = useState<Feriado[]>([])
   const [horarioFim, setHorarioFim] = useState('17:00')
   const [horarioEdit, setHorarioEdit] = useState('17:00')
+  const [horarioInicio, setHorarioInicio] = useState('08:00')
+  const [horarioInicioEdit, setHorarioInicioEdit] = useState('08:00')
   const [loading,    setLoading]    = useState(true)
   const [savingHor,  setSavingHor]  = useState(false)
 
@@ -51,6 +53,8 @@ export default function FeriadosPage() {
     setFeriados(resF)
     setHorarioFim(resH.horario_fim)
     setHorarioEdit(resH.horario_fim)
+    setHorarioInicio(resH.horario_inicio ?? '08:00')
+    setHorarioInicioEdit(resH.horario_inicio ?? '08:00')
     setLoading(false)
   }
 
@@ -61,9 +65,9 @@ export default function FeriadosPage() {
     const res = await fetch('/api/feriados/horario', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ horario_fim: horarioEdit }),
+      body: JSON.stringify({ horario_fim: horarioEdit, horario_inicio: horarioInicioEdit }),
     })
-    if (res.ok) setHorarioFim(horarioEdit)
+    if (res.ok) { setHorarioFim(horarioEdit); setHorarioInicio(horarioInicioEdit) }
     else setErro('Erro ao salvar horário.')
     setSavingHor(false)
   }
@@ -131,24 +135,38 @@ export default function FeriadosPage() {
 
       {/* Horário comercial */}
       <section className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
-        <h2 className="font-semibold text-[#19202d]">Horário de encerramento comercial</h2>
-        <p className="text-xs text-gray-500">Atendimentos que terminam após este horário são cobrados como fora do horário comercial.</p>
-        <div className="flex items-center gap-3">
-          <input
-            type="time"
-            value={horarioEdit}
-            onChange={e => setHorarioEdit(e.target.value)}
-            className={INPUT}
-          />
+        <h2 className="font-semibold text-[#19202d]">Horário comercial</h2>
+        <p className="text-xs text-gray-500">Atendimentos fora deste intervalo (antes do início ou após o encerramento) são cobrados com tarifa diferenciada.</p>
+        <div className="flex items-center gap-4 flex-wrap">
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-600 shrink-0">Início</label>
+            <input
+              type="time"
+              value={horarioInicioEdit}
+              onChange={e => setHorarioInicioEdit(e.target.value)}
+              className={INPUT}
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-600 shrink-0">Encerramento</label>
+            <input
+              type="time"
+              value={horarioEdit}
+              onChange={e => setHorarioEdit(e.target.value)}
+              className={INPUT}
+            />
+          </div>
           <button
             onClick={salvarHorario}
-            disabled={savingHor || horarioEdit === horarioFim}
+            disabled={savingHor || (horarioEdit === horarioFim && horarioInicioEdit === horarioInicio)}
             className="bg-[#19202d] text-white text-sm font-semibold px-4 py-2 rounded-lg disabled:opacity-40 transition"
           >
             {savingHor ? 'Salvando…' : 'Salvar'}
           </button>
-          {horarioFim && <span className="text-xs text-gray-400">Atual: {horarioFim}</span>}
         </div>
+        {(horarioInicio || horarioFim) && (
+          <span className="text-xs text-gray-400">Atual: {horarioInicio} – {horarioFim}</span>
+        )}
       </section>
 
       {/* Gerar feriados */}

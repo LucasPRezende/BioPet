@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { ESPECIES_REF as ESPECIES } from '@/lib/especies'
+import { ESPECIES_REF as ESPECIES, ESPECIES as ESPECIES_NOMES } from '@/lib/especies'
+import { type FaixaConfig } from '@/lib/faixas-etarias'
 
 interface Exame { id: number; nome: string; codigo: string }
 interface Referencia {
@@ -42,6 +43,55 @@ export default function ReferenciasPage() {
   const [confirmDel,  setConfirmDel]  = useState<number | null>(null)
   const [deleting,    setDeleting]    = useState(false)
   const [editingFallback, setEditingFallback] = useState<Set<number>>(new Set())
+
+  // ── Faixas etárias ──
+  const [faixasConfig,    setFaixasConfig]    = useState<FaixaConfig[]>([])
+  const [faixasEdit,      setFaixasEdit]      = useState<Record<string, { filhote: string; adulto: string }>>({})
+  const [savingFaixas,    setSavingFaixas]    = useState(false)
+  const [savedFaixas,     setSavedFaixas]     = useState(false)
+  const [showFaixas,      setShowFaixas]      = useState(false)
+
+  const loadFaixas = useCallback(async () => {
+    const res = await fetch('/api/bioquimica/faixas-etarias')
+    if (res.ok) {
+      const d: FaixaConfig[] = await res.json()
+      setFaixasConfig(d)
+      const edit: Record<string, { filhote: string; adulto: string }> = {}
+      for (const row of d) {
+        edit[row.especie] = {
+          filhote: row.filhote_ate_meses !== null ? String(row.filhote_ate_meses) : '',
+          adulto:  row.adulto_ate_meses  !== null ? String(row.adulto_ate_meses)  : '',
+        }
+      }
+      // Garante linha para todas as espécies
+      for (const esp of ESPECIES_NOMES) {
+        if (!edit[esp]) edit[esp] = { filhote: '', adulto: '' }
+      }
+      setFaixasEdit(edit)
+    }
+  }, [])
+
+  useEffect(() => { loadFaixas() }, [loadFaixas])
+
+  async function salvarFaixas() {
+    setSavingFaixas(true)
+    const rows: FaixaConfig[] = ESPECIES_NOMES.map(esp => ({
+      especie:           esp,
+      filhote_ate_meses: faixasEdit[esp]?.filhote ? Number(faixasEdit[esp].filhote) : null,
+      adulto_ate_meses:  faixasEdit[esp]?.adulto  ? Number(faixasEdit[esp].adulto)  : null,
+    }))
+    const res = await fetch('/api/bioquimica/faixas-etarias', {
+      method:  'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(rows),
+    })
+    if (res.ok) {
+      setSavedFaixas(true)
+      setTimeout(() => setSavedFaixas(false), 2000)
+      await loadFaixas()
+    }
+    setSavingFaixas(false)
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -182,6 +232,69 @@ export default function ReferenciasPage() {
         >
           + Nova referência
         </button>
+      </div>
+
+      {/* Faixas Etárias */}
+      <div className="bg-white rounded-xl border shadow-sm overflow-hidden mb-5">
+        <div className="h-1 bg-gold-stripe" />
+        <div className="p-4">
+          <button
+            type="button"
+            onClick={() => setShowFaixas(v => !v)}
+            className="flex items-center gap-2 text-sm font-semibold text-[#19202d] hover:text-[#8a6e36] transition"
+          >
+            <span>{showFaixas ? '▾' : '▸'}</span>
+            Faixas Etárias por Espécie
+            <span className="text-xs font-normal text-gray-400 ml-1">(define filhote / adulto / idoso no cálculo automático)</span>
+          </button>
+
+          {showFaixas && (
+            <div className="mt-4 space-y-1">
+              <div className="grid grid-cols-4 gap-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider px-1 mb-2">
+                <span>Espécie</span>
+                <span>Filhote até (meses)</span>
+                <span>Adulto até (meses)</span>
+                <span>Idoso a partir de</span>
+              </div>
+              {ESPECIES_NOMES.map(esp => {
+                const row    = faixasEdit[esp] ?? { filhote: '', adulto: '' }
+                const idoso  = row.adulto ? `${row.adulto} meses` : '—'
+                return (
+                  <div key={esp} className="grid grid-cols-4 gap-3 items-center py-1.5 px-1 rounded-lg hover:bg-gray-50">
+                    <span className="text-sm font-medium text-[#19202d]">{esp}</span>
+                    <input
+                      type="number"
+                      min={1}
+                      value={row.filhote}
+                      onChange={e => setFaixasEdit(prev => ({ ...prev, [esp]: { ...prev[esp], filhote: e.target.value } }))}
+                      placeholder="ex: 12"
+                      className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#8a6e36] bg-white w-full"
+                    />
+                    <input
+                      type="number"
+                      min={1}
+                      value={row.adulto}
+                      onChange={e => setFaixasEdit(prev => ({ ...prev, [esp]: { ...prev[esp], adulto: e.target.value } }))}
+                      placeholder="ex: 84"
+                      className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#8a6e36] bg-white w-full"
+                    />
+                    <span className="text-sm text-gray-500">{idoso}</span>
+                  </div>
+                )
+              })}
+              <div className="flex justify-end pt-3">
+                <button
+                  type="button"
+                  onClick={salvarFaixas}
+                  disabled={savingFaixas}
+                  className="px-4 py-2 bg-[#19202d] hover:bg-[#232d3f] text-white text-sm font-semibold rounded-lg transition disabled:opacity-50"
+                >
+                  {savingFaixas ? 'Salvando...' : savedFaixas ? '✓ Salvo' : 'Salvar faixas etárias'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Filtros */}

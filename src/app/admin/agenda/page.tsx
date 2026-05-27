@@ -33,8 +33,8 @@ interface ComissaoInfo {
   preco_cartao_fora_horario: number | null
 }
 
-function isEspecial(hora: string, totalMin: number, data: string, feriadoDatas?: string[], horarioFim?: string): boolean {
-  return isHorarioEspecialLib(hora, totalMin, data, feriadoDatas, horarioFim)
+function isEspecial(hora: string, totalMin: number, data: string, feriadoDatas?: string[], horarioFim?: string, horarioInicio?: string): boolean {
+  return isHorarioEspecialLib(hora, totalMin, data, feriadoDatas, horarioFim, horarioInicio)
 }
 
 interface Agendamento {
@@ -248,8 +248,9 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
   const [fase,        setFase]        = useState<'form' | 'confirmar'>('form')
   const [enviarLink,  setEnviarLink]  = useState(true)
   const [enviandoLink, setEnviandoLink] = useState(false)
-  const [feriadoDatas, setFeriadoDatas] = useState<string[]>([])
-  const [horarioFim,   setHorarioFim]   = useState('17:00')
+  const [feriadoDatas,  setFeriadoDatas]  = useState<string[]>([])
+  const [horarioFim,    setHorarioFim]    = useState('17:00')
+  const [horarioInicio, setHorarioInicio] = useState('08:00')
 
   const INPUT = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8a6e36] bg-white'
 
@@ -263,10 +264,11 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
   useEffect(() => {
     Promise.all([
       fetch('/api/feriados').then(r => r.ok ? r.json() : []),
-      fetch('/api/feriados/horario').then(r => r.ok ? r.json() : { horario_fim: '17:00' }),
+      fetch('/api/feriados/horario').then(r => r.ok ? r.json() : { horario_fim: '17:00', horario_inicio: '08:00' }),
     ]).then(([feriados, horario]) => {
       setFeriadoDatas((feriados as { data: string }[]).map((f: { data: string }) => f.data))
       setHorarioFim(horario.horario_fim ?? '17:00')
+      setHorarioInicio(horario.horario_inicio ?? '08:00')
     })
   }, [])
 
@@ -290,7 +292,7 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
     const duracaoAdd   = adicionados.reduce((s, ex) => s + (comMap.get(ex.tipo_exame)?.duracao_minutos ?? ex.duracao_minutos ?? 0), 0)
     const duracaoRem   = removidos.reduce((s, ex) => s + (ex.duracao_minutos ?? comMap.get(ex.tipo_exame)?.duracao_minutos ?? 0), 0)
     const duracaoAtiva = (ag.duracao_minutos ?? 0) + duracaoAdd - duracaoRem
-    const especial     = ag.encaixe ? false : isEspecial(hora, duracaoAtiva, data, feriadoDatas, horarioFim)
+    const especial     = ag.encaixe ? false : isEspecial(hora, duracaoAtiva, data, feriadoDatas, horarioFim, horarioInicio)
     const bioRows  = ag.agendamento_bioquimica ?? []
 
     const calc = exames.reduce((sum, ex) => {
@@ -328,7 +330,7 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
     const isPix      = pagResp === 'clinica' || !formaPag.includes('cartao')
     // Usa ag.duracao_minutos como base + duração do novo exame — evita depender de null no banco
     const duracaoAtiva = (ag.duracao_minutos ?? 0) + (info.duracao_minutos ?? 0)
-    const esp          = ag.encaixe ? false : isEspecial(hora, duracaoAtiva, data, feriadoDatas, horarioFim)
+    const esp          = ag.encaixe ? false : isEspecial(hora, duracaoAtiva, data, feriadoDatas, horarioFim, horarioInicio)
     const pixNorm      = info.preco_pix_comercial    ?? info.preco_exame ?? 0
     const carNorm      = info.preco_cartao_comercial ?? info.preco_exame ?? 0
     let valor: number
@@ -364,7 +366,7 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
       const duracaoAddS  = adicionadosS.reduce((s, ex) => s + (cMap.get(ex.tipo_exame)?.duracao_minutos ?? ex.duracao_minutos ?? 0), 0)
       const duracaoRemS  = removidosS.reduce((s, ex) => s + (ex.duracao_minutos ?? cMap.get(ex.tipo_exame)?.duracao_minutos ?? 0), 0)
       const duracaoAtiva = (ag.duracao_minutos ?? 0) + duracaoAddS - duracaoRemS
-      const esp          = ag.encaixe ? false : isEspecial(hora, duracaoAtiva, data, feriadoDatas, horarioFim)
+      const esp          = ag.encaixe ? false : isEspecial(hora, duracaoAtiva, data, feriadoDatas, horarioFim, horarioInicio)
       const bios   = ag.agendamento_bioquimica ?? []
       const examesCalc: AgExame[] = exsAg.map(ex => {
         if (ex.tipo_exame === 'Bioquímica') {

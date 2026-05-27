@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { ESPECIES } from '@/lib/especies'
-import { isHorarioEspecial as isHorarioEspecialLib } from '@/lib/feriados'
+import { isHorarioEspecial as isHorarioEspecialLib, motivoHorarioEspecial } from '@/lib/feriados'
 
 // ─── Interfaces ────────────────────────────────────────────────────────────────
 
@@ -44,8 +44,8 @@ function brl(n: number) {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
-function isHorarioEspecial(hora: string, totalDuracao: number, data?: string, feriadoDatas?: string[], horarioFim?: string): boolean {
-  return isHorarioEspecialLib(hora, totalDuracao, data, feriadoDatas, horarioFim)
+function isHorarioEspecial(hora: string, totalDuracao: number, data?: string, feriadoDatas?: string[], horarioFim?: string, horarioInicio?: string): boolean {
+  return isHorarioEspecialLib(hora, totalDuracao, data, feriadoDatas, horarioFim, horarioInicio)
 }
 
 function formatCPFInput(v: string): string {
@@ -226,6 +226,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
   const [encaixe,         setEncaixe]         = useState(false)
   const [feriadoDatas,    setFeriadoDatas]    = useState<string[]>([])
   const [horarioFim,      setHorarioFim]      = useState('17:00')
+  const [horarioInicio,   setHorarioInicio]   = useState('08:00')
 
   // Geral
   const [enviando,  setEnviando]  = useState(false)
@@ -239,7 +240,8 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
   const temBioquimica    = examesSelecionados.some(e => e.tipo_exame === 'Bioquímica')
   const totalDuracao     = examesSelecionados.reduce((s, e) => s + e.duracao_minutos, 0)
                          + (acrescimoExame ? estudosAdicionaisQtd * acrescimoExame.duracao_minutos : 0)
-  const especial         = isHorarioEspecial(horaSelecionada, totalDuracao, data, feriadoDatas, horarioFim)
+  const especial         = isHorarioEspecial(horaSelecionada, totalDuracao, data, feriadoDatas, horarioFim, horarioInicio)
+  const motivoEspecial   = especial && data ? motivoHorarioEspecial(horaSelecionada, totalDuracao, data, feriadoDatas, horarioFim, horarioInicio) : null
   const vetNome          = vets.find(v => String(v.id) === vetId)?.nome ?? null
   const dataFmt          = data ? new Date(`${data}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' }) : ''
   const totalBioquimica  = bioquimicaSelecionados.reduce((s, id) => {
@@ -265,10 +267,11 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
   useEffect(() => {
     Promise.all([
       fetch('/api/feriados').then(r => r.ok ? r.json() : []),
-      fetch('/api/feriados/horario').then(r => r.ok ? r.json() : { horario_fim: '17:00' }),
+      fetch('/api/feriados/horario').then(r => r.ok ? r.json() : { horario_fim: '17:00', horario_inicio: '08:00' }),
     ]).then(([feriados, horario]) => {
       setFeriadoDatas((feriados as { data: string }[]).map(f => f.data))
       setHorarioFim(horario.horario_fim ?? '17:00')
+      setHorarioInicio(horario.horario_inicio ?? '08:00')
     })
   }, [])
 
@@ -1004,9 +1007,10 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
           <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 space-y-1">
             <p className="text-sm font-semibold text-amber-800">⚠️ Horário especial</p>
             <p className="text-xs text-amber-700">
-              {data && (new Date(`${data}T12:00:00`).getDay() === 0 || new Date(`${data}T12:00:00`).getDay() === 6)
-                ? 'Atendimento em fim de semana — tarifa diferenciada aplicada.'
-                : 'Término do atendimento após 17h — tarifa diferenciada aplicada.'}
+              {motivoEspecial === 'feriado'     && 'Feriado — tarifa diferenciada aplicada.'}
+              {motivoEspecial === 'fimdesemana' && 'Fim de semana — tarifa diferenciada aplicada.'}
+              {motivoEspecial === 'antes'       && `Início antes das ${horarioInicio} — tarifa diferenciada aplicada.`}
+              {motivoEspecial === 'depois'      && `Término após ${horarioFim} — tarifa diferenciada aplicada.`}
             </p>
             {totalValor > 0 && (
               <p className="text-sm font-semibold text-amber-900 pt-0.5">
