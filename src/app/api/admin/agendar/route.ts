@@ -132,11 +132,12 @@ export async function POST(request: NextRequest) {
   const valorTotal      = examesArr.reduce((s, e) => s + (e.valor ?? 0), 0)
   const totalDuracaoMin = examesArr.reduce((s, e) => s + e.duracao_minutos, 0)
 
-  const pagResp        = pagamento_responsavel ?? 'tutor'
-  const entrega        = entrega_pagamento ?? 'link'
-  const pagarClinica   = pagResp === 'clinica' || forma_pagamento === 'pix_presencial'
-  const pagarPresencial = !pagarClinica && entrega === 'presencial'
-  const statusPag      = pagarClinica || pagarPresencial ? 'a_receber' : 'pendente'
+  const pagResp         = pagamento_responsavel ?? 'tutor'
+  const entrega         = entrega_pagamento ?? 'link'
+  const pagarGratuito   = (forma_pagamento ?? '').toLowerCase() === 'gratuito'
+  const pagarClinica    = !pagarGratuito && (pagResp === 'clinica' || forma_pagamento === 'pix_presencial')
+  const pagarPresencial = !pagarGratuito && !pagarClinica && entrega === 'presencial'
+  const statusPag       = pagarGratuito ? 'pago' : (pagarClinica || pagarPresencial ? 'a_receber' : 'pendente')
 
   const { data: agendamento, error: errAg } = await supabase
     .from('agendamentos')
@@ -182,7 +183,24 @@ export async function POST(request: NextRequest) {
   if (sedacao_necessaria) avisos.push(`⚠️ *Sedação:* cobrada diretamente pela clínica, não inclusa no valor acima.`)
   if (pet_internado)      avisos.push(`🏥 *Internação:* cobrada diretamente pela clínica, não inclusa no valor acima.`)
 
-  if (pagarClinica) {
+  if (pagarGratuito) {
+    if (deveNotificar) {
+      const msgTutor = [
+        `✅ Seu agendamento foi confirmado!`,
+        ``,
+        `🐾 Pet: ${petNomeFinal}`,
+        `  💉 ${tipoExameLabel}`,
+        isEncaixe ? `📅 ${dataFmt} (horário a confirmar)` : `📅 ${dataFmtData} das ${horaInicio} às ${horaFim}`,
+        ``,
+        `Este atendimento é *cortesia* — não é necessário nenhum pagamento. 🎁`,
+        ...(avisos.length > 0 ? [``, ...avisos] : []),
+        ``,
+        `Dúvidas? É só chamar! 🐾`,
+      ].join('\n')
+      await sendWhatsAppText(telNorm, msgTutor)
+    }
+
+  } else if (pagarClinica) {
     if (deveNotificar) {
       const msgTutor = [
         `✅ Seu agendamento foi confirmado!`,

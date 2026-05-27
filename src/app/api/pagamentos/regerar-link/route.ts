@@ -53,6 +53,9 @@ export async function POST(request: NextRequest) {
     .single()
 
   if (!ag) return NextResponse.json({ error: 'Agendamento não encontrado.' }, { status: 404 })
+  if ((ag.forma_pagamento ?? '').toLowerCase() === 'gratuito') {
+    return NextResponse.json({ error: 'Agendamento gratuito não requer link de pagamento.' }, { status: 400 })
+  }
 
   const tutor = Array.isArray(ag.tutores)
     ? ag.tutores[0] as { nome: string | null; telefone: string } | null

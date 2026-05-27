@@ -39,8 +39,6 @@ export async function PATCH(
     if (exist) return NextResponse.json({ error: 'Este WhatsApp já está em uso por outro veterinário.' }, { status: 409 })
   }
 
-  updates.atualizado_em = new Date().toISOString()
-
   const { data, error } = await supabase
     .from('veterinarios')
     .update(updates)
