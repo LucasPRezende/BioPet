@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
 
   const { data: laudos, error: laudosError } = await supabase
     .from('laudos')
-    .select('id, tipo_exame, criado_em, system_user_id, preco_exame, custo_exame, valor_comissao')
+    .select('id, tipo_exame, criado_em, system_user_id, preco_exame, custo_exame, valor_comissao, agendamento_id')
     .gte('criado_em', `${inicio}T00:00:00`)
     .lte('criado_em', `${fim}T23:59:59`)
     .order('criado_em', { ascending: true })
@@ -89,12 +89,15 @@ export async function GET(request: NextRequest) {
 
   // Por usuário do sistema
   const porVetMap: Record<number, {
-    nome: string
-    recebe_comissao: boolean
-    quantidade: number
-    receita: number
-    comissao: number
-    lucro: number
+    user_id:               number
+    nome:                  string
+    recebe_comissao:       boolean
+    quantidade:            number
+    laudos_vinculados:     number
+    laudos_sem_agendamento: number
+    receita:               number
+    comissao:              number
+    lucro:                 number
   }> = {}
   for (const l of laudos ?? []) {
     if (!l.system_user_id) continue
@@ -102,19 +105,23 @@ export async function GET(request: NextRequest) {
     const info = userMap[uid]
     if (!porVetMap[uid]) {
       porVetMap[uid] = {
-        nome:            info?.nome            ?? `Usuário #${uid}`,
-        recebe_comissao: info?.recebe_comissao ?? true,
-        quantidade: 0,
-        receita:    0,
-        comissao:   0,
-        lucro:      0,
+        user_id:               uid,
+        nome:                  info?.nome            ?? `Usuário #${uid}`,
+        recebe_comissao:       info?.recebe_comissao ?? true,
+        quantidade:            0,
+        laudos_vinculados:     0,
+        laudos_sem_agendamento: 0,
+        receita:               0,
+        comissao:              0,
+        lucro:                 0,
       }
     }
     const preco = Number(l.preco_exame    ?? 0)
     const cus   = Number(l.custo_exame    ?? 0)
-    // Comissão só é computada se o usuário recebe comissão
     const com   = porVetMap[uid].recebe_comissao ? Number(l.valor_comissao ?? 0) : 0
     porVetMap[uid].quantidade++
+    if (l.agendamento_id) porVetMap[uid].laudos_vinculados++
+    else                  porVetMap[uid].laudos_sem_agendamento++
     porVetMap[uid].receita  += preco
     porVetMap[uid].comissao += com
     porVetMap[uid].lucro    += preco - cus - com

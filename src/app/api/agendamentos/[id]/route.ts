@@ -41,7 +41,7 @@ export async function PATCH(
     data_hora, entrega_pagamento, pagamento_responsavel,
     sedacao_necessaria, pet_internado, veterinario_id,
     status_pagamento, agendamento_exames_update,
-    exames_remover, exames_adicionar,
+    exames_remover, exames_adicionar, laudo_dispensado,
   } = body ?? {}
 
   const STATUSES = ['pendente', 'agendado', 'em atendimento', 'concluído', 'cancelado']
@@ -61,6 +61,7 @@ export async function PATCH(
   if (pet_internado        !== undefined) update.pet_internado        = pet_internado
   if (veterinario_id       !== undefined) update.veterinario_id       = veterinario_id === '' ? null : Number(veterinario_id)
   if (status_pagamento     !== undefined) update.status_pagamento     = status_pagamento
+  if (laudo_dispensado     !== undefined) update.laudo_dispensado     = laudo_dispensado
 
   const hasExameChanges =
     (Array.isArray(exames_remover)  && exames_remover.length  > 0) ||

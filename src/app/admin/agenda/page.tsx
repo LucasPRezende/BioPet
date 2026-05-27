@@ -57,6 +57,7 @@ interface Agendamento {
   veterinario_id:        number | null
   clinica_id:            number | null
   is_revisao:            boolean | null
+  laudo_dispensado:      boolean | null
   tutores:               Tutor | null
   pets:                  Pet | null
   system_users:          { nome: string } | null
@@ -233,7 +234,8 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
   const [sedacao,      setSedacao]      = useState(ag.sedacao_necessaria ?? false)
   const [internado,    setInternado]    = useState(ag.pet_internado ?? false)
   const [vetId,        setVetId]        = useState(String(ag.veterinario_id ?? ''))
-  const [obs,          setObs]          = useState(ag.observacoes ?? '')
+  const [obs,              setObs]              = useState(ag.observacoes ?? '')
+  const [laudoDispensado,  setLaudoDispensado]  = useState(ag.laudo_dispensado ?? false)
   const [examesAtivos,       setExamesAtivos]       = useState<AgExame[]>(ag.agendamento_exames ?? [])
   const [exameParaAdicionar, setExameParaAdicionar] = useState('')
   const [vets,      setVets]      = useState<{ id: number; nome: string }[]>([])
@@ -411,6 +413,7 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
       ...(examesAtualizados && { agendamento_exames_update: examesAtualizados }),
       ...(examesRemovidosTipos.length > 0 && { exames_remover: examesRemovidosTipos }),
       ...(examesAdicionarPayload.length > 0 && { exames_adicionar: examesAdicionarPayload }),
+      laudo_dispensado: laudoDispensado,
     }
     const res = await fetch(`/api/agendamentos/${ag.id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
@@ -432,6 +435,7 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
     onSaved({
       ...body,
       data_hora:          dataHora,
+      laudo_dispensado:   laudoDispensado,
       agendamento_exames: examesAtualizados ?? examesAtivos,
     })
     onClose()
@@ -635,6 +639,11 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
                 <SimNaoBtn value={internado} onChange={setInternado} />
               </div>
             </div>
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input type="checkbox" checked={laudoDispensado} onChange={e => setLaudoDispensado(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-[#8a6e36] focus:ring-[#8a6e36]" />
+              <span className="text-sm text-gray-600">Laudo dispensado <span className="text-gray-400 text-xs">(gratuito ou emissão não solicitada)</span></span>
+            </label>
             <div>
               <label className="block text-xs font-semibold text-gray-500 mb-1">Observações</label>
               <textarea value={obs} onChange={e => setObs(e.target.value)} rows={2}
