@@ -87,8 +87,11 @@ async function drawHeaderFooterOnAllPages(bodyPdfBuffer: Buffer): Promise<Buffer
 
   // Carrega assets
   const logoPath  = path.join(process.cwd(), 'template', 'assets', 'logo-full.png')
-  const logoBytes = fs.readFileSync(logoPath)
-  const logo      = await pdfDoc.embedPng(logoBytes)
+  let logo: Awaited<ReturnType<typeof pdfDoc.embedPng>> | null = null
+  try {
+    const logoBytes = fs.readFileSync(logoPath)
+    logo = await pdfDoc.embedPng(logoBytes)
+  } catch { /* logo ausente — header fica sem imagem */ }
 
   const helvetica       = await pdfDoc.embedFont(StandardFonts.Helvetica)
   const helveticaItalic = await pdfDoc.embedFont(StandardFonts.HelveticaOblique)
@@ -104,17 +107,19 @@ async function drawHeaderFooterOnAllPages(bodyPdfBuffer: Buffer): Promise<Buffer
     })
 
     // Logo centralizada — escala para caber respeitando padding vertical
-    const logoMaxH = HEADER_H_PT * 0.78
-    const logoMaxW = width * 0.5
-    const scale    = Math.min(logoMaxH / logo.height, logoMaxW / logo.width)
-    const lw       = logo.width  * scale
-    const lh       = logo.height * scale
-    page.drawImage(logo, {
-      x: (width - lw) / 2,
-      y: height - HEADER_H_PT + (HEADER_H_PT - lh) / 2,
-      width:  lw,
-      height: lh,
-    })
+    if (logo) {
+      const logoMaxH = HEADER_H_PT * 0.78
+      const logoMaxW = width * 0.5
+      const scale    = Math.min(logoMaxH / logo.height, logoMaxW / logo.width)
+      const lw       = logo.width  * scale
+      const lh       = logo.height * scale
+      page.drawImage(logo, {
+        x: (width - lw) / 2,
+        y: height - HEADER_H_PT + (HEADER_H_PT - lh) / 2,
+        width:  lw,
+        height: lh,
+      })
+    }
 
     // Faixa dourada de 3pt logo abaixo do header
     page.drawRectangle({
