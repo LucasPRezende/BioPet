@@ -16,8 +16,9 @@ interface BioquimicaSubExame {
 }
 
 interface AgExame {
-  tipo_exame: string
-  valor:      number | null
+  tipo_exame:      string
+  valor:           number | null
+  duracao_minutos?: number | null
 }
 
 interface ComissaoInfo {
@@ -263,7 +264,7 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
 
     const isPix        = pagResp === 'clinica' || !formaPag.includes('cartao')
     const comMap       = new Map(comissoes.map(c => [c.tipo_exame, c]))
-    const duracaoAtiva = exames.reduce((s, ex) => s + (comMap.get(ex.tipo_exame)?.duracao_minutos ?? 0), 0)
+    const duracaoAtiva = exames.reduce((s, ex) => s + (ex.duracao_minutos ?? comMap.get(ex.tipo_exame)?.duracao_minutos ?? 0), 0)
     const especial     = ag.encaixe ? false : isEspecial(hora, duracaoAtiva, data)
     const bioRows  = ag.agendamento_bioquimica ?? []
 
@@ -300,8 +301,8 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
     if (!info) return
     const isPix        = pagResp === 'clinica' || !formaPag.includes('cartao')
     const cMap         = new Map(comissoes.map(c => [c.tipo_exame, c]))
-    const newAtivos    = [...examesAtivos, { tipo_exame: exameParaAdicionar, valor: null as number | null }]
-    const duracaoAtiva = newAtivos.reduce((s, ex) => s + (cMap.get(ex.tipo_exame)?.duracao_minutos ?? 0), 0)
+    const newAtivos    = [...examesAtivos, { tipo_exame: exameParaAdicionar, valor: null as number | null, duracao_minutos: info.duracao_minutos ?? null }]
+    const duracaoAtiva = newAtivos.reduce((s, ex) => s + (ex.duracao_minutos ?? cMap.get(ex.tipo_exame)?.duracao_minutos ?? 0), 0)
     const esp          = ag.encaixe ? false : isEspecial(hora, duracaoAtiva, data)
     const pixNorm      = info.preco_pix_comercial    ?? info.preco_exame ?? 0
     const carNorm      = info.preco_cartao_comercial ?? info.preco_exame ?? 0
@@ -313,7 +314,7 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
     } else {
       valor = isPix ? pixNorm : carNorm
     }
-    setExamesAtivos(prev => [...prev, { tipo_exame: exameParaAdicionar, valor }])
+    setExamesAtivos(prev => [...prev, { tipo_exame: exameParaAdicionar, valor, duracao_minutos: info.duracao_minutos ?? null }])
     setExameParaAdicionar('')
   }
 
@@ -331,7 +332,7 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
     } else if (comissoes.length > 0 && exsAg.length > 0) {
       const isPix        = pagResp === 'clinica' || !formaPag.includes('cartao')
       const cMap         = new Map(comissoes.map(c => [c.tipo_exame, c]))
-      const duracaoAtiva = exsAg.reduce((s, ex) => s + (cMap.get(ex.tipo_exame)?.duracao_minutos ?? 0), 0)
+      const duracaoAtiva = exsAg.reduce((s, ex) => s + (ex.duracao_minutos ?? cMap.get(ex.tipo_exame)?.duracao_minutos ?? 0), 0)
       const esp          = ag.encaixe ? false : isEspecial(hora, duracaoAtiva, data)
       const bios   = ag.agendamento_bioquimica ?? []
       const examesCalc: AgExame[] = exsAg.map(ex => {
