@@ -287,8 +287,8 @@ function ClinicaModal({ clinica, onClose, onRepasseConfirmado }: {
   const [saving, setSaving]     = useState(false)
   const [error, setError]       = useState('')
 
-  const pendentes  = clinica.agendamentos.filter(ag => !ag.repasse_confirmado && (ag.pagamento_responsavel === 'clinica' || ag.status_pagamento === 'a_receber'))
-  const diretos    = clinica.agendamentos.filter(ag => !ag.repasse_confirmado && ag.pagamento_responsavel !== 'clinica' && ag.status_pagamento !== 'a_receber')
+  const pendentes  = clinica.agendamentos.filter(ag => !ag.repasse_confirmado && ag.pagamento_responsavel === 'clinica')
+  const diretos    = clinica.agendamentos.filter(ag => !ag.repasse_confirmado && ag.pagamento_responsavel !== 'clinica')
   const confirmados = clinica.agendamentos.filter(ag => ag.repasse_confirmado)
 
   const PAG_LABELS: Record<string, string> = {
