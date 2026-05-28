@@ -14,6 +14,8 @@ interface Laudo {
   tipo: string
   tipo_exame: string | null
   criado_em: string
+  agendamento_id: number | null
+  agendamento_dispensado: boolean
   veterinarios: { nome: string } | null
   system_users: { nome: string } | null
 }
@@ -30,7 +32,9 @@ export default function LaudosPage() {
   const [isAdmin,  setIsAdmin]  = useState(false)
   const [copied,   setCopied]   = useState<number | null>(null)
   const [waStatus, setWaStatus] = useState<Record<number, WaStatus>>({})
-  const [waModal,  setWaModal]  = useState<Laudo | null>(null)
+  const [waModal,      setWaModal]      = useState<Laudo | null>(null)
+  const [dispensando,  setDispensando]  = useState<number | null>(null)
+  const [dispensados,  setDispensados]  = useState<Set<number>>(new Set())
 
   // Filtros
   const [busca,   setBusca]   = useState('')
@@ -80,6 +84,16 @@ export default function LaudosPage() {
     navigator.clipboard.writeText(`${window.location.origin}/laudo/${laudo.token}`)
     setCopied(laudo.id)
     setTimeout(() => setCopied(null), 2500)
+  }
+
+  async function dispensarLaudo(laudo: Laudo) {
+    setDispensando(laudo.id)
+    try {
+      const res = await fetch(`/api/laudos/${laudo.id}/dispensar`, { method: 'PATCH' })
+      if (res.ok) setDispensados(s => new Set(s).add(laudo.id))
+    } finally {
+      setDispensando(null)
+    }
   }
 
   async function sendWhatsApp(laudo: Laudo, destino: Destino) {
@@ -244,6 +258,20 @@ export default function LaudosPage() {
                             : waStatus[laudo.id] === 'error' ? '!'
                             : 'WA'}
                         </button>
+                        {isAdmin && laudo.agendamento_id === null && !laudo.agendamento_dispensado && !dispensados.has(laudo.id) && (
+                          <button
+                            onClick={() => dispensarLaudo(laudo)}
+                            disabled={dispensando === laudo.id}
+                            title="Marcar como sem agendamento justificado — remove do alerta do dashboard"
+                            className="text-xs px-2.5 py-1.5 rounded-lg font-medium transition whitespace-nowrap bg-orange-50 text-orange-600 border border-orange-200 hover:bg-orange-100 disabled:opacity-50">
+                            {dispensando === laudo.id ? '...' : 'Dispensar'}
+                          </button>
+                        )}
+                        {isAdmin && (laudo.agendamento_dispensado || dispensados.has(laudo.id)) && laudo.agendamento_id === null && (
+                          <span className="text-xs px-2.5 py-1.5 rounded-lg text-gray-400 border border-gray-100 whitespace-nowrap">
+                            Dispensado
+                          </span>
+                        )}
                       </div>
                     </td>
                   </tr>

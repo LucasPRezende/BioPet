@@ -288,8 +288,8 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
         tipo_exame:            c.tipo_exame,
         duracao_minutos:       c.duracao_minutos ?? 30,
         varia_por_horario:     c.varia_por_horario,
-        valor_pix:             c.preco_pix_comercial    ?? c.preco_exame ?? null,
-        valor_cartao:          c.preco_cartao_comercial ?? c.preco_exame ?? null,
+        valor_pix:             c.varia_por_horario ? (c.preco_pix_comercial    ?? c.preco_exame ?? null) : (c.preco_exame ?? null),
+        valor_cartao:          c.varia_por_horario ? (c.preco_cartao_comercial ?? c.preco_exame ?? null) : (c.preco_cartao_comercial ?? c.preco_exame ?? null),
         valor_especial_pix:    c.preco_pix_fora_horario    ?? null,
         valor_especial_cartao: c.preco_cartao_fora_horario ?? null,
       }))))

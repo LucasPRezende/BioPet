@@ -30,11 +30,12 @@ export async function GET(request: NextRequest) {
   const cutoff    = subtract2BusinessDays(hoje, feriadoSet)
   const cutoffStr = cutoff.toISOString().slice(0, 10)
 
-  // 1) Laudos sem agendamento vinculado
+  // 1) Laudos sem agendamento vinculado (exceto os marcados como dispensados)
   const { count: laudosSemAg } = await supabase
     .from('laudos')
     .select('id', { count: 'exact', head: true })
     .is('agendamento_id', null)
+    .is('agendamento_dispensado', false)
 
   // 2) Agendamentos concluídos/em atendimento há mais de 2 dias úteis sem laudo
   const { data: agsCandidatos } = await supabase
