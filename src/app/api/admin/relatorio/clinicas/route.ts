@@ -63,11 +63,13 @@ export async function GET(request: NextRequest) {
     map[cid].total++
     map[cid].total_valor += valor
 
-    if (ag.status_pagamento === 'a_receber')    map[cid].a_receber   += valor
-    if (ag.status_pagamento === 'pago_clinica') map[cid].recebido    += valor
-    if (ag.status_pagamento === 'pendente')     map[cid].pendente_mp += valor
+    const isRepasseClinica = ag.pagamento_responsavel === 'clinica'
 
-    if (ag.status_pagamento === 'a_receber' && !ag.repasse_confirmado) {
+    if (isRepasseClinica && ag.status_pagamento === 'a_receber')    map[cid].a_receber   += valor
+    if (ag.status_pagamento === 'pago_clinica')                      map[cid].recebido    += valor
+    if (isRepasseClinica && ag.status_pagamento === 'pendente')      map[cid].pendente_mp += valor
+
+    if (isRepasseClinica && ag.status_pagamento === 'a_receber' && !ag.repasse_confirmado) {
       map[cid].repasse_pendente += valor
     }
 
