@@ -719,7 +719,7 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
   useEffect(() => { setStatus(ag.status) }, [ag.status])
 
   const statusPag    = ag.status_pagamento
-  const isClinica    = ag.pagamento_responsavel === 'clinica' || statusPag === 'pago_clinica' || ag.clinica_id != null
+  const isClinica    = ag.pagamento_responsavel === 'clinica' || statusPag === 'pago_clinica'
   const isPix        = isClinica || !ag.forma_pagamento?.includes('cartao')
   const exames       = ag.agendamento_exames ?? []
   const bioRows      = ag.agendamento_bioquimica ?? []
