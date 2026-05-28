@@ -27,9 +27,14 @@ export async function POST(
     return NextResponse.json({ error: 'Pagamento já confirmado ou não aplicável.' }, { status: 400 })
   }
 
-  const novoStatus = (ag.pagamento_responsavel === 'clinica' || ag.clinica_id != null) ? 'pago_clinica' : 'pago'
+  const isRepasseClinica = ag.pagamento_responsavel === 'clinica'
+  const novoStatus = isRepasseClinica ? 'pago_clinica' : 'pago'
 
-  const updatePayload: Record<string, unknown> = { status_pagamento: novoStatus }
+  const now = new Date().toISOString()
+  const updatePayload: Record<string, unknown> = {
+    status_pagamento: novoStatus,
+    ...(isRepasseClinica ? { repasse_confirmado: true, repasse_em: now } : {}),
+  }
 
   // Expira preferência MP para que o link de cartão pare de funcionar
   if (ag.mp_preference_id) {
