@@ -593,7 +593,11 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
               </div>
               <div className="flex-1">
                 <label className="block text-xs font-semibold text-gray-500 mb-1">Entrega</label>
-                <select value={entrega} onChange={e => setEntrega(e.target.value)} className={INPUT}>
+                <select value={entrega} onChange={e => {
+                  const v = e.target.value
+                  setEntrega(v)
+                  if (v === 'presencial') { userChangedRef.current = true; setPagResp('tutor') }
+                }} className={INPUT} disabled={pagResp === 'clinica'}>
                   <option value="link">Por link</option>
                   <option value="presencial">Presencial</option>
                 </select>
@@ -601,7 +605,12 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-500 mb-1">Pagamento responsável</label>
-              <select value={pagResp} onChange={e => { userChangedRef.current = true; setPagResp(e.target.value) }} className={INPUT}>
+              <select value={pagResp} onChange={e => {
+                const v = e.target.value
+                userChangedRef.current = true
+                setPagResp(v)
+                if (v === 'clinica') setEntrega('link')
+              }} className={INPUT}>
                 <option value="tutor">Tutor</option>
                 <option value="clinica">Clínica</option>
               </select>
