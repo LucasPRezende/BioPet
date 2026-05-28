@@ -41,13 +41,13 @@ export async function GET(request: NextRequest) {
 
   // A receber por origem
   const aReceberTutorPresencial = sum(aReceberList.filter(r =>
-    r.clinica_id == null && r.pagamento_responsavel !== 'clinica' && r.entrega_pagamento === 'presencial'
+    r.pagamento_responsavel !== 'clinica' && r.entrega_pagamento === 'presencial'
   ))
   const aReceberTutorLink = sum(aReceberList.filter(r =>
-    r.clinica_id == null && r.pagamento_responsavel !== 'clinica' && (r.entrega_pagamento === 'link' || r.status_pagamento === 'pendente')
+    r.pagamento_responsavel !== 'clinica' && (r.entrega_pagamento === 'link' || r.status_pagamento === 'pendente')
   ))
   const aReceberClinica = sum(aReceberList.filter(r =>
-    r.clinica_id != null || r.pagamento_responsavel === 'clinica'
+    r.pagamento_responsavel === 'clinica'
   ))
 
   // Agendamentos por dia (para gráfico)
