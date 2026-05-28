@@ -43,7 +43,7 @@ export async function GET() {
       tipo_exame:           tipo,
       duracao_minutos:      c?.duracao_minutos          ?? 30,
       varia_por_horario:    varia,
-      valor_pix:            varia ? (c?.preco_pix_comercial    ?? null) : (c?.preco_pix_comercial    ?? c?.preco_exame ?? null),
+      valor_pix:            varia ? (c?.preco_pix_comercial    ?? null) : (c?.preco_exame ?? null),
       valor_cartao:         varia ? (c?.preco_cartao_comercial ?? null) : (c?.preco_cartao_comercial ?? c?.preco_exame ?? null),
       valor_especial_pix:   varia ? (c?.preco_pix_fora_horario    ?? null) : null,
       valor_especial_cartao:varia ? (c?.preco_cartao_fora_horario ?? null) : null,

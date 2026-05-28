@@ -303,7 +303,7 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
       }
       const info = comMap.get(ex.tipo_exame)
       if (!info) return sum
-      const pixNormal    = info.preco_pix_comercial    ?? info.preco_exame ?? 0
+      const pixNormal    = info.varia_por_horario ? (info.preco_pix_comercial ?? info.preco_exame ?? 0) : (info.preco_exame ?? 0)
       const cartaoNormal = info.preco_cartao_comercial ?? info.preco_exame ?? 0
       if (!info.varia_por_horario) {
         return sum + (isPix ? pixNormal : cartaoNormal)
@@ -333,7 +333,7 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
     // Usa ag.duracao_minutos como base + duração do novo exame — evita depender de null no banco
     const duracaoAtiva = (ag.duracao_minutos ?? 0) + (info.duracao_minutos ?? 0)
     const esp          = ag.encaixe ? false : isEspecial(hora, duracaoAtiva, data, feriadoDatas, horarioFim, horarioInicio)
-    const pixNorm      = info.preco_pix_comercial    ?? info.preco_exame ?? 0
+    const pixNorm      = info.varia_por_horario ? (info.preco_pix_comercial ?? info.preco_exame ?? 0) : (info.preco_exame ?? 0)
     const carNorm      = info.preco_cartao_comercial ?? info.preco_exame ?? 0
     let valor: number
     if (!info.varia_por_horario) {
@@ -377,7 +377,7 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
         }
         const info = cMap.get(ex.tipo_exame)
         if (!info) return ex
-        const pNorm = info.preco_pix_comercial    ?? info.preco_exame ?? 0
+        const pNorm = info.varia_por_horario ? (info.preco_pix_comercial ?? info.preco_exame ?? 0) : (info.preco_exame ?? 0)
         const cNorm = info.preco_cartao_comercial ?? info.preco_exame ?? 0
         if (!info.varia_por_horario) return { ...ex, valor: isPix ? pNorm : cNorm }
         const pEsp = info.preco_pix_fora_horario    ?? pNorm
