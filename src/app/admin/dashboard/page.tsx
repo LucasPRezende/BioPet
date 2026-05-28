@@ -98,9 +98,8 @@ function formatDate(d: string) {
 }
 
 function formatDateTime(dt: string) {
-  const [date, time] = dt.split('T')
-  const [y, m, d]   = date.split('-')
-  return `${d}/${m}/${y} ${(time ?? '').slice(0, 5)}`
+  const d = new Date(dt)
+  return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
 function getRange(periodo: Periodo, inicio: string, fim: string) {
@@ -485,8 +484,10 @@ export default function DashboardPage() {
     if (resumoRes.status === 401) { router.push('/login'); return }
     if (resumoRes.ok) setResumo(await resumoRes.json())
     if (laudosRes.ok) setLaudoStats(await laudosRes.json())
-    if (clinRes.ok)   setClinicas((await clinRes.json()).clinicas ?? [])
+    let newClinicas: ClinicaRow[] = []
+    if (clinRes.ok) { newClinicas = (await clinRes.json()).clinicas ?? []; setClinicas(newClinicas) }
     if (!silent) setLoading(false)
+    return newClinicas
   }, [inicio, fim, router])
 
   useEffect(() => {
@@ -896,7 +897,13 @@ export default function DashboardPage() {
         <ClinicaModal
           clinica={clinicaModal}
           onClose={() => setClinicaModal(null)}
-          onRepasseConfirmado={() => { fetchStats(true) }}
+          onRepasseConfirmado={async () => {
+            const novas = await fetchStats(true)
+            if (novas && clinicaModal) {
+              const atualizada = novas.find(c => c.clinica_id === clinicaModal.clinica_id)
+              if (atualizada) setClinicaModal(atualizada)
+            }
+          }}
         />
       )}
     </div>
