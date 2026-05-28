@@ -3,6 +3,9 @@ node_modules/
 data/
 uploads/
 .env.local
+.env.*.local
+.env.dev.local
+.env.prd.local
 Fotos/
 Novo Index/
 
