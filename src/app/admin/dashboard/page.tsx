@@ -779,7 +779,7 @@ export default function DashboardPage() {
                       <table className="w-full">
                         <thead>
                           <tr className="border-b">
-                            {['Clínica', 'Exames', 'Total', 'A receber', 'Repasse pendente', 'Recebido', ''].map(h => (
+                            {['Clínica', 'Encaminhados', 'Repasse pendente', 'Recebido', ''].map(h => (
                               <th key={h} className="text-left py-2 px-3 text-xs font-bold text-gray-400 uppercase tracking-wide">{h}</th>
                             ))}
                           </tr>
@@ -789,12 +789,6 @@ export default function DashboardPage() {
                             <tr key={row.clinica_id} className="hover:bg-amber-50/20 transition">
                               <td className="py-3 px-3 font-semibold text-[#19202d] text-sm">{row.clinica_nome}</td>
                               <td className="py-3 px-3 text-gray-600 text-sm">{row.total}</td>
-                              <td className="py-3 px-3 text-gray-700 text-sm font-medium">{formatBRL(row.total_valor)}</td>
-                              <td className="py-3 px-3 text-sm">
-                                {row.a_receber > 0
-                                  ? <span className="font-semibold px-2 py-0.5 rounded-full text-xs bg-indigo-50 text-indigo-700 border border-indigo-200">{formatBRL(row.a_receber)}</span>
-                                  : <span className="text-gray-300 text-xs">—</span>}
-                              </td>
                               <td className="py-3 px-3 text-sm">
                                 {row.repasse_pendente > 0
                                   ? <span className="font-semibold px-2 py-0.5 rounded-full text-xs bg-amber-50 text-amber-700 border border-amber-200">{formatBRL(row.repasse_pendente)}</span>
@@ -817,8 +811,6 @@ export default function DashboardPage() {
                           <tr className="border-t-2 border-gray-200 bg-gray-50">
                             <td className="py-3 px-3 text-xs font-bold text-gray-500 uppercase">Total</td>
                             <td className="py-3 px-3 text-sm font-bold text-gray-700">{clinicas.reduce((s, r) => s + r.total, 0)}</td>
-                            <td className="py-3 px-3 text-sm font-bold text-gray-700">{formatBRL(clinicas.reduce((s, r) => s + r.total_valor, 0))}</td>
-                            <td className="py-3 px-3 text-sm font-bold text-indigo-700">{formatBRL(clinicas.reduce((s, r) => s + r.a_receber, 0))}</td>
                             <td className="py-3 px-3 text-sm font-bold text-amber-700">{formatBRL(clinicas.reduce((s, r) => s + r.repasse_pendente, 0))}</td>
                             <td className="py-3 px-3 text-sm font-bold text-blue-700">{formatBRL(clinicas.reduce((s, r) => s + r.recebido, 0))}</td>
                             <td />
