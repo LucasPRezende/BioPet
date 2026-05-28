@@ -11,7 +11,6 @@ export async function GET(
 
   const session = await parseSystemSession(cookie)
   if (!session) return NextResponse.json({ error: 'Sessão inválida.' }, { status: 401 })
-  if (session.role !== 'admin') return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 })
 
   const { data, error } = await supabase
     .from('agendamentos')
