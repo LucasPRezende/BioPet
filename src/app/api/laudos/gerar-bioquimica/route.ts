@@ -9,11 +9,11 @@ const BUCKET = 'laudos'
 async function getComissao() {
   const { data } = await supabase
     .from('comissoes_exame')
-    .select('preco_exame, custo_exame, valor_comissao')
+    .select('preco_pix_comercial, custo_exame, valor_comissao')
     .eq('tipo_exame', 'Bioquímica')
     .single()
   return {
-    preco_exame:    data?.preco_exame    ?? null,
+    preco_exame:    data?.preco_pix_comercial ?? null,
     custo_exame:    data?.custo_exame    ?? null,
     valor_comissao: data?.valor_comissao ?? null,
   }

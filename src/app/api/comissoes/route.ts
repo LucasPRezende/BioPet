@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
   const adminSession = await requireAdmin(request)
   if (!adminSession) return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 })
 
-  let body: { tipo_exame?: string; preco_exame?: number; custo_exame?: number; valor_comissao?: number }
+  let body: { tipo_exame?: string; custo_exame?: number; valor_comissao?: number }
   try {
     body = await request.json()
   } catch {
@@ -46,7 +46,6 @@ export async function POST(request: NextRequest) {
     .from('comissoes_exame')
     .insert({
       tipo_exame:     tipo,
-      preco_exame:    body.preco_exame    ?? 0,
       custo_exame:    body.custo_exame    ?? 0,
       valor_comissao: body.valor_comissao ?? 0,
     })
@@ -67,7 +66,7 @@ export async function PUT(request: NextRequest) {
 
   let body: {
     id: number
-    preco_exame: number; custo_exame: number; valor_comissao: number
+    custo_exame: number; valor_comissao: number
     varia_por_horario?: boolean
     preco_pix_comercial?: number | null; preco_cartao_comercial?: number | null
     preco_pix_fora_horario?: number | null; preco_cartao_fora_horario?: number | null
@@ -86,7 +85,6 @@ export async function PUT(request: NextRequest) {
     const { error } = await supabase
       .from('comissoes_exame')
       .update({
-        preco_exame:               item.preco_exame,
         custo_exame:               item.custo_exame,
         valor_comissao:            item.valor_comissao,
         varia_por_horario:         item.varia_por_horario         ?? false,

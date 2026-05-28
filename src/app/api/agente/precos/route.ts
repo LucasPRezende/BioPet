@@ -8,7 +8,7 @@ export async function GET() {
   const [{ data, error }, { data: bioData }] = await Promise.all([
     supabase
       .from('comissoes_exame')
-      .select('tipo_exame, preco_exame, preco_pix_comercial, preco_cartao_comercial, preco_pix_fora_horario, preco_cartao_fora_horario, varia_por_horario, duracao_minutos, observacao')
+      .select('tipo_exame, preco_pix_comercial, preco_cartao_comercial, preco_pix_fora_horario, preco_cartao_fora_horario, varia_por_horario, duracao_minutos, observacao')
       .order('tipo_exame'),
     supabase
       .from('bioquimica_exames')
@@ -39,7 +39,7 @@ export async function GET() {
     return {
       tipo:              e.tipo_exame,
       varia_por_horario: false,
-      pix:               e.preco_exame ?? e.preco_pix_comercial,
+      pix:               e.preco_pix_comercial,
       cartao_3x:         e.preco_cartao_comercial,
       duracao_minutos:   e.duracao_minutos,
       observacao:        e.observacao,

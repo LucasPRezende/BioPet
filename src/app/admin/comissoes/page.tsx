@@ -8,7 +8,6 @@ import { useState, useEffect, useCallback } from 'react'
 interface Comissao {
   id:                       number
   tipo_exame:               string
-  preco_exame:              number
   custo_exame:              number
   valor_comissao:           number
   varia_por_horario:        boolean
@@ -31,7 +30,6 @@ interface BioquimicaExame {
 }
 
 type EditRow = {
-  preco_exame:               string
   custo_exame:               string
   valor_comissao:            string
   varia_por_horario:         boolean
@@ -423,11 +421,10 @@ export default function ComissoesPage() {
 
   function toEditRow(c: Comissao): EditRow {
     return {
-      preco_exame:               String(c.preco_exame               ?? 0),
       custo_exame:               String(c.custo_exame               ?? 0),
       valor_comissao:            String(c.valor_comissao            ?? 0),
       varia_por_horario:         c.varia_por_horario                ?? false,
-      preco_pix_comercial:       String(c.preco_pix_comercial       ?? ''),
+      preco_pix_comercial:       String(c.preco_pix_comercial       ?? 0),
       preco_cartao_comercial:    String(c.preco_cartao_comercial    ?? ''),
       preco_pix_fora_horario:    String(c.preco_pix_fora_horario    ?? ''),
       preco_cartao_fora_horario: String(c.preco_cartao_fora_horario ?? ''),
@@ -456,25 +453,26 @@ export default function ComissoesPage() {
 
   function lucro(id: number) {
     const r = editValues[id]; if (!r) return 0
-    const preco = r.varia_por_horario ? p(r.preco_pix_comercial) : p(r.preco_exame)
-    return preco - p(r.custo_exame) - p(r.valor_comissao)
+    return p(r.preco_pix_comercial) - p(r.custo_exame) - p(r.valor_comissao)
   }
 
   async function handleSave() {
     setSaving(true); setError(''); setSuccess(false)
     const payload = comissoes.map(c => {
-      const r = editValues[c.id]
+      const r      = editValues[c.id]
+      const varia  = r.varia_por_horario
+      const pixCom = r.preco_pix_comercial    ? p(r.preco_pix_comercial)    : null
+      const carCom = r.preco_cartao_comercial ? p(r.preco_cartao_comercial) : null
       return {
         id:                        c.id,
-        preco_exame:               p(r.preco_exame),
         custo_exame:               p(r.custo_exame),
         valor_comissao:            p(r.valor_comissao),
-        varia_por_horario:         r.varia_por_horario,
-        preco_pix_comercial:       r.preco_pix_comercial       ? p(r.preco_pix_comercial)       : null,
-        preco_cartao_comercial:    r.preco_cartao_comercial    ? p(r.preco_cartao_comercial)    : null,
-        preco_pix_fora_horario:    r.preco_pix_fora_horario    ? p(r.preco_pix_fora_horario)    : null,
-        preco_cartao_fora_horario: r.preco_cartao_fora_horario ? p(r.preco_cartao_fora_horario) : null,
-        duracao_minutos:           r.duracao_minutos           ? parseInt(r.duracao_minutos)    : null,
+        varia_por_horario:         varia,
+        preco_pix_comercial:       pixCom,
+        preco_cartao_comercial:    carCom,
+        preco_pix_fora_horario:    varia ? (r.preco_pix_fora_horario    ? p(r.preco_pix_fora_horario)    : null) : pixCom,
+        preco_cartao_fora_horario: varia ? (r.preco_cartao_fora_horario ? p(r.preco_cartao_fora_horario) : null) : carCom,
+        duracao_minutos:           r.duracao_minutos ? parseInt(r.duracao_minutos) : null,
         observacao:                r.observacao || null,
       }
     })
@@ -609,7 +607,7 @@ export default function ComissoesPage() {
                           </div>
                         ) : (
                           <div className="grid grid-cols-2 gap-3">
-                            <NumInput label="Preço Pix (R$)"    value={r.preco_exame}           onChange={v => setField(c.id, 'preco_exame', v)} />
+                            <NumInput label="Preço Pix (R$)"    value={r.preco_pix_comercial}   onChange={v => setField(c.id, 'preco_pix_comercial', v)} />
                             <NumInput label="Preço Cartão (R$)" value={r.preco_cartao_comercial} onChange={v => setField(c.id, 'preco_cartao_comercial', v)} />
                           </div>
                         )}
