@@ -215,8 +215,10 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
   const [bioquimicaSelecionados, setBioquimicaSelecionados] = useState<number[]>([])
   const [loadingBio,             setLoadingBio]             = useState(false)
 
-  // Raio-X estudos adicionais
-  const [estudosAdicionaisQtd, setEstudosAdicionaisQtd] = useState(0)
+  // Raio-X estudos adicionais — array de descrições (uma por estudo adicional)
+  const [estudosAdicionaisDesc, setEstudosAdicionaisDesc] = useState<string[]>([])
+  // Descrição opcional por exame principal (keyed by tipo_exame)
+  const [descricoesPorExame,   setDescricoesPorExame]   = useState<Record<string, string>>({})
 
   // Step 3 — Data & Hora
   const [data,            setData]            = useState(dataPadrao ?? '')
@@ -239,7 +241,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
   const raioXSelecionado = examesSelecionados.some(e => e.tipo_exame.toLowerCase().includes('raio') && !e.tipo_exame.toLowerCase().includes('acréscim'))
   const temBioquimica    = examesSelecionados.some(e => e.tipo_exame === 'Bioquímica')
   const totalDuracao     = examesSelecionados.reduce((s, e) => s + e.duracao_minutos, 0)
-                         + (acrescimoExame ? estudosAdicionaisQtd * acrescimoExame.duracao_minutos : 0)
+                         + (acrescimoExame ? estudosAdicionaisDesc.length * acrescimoExame.duracao_minutos : 0)
   const especial         = isHorarioEspecial(horaSelecionada, totalDuracao, data, feriadoDatas, horarioFim, horarioInicio)
   const motivoEspecial   = especial && data ? motivoHorarioEspecial(horaSelecionada, totalDuracao, data, feriadoDatas, horarioFim, horarioInicio) : null
   const vetNome          = vets.find(v => String(v.id) === vetId)?.nome ?? null
@@ -255,7 +257,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
   const valorUnitarioAcrescimo = acrescimoExame
     ? calcularValorExame(acrescimoExame, pagamentoResp === 'clinica' ? 'pix' : formaPagamento, especial)
     : 0
-  const valorAcrescimo = estudosAdicionaisQtd * valorUnitarioAcrescimo
+  const valorAcrescimo = estudosAdicionaisDesc.length * valorUnitarioAcrescimo
   const totalValor = gratuito ? 0 : examesSelecionados.reduce((s, e) => {
     if (e.tipo_exame === 'Bioquímica') {
       return s + (pagamentoResp === 'clinica' ? totalBioquimicaPix : totalBioquimica)
@@ -391,7 +393,10 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
       const exists = prev.find(e => e.tipo_exame === exame.tipo_exame)
       if (exists) {
         if (exame.tipo_exame === 'Bioquímica') setBioquimicaSelecionados([])
-        if (exame.tipo_exame.toLowerCase().includes('raio')) setEstudosAdicionaisQtd(0)
+        if (exame.tipo_exame.toLowerCase().includes('raio')) {
+          setEstudosAdicionaisDesc([])
+          setDescricoesPorExame(prev => { const n = { ...prev }; delete n[exame.tipo_exame]; return n })
+        }
         return prev.filter(e => e.tipo_exame !== exame.tipo_exame)
       }
       return [...prev, exame]
@@ -438,15 +443,22 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
       } else {
         valor = calcularValorExame(e, pagamentoResp === 'clinica' ? 'pix' : formaPagamento, especial)
       }
-      return { tipo_exame: e.tipo_exame, duracao_minutos: e.duracao_minutos, valor, horario_especial: especial }
-    })
-    if (acrescimoExame && estudosAdicionaisQtd > 0) {
-      examesPayload.push({
-        tipo_exame:       acrescimoExame.tipo_exame,
-        duracao_minutos:  acrescimoExame.duracao_minutos * estudosAdicionaisQtd,
-        valor:            valorAcrescimo,
+      return {
+        tipo_exame: e.tipo_exame, duracao_minutos: e.duracao_minutos, valor,
         horario_especial: especial,
-      })
+        descricao: descricoesPorExame[e.tipo_exame]?.trim() || null,
+      }
+    })
+    if (acrescimoExame && estudosAdicionaisDesc.length > 0) {
+      for (const desc of estudosAdicionaisDesc) {
+        examesPayload.push({
+          tipo_exame:       acrescimoExame.tipo_exame,
+          duracao_minutos:  acrescimoExame.duracao_minutos,
+          valor:            valorUnitarioAcrescimo,
+          horario_especial: especial,
+          descricao:        desc.trim() || null,
+        })
+      }
     }
     const bioquimicaPayload = bioquimicaSelecionados.map(id => {
       const b = bioquimicaExames.find(x => x.id === id)!
@@ -456,7 +468,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
       telefone:              telefone.trim(),
       tutor_nome:            tutorNome.trim() || null,
       exames:                examesPayload,
-      tipo_exame:            [...examesSelecionados.map(e => e.tipo_exame), ...(acrescimoExame && estudosAdicionaisQtd > 0 ? [acrescimoExame.tipo_exame] : [])].join(', '),
+      tipo_exame:            [...examesSelecionados.map(e => e.tipo_exame), ...(acrescimoExame ? estudosAdicionaisDesc.map(() => acrescimoExame.tipo_exame) : [])].join(', '),
       duracao_minutos:       totalDuracao,
       data_hora:             dataHora,
       veterinario_id:        vetId ? Number(vetId) : null,
@@ -511,7 +523,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
     setSedacaoNecessaria(false); setPetInternado(false); setNotificar(true)
     setPagamentoResp('tutor'); setFormaPagamento('pix'); setEntregaPagamento('link'); setGratuito(false)
     setData(dataPadrao ?? ''); setHoraSelecionada(''); setEncaixe(false)
-    setBioquimicaSelecionados([]); setEstudosAdicionaisQtd(0); setErro('')
+    setBioquimicaSelecionados([]); setEstudosAdicionaisDesc([]); setDescricoesPorExame({}); setErro('')
   }
 
   if (modo === 'clinica' && concluido) {
@@ -743,23 +755,44 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
                       </div>
                     </button>
 
-                    {isRaio && sel && acrescimoExame && (
-                      <div className="mt-2 ml-4 p-3 bg-blue-50 border border-blue-200 rounded-xl">
-                        <p className="text-xs font-semibold text-blue-700 mb-2">📐 Estudos adicionais</p>
-                        <div className="flex items-center gap-3">
-                          <button type="button" onClick={() => setEstudosAdicionaisQtd(q => Math.max(0, q - 1))}
-                            className="w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-600 font-bold hover:bg-gray-100 transition">−</button>
-                          <span className="text-sm font-bold text-[#19202d] w-4 text-center">{estudosAdicionaisQtd}</span>
-                          <button type="button" onClick={() => setEstudosAdicionaisQtd(q => q + 1)}
-                            className="w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-600 font-bold hover:bg-gray-100 transition">+</button>
-                          {estudosAdicionaisQtd > 0 ? (
-                            <span className="text-xs text-blue-700 font-medium">
-                              + {brl(valorAcrescimo)} ({estudosAdicionaisQtd}× {brl(valorUnitarioAcrescimo)})
-                            </span>
-                          ) : (
-                            <span className="text-xs text-blue-400">0 estudos adicionais</span>
-                          )}
-                        </div>
+                    {isRaio && sel && (
+                      <div className="mt-2 ml-4 space-y-2">
+                        <input
+                          type="text"
+                          placeholder="Descrição do estudo (ex: Tórax PA) — opcional"
+                          value={descricoesPorExame[ex.tipo_exame] ?? ''}
+                          onChange={e => setDescricoesPorExame(prev => ({ ...prev, [ex.tipo_exame]: e.target.value }))}
+                          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8a6e36] bg-white"
+                        />
+                        {acrescimoExame && (
+                          <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl space-y-2">
+                            <p className="text-xs font-semibold text-blue-700">📐 Estudos adicionais</p>
+                            {estudosAdicionaisDesc.map((desc, i) => (
+                              <div key={i} className="flex gap-2 items-center">
+                                <input
+                                  type="text"
+                                  placeholder={`Estudo ${i + 1} (ex: Coluna Lombar) — opcional`}
+                                  value={desc}
+                                  onChange={e => setEstudosAdicionaisDesc(prev => prev.map((d, j) => j === i ? e.target.value : d))}
+                                  className="flex-1 border border-blue-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                />
+                                <button type="button"
+                                  onClick={() => setEstudosAdicionaisDesc(prev => prev.filter((_, j) => j !== i))}
+                                  className="w-8 h-8 rounded-lg border border-red-200 bg-white text-red-500 font-bold hover:bg-red-50 transition shrink-0">×</button>
+                              </div>
+                            ))}
+                            {estudosAdicionaisDesc.length > 0 && (
+                              <p className="text-xs text-blue-700 font-medium">
+                                + {brl(valorAcrescimo)} ({estudosAdicionaisDesc.length}× {brl(valorUnitarioAcrescimo)})
+                              </p>
+                            )}
+                            <button type="button"
+                              onClick={() => setEstudosAdicionaisDesc(prev => [...prev, ''])}
+                              className="text-xs font-semibold text-blue-600 hover:text-blue-800 transition">
+                              + Adicionar estudo adicional
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )}
 

@@ -20,6 +20,7 @@ interface AgExame {
   tipo_exame:      string
   valor:           number | null
   duracao_minutos?: number | null
+  descricao?:      string | null
 }
 
 interface ComissaoInfo {
@@ -990,10 +991,16 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
               {status !== 'cancelado' && status !== 'pendente' && (
                 <div className="space-y-2">
                   {examesParaLaudo.length > 0 ? examesParaLaudo.map((tipo, i) => {
-                    const isBio = tipo.toLowerCase().includes('bioqu')
-                    const href  = isBio
+                    const isBio  = tipo.toLowerCase().includes('bioqu')
+                    const exame  = exames.find((_, j) => examesParaLaudo[j] === tipo && j === i)
+                               ?? exames.find(e => e.tipo_exame === tipo)
+                    const desc   = exame?.descricao?.trim() || null
+                    const label  = desc ?? tipo
+                    const params = new URLSearchParams({ agendamento_id: String(ag.id), tipo_exame: tipo })
+                    if (desc) params.set('descricao', desc)
+                    const href   = isBio
                       ? `/admin/novo-bioquimica?agendamento_id=${ag.id}`
-                      : `/admin/novo?agendamento_id=${ag.id}`
+                      : `/admin/novo?${params.toString()}`
                     return (
                       <Link key={i} href={href}
                         className={`flex items-center justify-between w-full font-bold text-sm px-4 py-3 rounded-xl transition ${
@@ -1002,7 +1009,7 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
                             : 'bg-[#c4a35a]/10 hover:bg-[#c4a35a]/20 border border-[#c4a35a]/40 text-[#8a6e36]'
                         }`}
                         onClick={onClose}>
-                        <span>{isBio ? '🧪' : '📋'} Emitir laudo — {tipo}</span>
+                        <span>{isBio ? '🧪' : '📋'} Emitir laudo — {label}</span>
                         <span>→</span>
                       </Link>
                     )

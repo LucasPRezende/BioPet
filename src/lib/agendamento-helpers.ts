@@ -5,6 +5,7 @@ export interface ExameInput {
   duracao_minutos: number
   valor: number
   horario_especial?: boolean
+  descricao?: string | null
 }
 
 export interface BioquimicaInput {
@@ -82,6 +83,7 @@ export async function insertExames(agendamentoId: number, exames: ExameInput[]):
       duracao_minutos:  e.duracao_minutos,
       valor:            e.valor,
       horario_especial: e.horario_especial ?? false,
+      descricao:        e.descricao ?? null,
     })),
   )
 }

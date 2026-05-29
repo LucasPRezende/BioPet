@@ -522,28 +522,46 @@ export default function NovoLaudoPage() {
 
   // Pré-preenche a partir de um agendamento se ?agendamento_id= estiver na URL
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const agId = params.get('agendamento_id')
+    const params     = new URLSearchParams(window.location.search)
+    const agId       = params.get('agendamento_id')
+    const tipoParam  = params.get('tipo_exame')
+    const descParam  = params.get('descricao')
     if (!agId) return
 
     fetch(`/api/agendamentos/${agId}`)
       .then(r => r.ok ? r.json() : null)
       .then(ag => {
         if (!ag) return
-        // Verifica se já existe laudo para este agendamento
-        const laudos = ag.laudos as { id: number; token: string }[] | undefined
+
+        // Verifica se já existe laudo para este tipo_exame específico
+        type LaudoRef = { id: number; token: string; tipo_exame: string | null }
+        type ExameRef = { tipo_exame: string; descricao: string | null }
+        const laudos  = ag.laudos as LaudoRef[] | undefined
+        const agExames = ag.agendamento_exames as ExameRef[] | undefined
+
         if (laudos && laudos.length > 0) {
-          setLaudoExistente(laudos[0])
-          return
+          if (!tipoParam) {
+            // Sem tipo específico — comportamento antigo
+            setLaudoExistente(laudos[0])
+            return
+          }
+          const laudosDesseExame = laudos.filter(l => l.tipo_exame === tipoParam)
+          const examesDesseExame = (agExames ?? []).filter(e => e.tipo_exame === tipoParam)
+          if (laudosDesseExame.length >= Math.max(1, examesDesseExame.length)) {
+            setLaudoExistente(laudosDesseExame[0])
+            return
+          }
         }
 
+        const tipoFinal = tipoParam ?? ag.tipo_exame
         setForm(prev => ({
           ...prev,
-          nome_pet:   ag.pets?.nome    ?? prev.nome_pet,
-          especie:    ag.pets?.especie ?? prev.especie,
-          tutor:      ag.tutores?.nome ?? prev.tutor,
-          telefone:   ag.tutores?.telefone ?? prev.telefone,
-          tipo_exame: ag.tipo_exame ?? prev.tipo_exame,
+          nome_pet:   ag.pets?.nome         ?? prev.nome_pet,
+          especie:    ag.pets?.especie       ?? prev.especie,
+          tutor:      ag.tutores?.nome       ?? prev.tutor,
+          telefone:   ag.tutores?.telefone   ?? prev.telefone,
+          tipo_exame: tipoFinal              ?? prev.tipo_exame,
+          ...(descParam ? { observacoes: descParam } : {}),
         }))
         if (ag.veterinario_id) setVetId(ag.veterinario_id)
         setAgendamentoRef({
