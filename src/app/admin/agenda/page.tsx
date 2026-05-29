@@ -983,26 +983,7 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
 
             {/* Laudos */}
             <div>
-              {/* Cabeçalho com contador */}
-              {(() => {
-                const totalEsperado = todosExamesObjs.length || (ag.laudos?.length ?? 0)
-                const totalEmitido  = ag.laudos?.length ?? 0
-                const faltam        = Math.max(0, totalEsperado - totalEmitido)
-                return (
-                  <div className="flex items-center gap-2 mb-2">
-                    <p className={LABEL} style={{ margin: 0 }}>Laudos</p>
-                    {totalEsperado > 0 && (
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                        faltam === 0
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-yellow-100 text-yellow-700'
-                      }`}>
-                        {totalEmitido}/{totalEsperado} {faltam === 0 ? '✓' : `— falta${faltam > 1 ? 'm' : ''} ${faltam}`}
-                      </span>
-                    )}
-                  </div>
-                )
-              })()}
+              <p className={LABEL}>Laudos</p>
 
               {/* Laudos já emitidos */}
               {ag.laudos && ag.laudos.length > 0 && (
@@ -1333,11 +1314,23 @@ export default function AgendaPage() {
 
                       {/* Indicadores + chevron */}
                       <div className="flex flex-col items-end gap-1 shrink-0 ml-1">
-                        {ag.laudos && ag.laudos.length > 0 && (
-                          <span className="text-[11px] text-green-600 font-semibold whitespace-nowrap">
-                            📄 {ag.laudos.length} laudo{ag.laudos.length > 1 ? 's' : ''}
-                          </span>
-                        )}
+                        {(() => {
+                          const totalEsp = exames.length || (ag.laudos?.length ?? 0) || 0
+                          const totalEmi = ag.laudos?.length ?? 0
+                          if (totalEsp === 0 && totalEmi === 0) return null
+                          const faltam = Math.max(0, totalEsp - totalEmi)
+                          if (faltam === 0 && totalEmi > 0) return (
+                            <span className="text-[11px] text-green-600 font-semibold whitespace-nowrap">
+                              📄 {totalEmi}/{totalEsp} ✓
+                            </span>
+                          )
+                          if (totalEmi > 0) return (
+                            <span className="text-[11px] text-amber-600 font-semibold whitespace-nowrap">
+                              📄 {totalEmi}/{totalEsp} — falta {faltam}
+                            </span>
+                          )
+                          return null
+                        })()}
                         {ag.status_pagamento === 'pago' && <span className="text-[11px] text-green-500">🟢</span>}
                         {ag.status_pagamento === 'a_receber' && <span className="text-[11px] text-yellow-500">🟡</span>}
                         {ag.sedacao_necessaria && <span className="text-[11px]">💉</span>}
