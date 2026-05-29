@@ -115,10 +115,15 @@ export async function POST(request: NextRequest) {
     }
 
     if (agendamento_id) {
-      await supabase
-        .from('agendamentos')
-        .update({ status: 'concluído' })
-        .eq('id', agendamento_id)
+      const [{ data: totalLaudos }, { data: totalExames }] = await Promise.all([
+        supabase.from('laudos').select('id').eq('agendamento_id', agendamento_id),
+        supabase.from('agendamento_exames').select('id').eq('agendamento_id', agendamento_id),
+      ])
+      const laudosTotal = totalLaudos?.length ?? 0
+      const examesTotal = Math.max(1, totalExames?.length ?? 0)
+      if (laudosTotal >= examesTotal) {
+        await supabase.from('agendamentos').update({ status: 'concluído' }).eq('id', agendamento_id)
+      }
     }
 
     return NextResponse.json(data, { status: 201 })

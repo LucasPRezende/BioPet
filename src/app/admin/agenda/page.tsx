@@ -983,7 +983,26 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
 
             {/* Laudos */}
             <div>
-              <p className={LABEL}>Laudos</p>
+              {/* Cabeçalho com contador */}
+              {(() => {
+                const totalEsperado = todosExamesObjs.length || (ag.laudos?.length ?? 0)
+                const totalEmitido  = ag.laudos?.length ?? 0
+                const faltam        = Math.max(0, totalEsperado - totalEmitido)
+                return (
+                  <div className="flex items-center gap-2 mb-2">
+                    <p className={LABEL} style={{ margin: 0 }}>Laudos</p>
+                    {totalEsperado > 0 && (
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                        faltam === 0
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-yellow-100 text-yellow-700'
+                      }`}>
+                        {totalEmitido}/{totalEsperado} {faltam === 0 ? '✓' : `— falta${faltam > 1 ? 'm' : ''} ${faltam}`}
+                      </span>
+                    )}
+                  </div>
+                )
+              })()}
 
               {/* Laudos já emitidos */}
               {ag.laudos && ag.laudos.length > 0 && (

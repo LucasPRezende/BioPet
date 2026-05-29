@@ -80,15 +80,24 @@ export async function POST(request: NextRequest) {
     tipo_exame:         tipoExame ?? undefined,
   }
 
-  // Impede laudo duplicado para o mesmo agendamento
+  // Impede laudo duplicado para o mesmo agendamento+tipo_exame
   if (agendamentoId) {
-    const { data: existente } = await supabase
-      .from('laudos')
-      .select('id')
-      .eq('agendamento_id', agendamentoId)
-      .maybeSingle()
-    if (existente) {
-      return NextResponse.json({ error: 'Este agendamento já possui um laudo.' }, { status: 409 })
+    if (tipoExame) {
+      const [{ data: laudosDoTipo }, { data: examesDoTipo }] = await Promise.all([
+        supabase.from('laudos').select('id').eq('agendamento_id', agendamentoId).eq('tipo_exame', tipoExame),
+        supabase.from('agendamento_exames').select('id').eq('agendamento_id', agendamentoId).eq('tipo_exame', tipoExame),
+      ])
+      const laudosCount = (laudosDoTipo ?? []).length
+      const examesCount = Math.max(1, (examesDoTipo ?? []).length)
+      if (laudosCount >= examesCount) {
+        return NextResponse.json({ error: 'Este agendamento já possui um laudo para este exame.' }, { status: 409 })
+      }
+    } else {
+      const { data: existente } = await supabase
+        .from('laudos').select('id').eq('agendamento_id', agendamentoId).maybeSingle()
+      if (existente) {
+        return NextResponse.json({ error: 'Este agendamento já possui um laudo.' }, { status: 409 })
+      }
     }
   }
 
@@ -140,12 +149,17 @@ export async function POST(request: NextRequest) {
       throw new Error(error.message)
     }
 
-    // Marca agendamento como concluído
+    // Marca agendamento como concluído apenas quando todos os laudos foram emitidos
     if (agendamentoId) {
-      await supabase
-        .from('agendamentos')
-        .update({ status: 'concluído' })
-        .eq('id', agendamentoId)
+      const [{ data: totalLaudos }, { data: totalExames }] = await Promise.all([
+        supabase.from('laudos').select('id').eq('agendamento_id', agendamentoId),
+        supabase.from('agendamento_exames').select('id').eq('agendamento_id', agendamentoId),
+      ])
+      const laudosTotal = totalLaudos?.length ?? 0
+      const examesTotal = Math.max(1, totalExames?.length ?? 0)
+      if (laudosTotal >= examesTotal) {
+        await supabase.from('agendamentos').update({ status: 'concluído' }).eq('id', agendamentoId)
+      }
     }
 
     return NextResponse.json(data, { status: 201 })

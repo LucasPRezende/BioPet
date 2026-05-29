@@ -174,12 +174,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // Marca agendamento como concluído
+  // Marca agendamento como concluído apenas quando todos os laudos foram emitidos
   if (agendamentoId) {
-    await supabase
-      .from('agendamentos')
-      .update({ status: 'concluído' })
-      .eq('id', Number(agendamentoId))
+    const agId = Number(agendamentoId)
+    const [{ data: totalLaudos }, { data: totalExames }] = await Promise.all([
+      supabase.from('laudos').select('id').eq('agendamento_id', agId),
+      supabase.from('agendamento_exames').select('id').eq('agendamento_id', agId),
+    ])
+    const laudosTotal = totalLaudos?.length ?? 0
+    const examesTotal = Math.max(1, totalExames?.length ?? 0)
+    if (laudosTotal >= examesTotal) {
+      await supabase.from('agendamentos').update({ status: 'concluído' }).eq('id', agId)
+    }
   }
 
   return NextResponse.json(data, { status: 201 })
