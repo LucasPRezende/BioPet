@@ -62,7 +62,7 @@ interface Agendamento {
   pets:                  Pet | null
   system_users:          { nome: string } | null
   clinicas:              { nome: string } | null
-  laudos:                { id: number; token: string }[] | null
+  laudos:                { id: number; token: string; tipo_exame?: string | null }[] | null
   agendamento_exames?:   AgExame[] | null
   agendamento_bioquimica?: BioquimicaSubExame[] | null
 }
@@ -726,14 +726,34 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
   const bioRows      = ag.agendamento_bioquimica ?? []
 
   // Um botão de emitir laudo por exame individual, filtrado pelas permissões do usuário
-  const todosExames: string[] = exames.length > 0
-    ? exames.map(e => e.tipo_exame)
-    : ag.tipo_exame.split(',').map(s => s.trim()).filter(Boolean)
-  const examesParaLaudo = laudosPermitidos === null
-    ? todosExames
-    : todosExames.filter(tipo =>
-        laudosPermitidos.some(p => tipo.toLowerCase().includes(p.toLowerCase()) || p.toLowerCase().includes(tipo.toLowerCase()))
+  // e excluindo exames que já têm laudo emitido
+  const laudoCountByTipo: Record<string, number> = {}
+  for (const l of ag.laudos ?? []) {
+    if (l.tipo_exame) laudoCountByTipo[l.tipo_exame] = (laudoCountByTipo[l.tipo_exame] ?? 0) + 1
+  }
+  const consumidoByTipo: Record<string, number> = {}
+
+  const todosExamesObjs: { tipo_exame: string; descricao: string | null }[] = exames.length > 0
+    ? exames.map(e => ({ tipo_exame: e.tipo_exame, descricao: e.descricao ?? null }))
+    : ag.tipo_exame.split(',').map(s => s.trim()).filter(Boolean).map(t => ({ tipo_exame: t, descricao: null }))
+
+  const examesParaLaudo = todosExamesObjs
+    .filter(e => {
+      const emitidos = laudoCountByTipo[e.tipo_exame] ?? 0
+      const consumido = consumidoByTipo[e.tipo_exame] ?? 0
+      if (consumido < emitidos) {
+        consumidoByTipo[e.tipo_exame] = consumido + 1
+        return false
+      }
+      return true
+    })
+    .filter(e =>
+      laudosPermitidos === null ||
+      laudosPermitidos.some(p =>
+        e.tipo_exame.toLowerCase().includes(p.toLowerCase()) ||
+        p.toLowerCase().includes(e.tipo_exame.toLowerCase())
       )
+    )
 
   let totalExames = 0
   const examesComVal = exames.map(ex => {
@@ -972,8 +992,8 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
                     <div key={l.id} className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-lg px-3 py-2.5">
                       <span className="text-sm font-medium text-[#19202d]">
                         📄 Laudo {ag.laudos!.length > 1 ? `#${i + 1}` : ''}
-                        {examesParaLaudo[i] && (
-                          <span className="text-xs text-gray-400 font-normal ml-1">— {examesParaLaudo[i]}</span>
+                        {l.tipo_exame && (
+                          <span className="text-xs text-gray-400 font-normal ml-1">— {l.tipo_exame}</span>
                         )}
                       </span>
                       <div className="flex gap-3">
@@ -990,12 +1010,10 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
               {/* Um botão de emitir por exame individual */}
               {status !== 'cancelado' && status !== 'pendente' && (
                 <div className="space-y-2">
-                  {examesParaLaudo.length > 0 ? examesParaLaudo.map((tipo, i) => {
+                  {examesParaLaudo.length > 0 ? examesParaLaudo.map((exame, i) => {
+                    const tipo   = exame.tipo_exame
+                    const desc   = exame.descricao?.trim() || null
                     const isBio  = tipo.toLowerCase().includes('bioqu')
-                    const exame  = exames.find((_, j) => examesParaLaudo[j] === tipo && j === i)
-                               ?? exames.find(e => e.tipo_exame === tipo)
-                    const desc   = exame?.descricao?.trim() || null
-                    const label  = desc ?? tipo
                     const params = new URLSearchParams({ agendamento_id: String(ag.id), tipo_exame: tipo })
                     if (desc) params.set('descricao', desc)
                     const href   = isBio
@@ -1013,14 +1031,14 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
                         <span>→</span>
                       </Link>
                     )
-                  }) : (
+                  }) : todosExamesObjs.length === 0 ? (
                     <Link href={`/admin/novo?agendamento_id=${ag.id}`}
                       className="flex items-center justify-between w-full bg-[#c4a35a]/10 hover:bg-[#c4a35a]/20 border border-[#c4a35a]/40 text-[#8a6e36] font-bold text-sm px-4 py-3 rounded-xl transition"
                       onClick={onClose}>
                       <span>📋 Emitir laudo</span>
                       <span>→</span>
                     </Link>
-                  )}
+                  ) : null}
                 </div>
               )}
 
