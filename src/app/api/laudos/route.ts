@@ -5,15 +5,29 @@ import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
 
 const BUCKET = 'laudos'
 
-async function getComissao(tipoExame: string | null) {
+async function getComissao(tipoExame: string | null, agendamentoId?: number | null) {
   if (!tipoExame) return { preco_exame: null, custo_exame: null, valor_comissao: null }
   const { data } = await supabase
     .from('comissoes_exame')
     .select('preco_pix_comercial, custo_exame, valor_comissao')
     .eq('tipo_exame', tipoExame)
     .single()
+
+  // Usa o valor real cobrado no agendamento (já considera horário especial, clínica, etc.)
+  // em vez do preço comercial padrão da tabela
+  let precoExame: number | null = data?.preco_pix_comercial ?? null
+  if (agendamentoId) {
+    const { data: agExame } = await supabase
+      .from('agendamento_exames')
+      .select('valor')
+      .eq('agendamento_id', agendamentoId)
+      .eq('tipo_exame', tipoExame)
+      .maybeSingle()
+    if (agExame?.valor != null) precoExame = Number(agExame.valor)
+  }
+
   return {
-    preco_exame:    data?.preco_pix_comercial ?? null,
+    preco_exame:    precoExame,
     custo_exame:    data?.custo_exame    ?? null,
     valor_comissao: data?.valor_comissao ?? null,
   }
@@ -131,7 +145,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Snapshot dos valores financeiros vigentes
-  const financeiro = await getComissao(tipoExame)
+  const financeiro = await getComissao(tipoExame, agendamentoId ? Number(agendamentoId) : null)
 
   const { data, error } = await supabase
     .from('laudos')
