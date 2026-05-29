@@ -853,10 +853,10 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
                   <span>{e.tipo_exame}</span><span className="font-medium">{e.duracao_minutos} min</span>
                 </div>
               ))}
-              {estudosAdicionaisQtd > 0 && acrescimoExame && (
+              {estudosAdicionaisDesc.length > 0 && acrescimoExame && (
                 <div className="flex justify-between text-blue-600">
-                  <span>Raio-X +{estudosAdicionaisQtd} estudo{estudosAdicionaisQtd > 1 ? 's' : ''} adicional</span>
-                  <span className="font-medium">{acrescimoExame.duracao_minutos * estudosAdicionaisQtd} min</span>
+                  <span>Raio-X +{estudosAdicionaisDesc.length} estudo{estudosAdicionaisDesc.length > 1 ? 's' : ''} adicional</span>
+                  <span className="font-medium">{acrescimoExame.duracao_minutos * estudosAdicionaisDesc.length} min</span>
                 </div>
               )}
               <div className="border-t border-gray-200 pt-1.5 flex justify-between font-semibold text-[#19202d]">
