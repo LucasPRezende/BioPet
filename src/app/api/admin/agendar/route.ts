@@ -57,6 +57,7 @@ export async function POST(request: NextRequest) {
     bioquimica_selecionados,
     encaixe,
     notificar,
+    clinica_id,
   } = body ?? {}
 
   const deveNotificar = notificar !== false
@@ -159,6 +160,7 @@ export async function POST(request: NextRequest) {
       status:                'agendado',
       status_pagamento:      statusPag,
       encaixe:               encaixe ?? false,
+      clinica_id:            clinica_id ? Number(clinica_id) : null,
     })
     .select('id')
     .single()

@@ -206,6 +206,8 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
   const [sedacaoNecessaria,    setSedacaoNecessaria]    = useState(false)
   const [petInternado,         setPetInternado]         = useState(false)
   const [pagamentoResp,        setPagamentoResp]        = useState<'tutor' | 'clinica'>('tutor')
+  const [clinicaId,            setClinicaId]            = useState('')
+  const [clinicas,             setClinicas]             = useState<{ id: number; nome: string }[]>([])
   const [formaPagamento,       setFormaPagamento]       = useState<'pix' | 'cartao'>('pix')
   const [entregaPagamento,     setEntregaPagamento]     = useState<'link' | 'presencial'>('link')
   const [gratuito,             setGratuito]             = useState(false)
@@ -296,6 +298,9 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
         valor_especial_cartao: c.preco_cartao_fora_horario ?? null,
       }))))
       fetch('/api/veterinarios').then(r => r.ok ? r.json() : []).then(d => setVets(d ?? []))
+      fetch('/api/admin/clinicas').then(r => r.ok ? r.json() : []).then(d =>
+        setClinicas((d ?? []).filter((c: { ativo: boolean }) => c.ativo))
+      ).catch(() => {})
     }
   }, [modo])
 
@@ -478,6 +483,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
       pagamento_responsavel: gratuito ? 'tutor' : pagamentoResp,
       forma_pagamento:       gratuito ? 'gratuito' : pagamentoResp === 'tutor' ? formaPagamento : 'a confirmar',
       entrega_pagamento:     gratuito ? null : pagamentoResp === 'tutor' ? entregaPagamento : null,
+      clinica_id:            pagamentoResp === 'clinica' && clinicaId ? Number(clinicaId) : null,
       valor:                 totalValor,
       bioquimica_selecionados: bioquimicaPayload,
       encaixe,
@@ -918,12 +924,24 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
             <RadioGroup<'tutor' | 'clinica'>
               label="Responsável pelo pagamento *"
               value={pagamentoResp}
-              onChange={setPagamentoResp}
+              onChange={v => { setPagamentoResp(v); if (v !== 'clinica') setClinicaId('') }}
               options={[
                 { value: 'tutor',   label: 'Tutor paga diretamente à BioPet' },
                 { value: 'clinica', label: 'Clínica já pagou / vai pagar' },
               ]}
             />
+
+            {pagamentoResp === 'clinica' && modo === 'admin' && clinicas.length > 0 && (
+              <div>
+                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Clínica parceira *</label>
+                <select value={clinicaId} onChange={e => setClinicaId(e.target.value)} className={INPUT}>
+                  <option value="">Selecione a clínica</option>
+                  {clinicas.map(c => (
+                    <option key={c.id} value={String(c.id)}>{c.nome}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {pagamentoResp === 'tutor' && (
               <>
@@ -1115,7 +1133,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
             vetNome           ? { label: 'Veterinário', value: vetNome } : null,
             sedacaoNecessaria ? { label: 'Sedação',     value: '⚠️ Necessária' } : null,
             petInternado      ? { label: 'Internado',   value: '🏥 Sim' } : null,
-            { label: 'Pagamento', value: gratuito ? '🎁 Gratuito' : pagamentoResp === 'clinica' ? `Clínica · Repasse BioPet: ${brl(totalValor)}` : `Tutor — ${formaPagamento === 'cartao' ? 'Cartão' : 'Pix'} · ${entregaPagamento === 'link' ? 'Link WhatsApp' : 'Presencial'} · ${brl(totalValor)}` },
+            { label: 'Pagamento', value: gratuito ? '🎁 Gratuito' : pagamentoResp === 'clinica' ? `Clínica: ${clinicas.find(c => String(c.id) === clinicaId)?.nome ?? '—'} · Repasse BioPet: ${brl(totalValor)}` : `Tutor — ${formaPagamento === 'cartao' ? 'Cartão' : 'Pix'} · ${entregaPagamento === 'link' ? 'Link WhatsApp' : 'Presencial'} · ${brl(totalValor)}` },
             modo === 'admin' ? { label: 'Notificar', value: notificar ? '📱 Sim (WhatsApp)' : '🔕 Não' } : null,
             observacoes ? { label: 'Observações', value: observacoes } : null,
           ].filter(Boolean).map(row => (
