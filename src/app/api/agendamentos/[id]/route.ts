@@ -1,6 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
+import { sendWhatsAppText } from '@/lib/evolution'
+
+const DIAS_PT = ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado']
+function formatDT(isoStr: string): string {
+  const [datePart, timePart = '00:00'] = isoStr.split('T')
+  const [year, month, day] = datePart.split('-').map(Number)
+  const [hour, minute]     = timePart.split(':').map(Number)
+  const d  = new Date(year, month - 1, day, hour, minute)
+  const dd = String(day).padStart(2, '0')
+  const mm = String(month).padStart(2, '0')
+  const hh = String(hour).padStart(2, '0')
+  const mn = minute > 0 ? `:${String(minute).padStart(2, '0')}` : ''
+  return `${DIAS_PT[d.getDay()]}, ${dd}/${mm} às ${hh}h${mn}`
+}
 
 export async function GET(
   request: NextRequest,
@@ -124,6 +138,33 @@ export async function PATCH(
       .from('agendamentos')
       .update({ duracao_minutos: novaDuracao, tipo_exame: novoTipoExame })
       .eq('id', Number(params.id))
+  }
+
+  // Notifica tutor quando data/hora foi alterada
+  if (data_hora !== undefined) {
+    const { data: ag } = await supabase
+      .from('agendamentos')
+      .select('tipo_exame, data_hora, tutores(nome, telefone), pets(nome)')
+      .eq('id', Number(params.id))
+      .single()
+
+    const tutor = ag ? (Array.isArray(ag.tutores) ? ag.tutores[0] : ag.tutores as { nome: string | null; telefone: string } | null) : null
+    const pet   = ag ? (Array.isArray(ag.pets)    ? ag.pets[0]    : ag.pets    as { nome: string } | null) : null
+
+    if (tutor?.telefone) {
+      const digits = tutor.telefone.replace(/\D/g, '')
+      const tel    = digits.startsWith('55') ? digits : `55${digits}`
+      await sendWhatsAppText(tel, [
+        `📅 *Seu agendamento foi remarcado!*`,
+        ``,
+        `🐾 Pet: ${pet?.nome ?? '—'}`,
+        `  💉 ${ag!.tipo_exame}`,
+        `📅 Nova data: ${formatDT(ag!.data_hora)}`,
+        `📍 BioPet - Volta Redonda`,
+        ``,
+        `Dúvidas? É só chamar! 🐾`,
+      ].join('\n'))
+    }
   }
 
   return NextResponse.json({ ok: true })

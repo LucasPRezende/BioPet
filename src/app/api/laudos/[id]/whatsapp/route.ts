@@ -17,7 +17,7 @@ export async function POST(
   const cookie = req.cookies.get(SESSION_COOKIE_NAME)?.value
   if (!cookie) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 })
   const session = await parseSystemSession(cookie)
-  if (!session || session.role !== 'admin') {
+  if (!session) {
     return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 })
   }
 

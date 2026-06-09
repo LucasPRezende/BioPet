@@ -56,8 +56,9 @@ interface Agendamento {
   mp_init_point:         string | null
   veterinario_id:        number | null
   clinica_id:            number | null
-  is_revisao:            boolean | null
-  laudo_dispensado:      boolean | null
+  is_revisao:                 boolean | null
+  laudo_revisao_solicitado:  boolean | null
+  laudo_dispensado:           boolean | null
   tutores:               Tutor | null
   pets:                  Pet | null
   system_users:          { nome: string } | null
@@ -716,6 +717,7 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
   const [reenviarLink,  setReenviarLink]  = useState(false)
   const [confirmingPag, setConfirmingPag] = useState(false)
   const [editandoLaudo, setEditandoLaudo] = useState<{ laudo: { id: number; token: string }; petNome: string } | null>(null)
+  const [renotifStatus, setRenotifStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
 
   useEffect(() => { setStatus(ag.status) }, [ag.status])
 
@@ -818,6 +820,15 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
     await fetch('/api/pagamentos/reenviar-link', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agendamento_id: ag.id }) })
     setReenviarLink(false)
   }
+  async function handleRenotificar() {
+    setRenotifStatus('sending')
+    try {
+      const res = await fetch(`/api/admin/agendamentos/${ag.id}/renotificar`, { method: 'POST' })
+      setRenotifStatus(res.ok ? 'sent' : 'error')
+    } catch {
+      setRenotifStatus('error')
+    }
+  }
 
   const LABEL = 'text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2'
   const SECTION = 'space-y-1.5'
@@ -867,8 +878,8 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
               {ag.pet_internado && <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-200">🏥 Internado</span>}
               {statusPag === 'pago' && <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-green-50 text-green-700 border border-green-200">🟢 Pago</span>}
               {statusPag === 'pago_clinica' && <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">🔵 Pago (Clínica)</span>}
-              {statusPag === 'a_receber' && ag.pagamento_responsavel === 'clinica' && <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">🔵 A receber (Clínica)</span>}
-              {statusPag === 'a_receber' && ag.pagamento_responsavel !== 'clinica' && <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-yellow-50 text-yellow-700 border border-yellow-200">🟡 A receber</span>}
+              {statusPag === 'a_receber' && !!ag.valor && ag.pagamento_responsavel === 'clinica' && <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">🔵 A receber (Clínica)</span>}
+              {statusPag === 'a_receber' && !!ag.valor && ag.pagamento_responsavel !== 'clinica' && <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-yellow-50 text-yellow-700 border border-yellow-200">🟡 A receber</span>}
               {statusPag === 'estorno_pendente' && <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-red-50 text-red-700 border border-red-200">🔴 Estorno pendente</span>}
             </div>
 
@@ -965,7 +976,7 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
                 </div>
               )}
 
-              {statusPag === 'a_receber' && status !== 'cancelado' && (
+              {statusPag === 'a_receber' && !!ag.valor && status !== 'cancelado' && (
                 <div className="flex gap-2 mt-2">
                   <button onClick={handleConfirmarPagamento} disabled={confirmingPag}
                     className="flex-1 bg-green-600 hover:bg-green-700 text-white text-sm font-bold px-3 py-2 rounded-lg transition disabled:opacity-50">
@@ -977,6 +988,24 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
                       {reenviarLink ? '...' : '🔔 Reenviar link'}
                     </button>
                   )}
+                </div>
+              )}
+
+              {status !== 'cancelado' && (
+                <div className="mt-2">
+                  <button onClick={handleRenotificar} disabled={renotifStatus === 'sending'}
+                    className={`w-full text-sm font-semibold px-3 py-2 rounded-lg transition border ${
+                      renotifStatus === 'sent'
+                        ? 'bg-green-50 border-green-200 text-green-700 cursor-default'
+                        : renotifStatus === 'error'
+                        ? 'bg-red-50 border-red-200 text-red-600'
+                        : 'border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-600'
+                    }`}>
+                    {renotifStatus === 'sending' ? '...'
+                      : renotifStatus === 'sent'  ? '✓ Notificação enviada!'
+                      : renotifStatus === 'error' ? '⚠ Erro ao notificar — tentar de novo'
+                      : '🔔 Renotificar'}
+                  </button>
                 </div>
               )}
             </div>
@@ -1008,7 +1037,7 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
               )}
 
               {/* Um botão de emitir por exame individual */}
-              {status !== 'cancelado' && status !== 'pendente' && (
+              {status !== 'cancelado' && status !== 'pendente' && !(ag.is_revisao && !ag.laudo_revisao_solicitado) && (
                 <div className="space-y-2">
                   {examesParaLaudo.length > 0 ? examesParaLaudo.map((exame, i) => {
                     const tipo   = exame.tipo_exame

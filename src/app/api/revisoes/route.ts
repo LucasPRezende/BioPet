@@ -1,13 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
+import { sendWhatsAppText } from '@/lib/evolution'
+import { gerarFeriadosPorAno } from '@/lib/feriados'
+import { gerarPreferenciaMp } from '@/lib/mp-preference'
+import { gerarPixToken } from '@/lib/pix-token'
+
+const DIAS_PT = ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado']
+function formatDT(isoStr: string): string {
+  const [datePart, timePart = '00:00'] = isoStr.split('T')
+  const [year, month, day] = datePart.split('-').map(Number)
+  const [hour, minute]     = timePart.split(':').map(Number)
+  const d  = new Date(year, month - 1, day, hour, minute)
+  const dd = String(day).padStart(2, '0')
+  const mm = String(month).padStart(2, '0')
+  const hh = String(hour).padStart(2, '0')
+  const mn = minute > 0 ? `:${String(minute).padStart(2, '0')}` : ''
+  return `${DIAS_PT[d.getDay()]}, ${dd}/${mm} às ${hh}h${mn}`
+}
 
 // ── Helper: verifica se data/hora está dentro do horário comercial ─────────────
-function isHorarioComercial(dataHora: string, inicio: string, fim: string): boolean {
+function isHorarioComercial(dataHora: string, inicio: string, fim: string, feriados: string[] = []): boolean {
   const d = new Date(dataHora)
   const dow = d.getDay()
-  if (dow === 0 || dow === 6) return false  // fim de semana
-
+  if (dow === 0 || dow === 6) return false
+  const dateStr = d.toLocaleDateString('en-CA')
+  if (feriados.includes(dateStr)) return false
   const toMin = (t: string) => {
     const [h, m] = t.split(':').map(Number)
     return h * 60 + m
@@ -64,16 +82,18 @@ export async function POST(request: NextRequest) {
   if (!session) return NextResponse.json({ error: 'Sessão inválida.' }, { status: 401 })
 
   const body = await request.json().catch(() => null)
-  const { agendamento_original_id, data_hora, laudo_solicitado, veterinario_id, observacoes } = body ?? {}
+  const { agendamento_original_id, data_hora, laudo_solicitado, forma_pagamento, enviar_link, veterinario_id, observacoes } = body ?? {}
+  const laudoSolicitado = !!laudo_solicitado
+  const enviarLink      = enviar_link !== false
 
   if (!agendamento_original_id || !data_hora) {
     return NextResponse.json({ error: 'agendamento_original_id e data_hora são obrigatórios.' }, { status: 400 })
   }
 
-  // 1. Busca o agendamento original
+  // 1. Busca o agendamento original (inclui tutor e pet para notificação)
   const { data: original, error: errOrig } = await supabase
     .from('agendamentos')
-    .select('id, tipo_exame, data_hora, status, tutor_id, pet_id, veterinario_id, duracao_minutos')
+    .select('id, tipo_exame, data_hora, status, tutor_id, pet_id, veterinario_id, duracao_minutos, tutores(nome, telefone), pets(nome)')
     .eq('id', agendamento_original_id)
     .single()
 
@@ -116,13 +136,38 @@ export async function POST(request: NextRequest) {
     }, { status: 422 })
   }
 
-  // 5. Calcula valor
-  const comercial    = isHorarioComercial(data_hora, config.horario_inicio, config.horario_fim)
-  const valorBase    = comercial ? Number(config.valor_horario_comercial) : Number(config.valor_fora_comercial)
-  const laudoExtra   = (!config.gera_laudo && laudo_solicitado) ? Number(config.valor_laudo_extra) : 0
-  const valorTotal   = valorBase + laudoExtra
+  // 5. Busca feriados + horário global e valida
+  const [{ data: feriadosRows }, { data: horarioRows }] = await Promise.all([
+    supabase.from('feriados').select('data'),
+    supabase.from('system_config').select('key, value').in('key', ['horario_especial_inicio', 'horario_especial_fim']),
+  ])
+  const dbFeriados = (feriadosRows ?? []).map((f: { data: string }) => f.data)
+  const y = new Date().getFullYear()
+  const gerados = [y - 1, y, y + 1, y + 2].flatMap(gerarFeriadosPorAno).map(f => f.data)
+  const feriados = Array.from(new Set([...dbFeriados, ...gerados]))
+  const horarioMap    = Object.fromEntries((horarioRows ?? []).map(r => [r.key, r.value]))
+  const horario_inicio = horarioMap['horario_especial_inicio'] ?? '08:00'
+  const horario_fim    = horarioMap['horario_especial_fim']    ?? '17:00'
 
-  // 6. Cria o agendamento de revisão
+  const originalFoiComercial = isHorarioComercial(original.data_hora, horario_inicio, horario_fim, feriados)
+  const revisaoEhComercial   = isHorarioComercial(data_hora, horario_inicio, horario_fim, feriados)
+
+  if (originalFoiComercial && !revisaoEhComercial) {
+    return NextResponse.json({
+      error: `Revisões de exames em horário comercial só podem ser agendadas em horário comercial (${horario_inicio}–${horario_fim}, seg–sex).`,
+    }, { status: 422 })
+  }
+
+  // 6. Calcula valor
+  let valorBase = 0
+  if (config.gera_laudo) {
+    valorBase = revisaoEhComercial ? Number(config.valor_horario_comercial) : Number(config.valor_fora_comercial)
+  } else if (laudoSolicitado) {
+    valorBase = Number(config.valor_laudo_extra)
+  }
+  const valorTotal = valorBase
+
+  // 7. Cria o agendamento de revisão
   const { data: revisao, error: errRev } = await supabase
     .from('agendamentos')
     .insert({
@@ -132,25 +177,70 @@ export async function POST(request: NextRequest) {
       data_hora,
       duracao_minutos:            original.duracao_minutos ?? 30,
       valor:                      valorTotal > 0 ? valorTotal : null,
-      forma_pagamento:            'a confirmar',
+      forma_pagamento:            valorTotal > 0 ? (forma_pagamento || 'a confirmar') : 'gratuito',
+      entrega_pagamento:          valorTotal > 0 && forma_pagamento === 'pix' ? 'link' : null,
       status:                     'agendado',
-      status_pagamento:           valorTotal > 0 ? 'pendente' : 'a_receber',
+      status_pagamento:           valorTotal > 0 ? 'pendente' : 'gratuito',
       system_user_id:             session.userId,
       veterinario_id:             veterinario_id ?? original.veterinario_id ?? null,
       observacoes:                observacoes ?? null,
       is_revisao:                 true,
       agendamento_original_id:    agendamento_original_id,
-      laudo_revisao_solicitado:   !config.gera_laudo && laudo_solicitado ? true : false,
+      laudo_revisao_solicitado:   config.gera_laudo || laudoSolicitado,
     })
     .select('id')
     .single()
 
   if (errRev) return NextResponse.json({ error: errRev.message }, { status: 500 })
 
+  // 8. Gera link de pagamento se houver valor
+  let mpInitPoint: string | null = null
+  if (valorTotal > 0) {
+    try {
+      if (forma_pagamento === 'pix') {
+        const pixToken = gerarPixToken()
+        mpInitPoint = `${process.env.NEXT_PUBLIC_URL}/pagamento/pix/${pixToken}`
+        await supabase
+          .from('agendamentos')
+          .update({ pix_token: pixToken, mp_init_point: mpInitPoint, status_pagamento: 'a_receber' })
+          .eq('id', revisao.id)
+      } else {
+        const mp = await gerarPreferenciaMp(revisao.id)
+        mpInitPoint = mp.init_point
+      }
+    } catch {
+      // Falha no link não cancela a criação da revisão
+    }
+  }
+
+  // 9. Notifica tutor via WhatsApp
+  const tutor = Array.isArray(original.tutores) ? (original.tutores as { nome: string | null; telefone: string }[])[0] : original.tutores as { nome: string | null; telefone: string } | null
+  const pet   = Array.isArray(original.pets)    ? (original.pets    as { nome: string }[])[0]                          : original.pets    as { nome: string } | null
+  if (tutor?.telefone) {
+    const digits  = tutor.telefone.replace(/\D/g, '')
+    const tel     = digits.startsWith('55') ? digits : `55${digits}`
+    const valorFmt = valorTotal > 0
+      ? Number(valorTotal).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+      : null
+    await sendWhatsAppText(tel, [
+      `🔄 *Revisão agendada!*`,
+      ``,
+      `🐾 Pet: ${pet?.nome ?? '—'}`,
+      `  💉 ${original.tipo_exame}`,
+      `📅 ${formatDT(data_hora)}`,
+      `📍 BioPet - Volta Redonda`,
+      valorFmt ? `💰 Valor: ${valorFmt}` : null,
+      mpInitPoint && enviarLink ? `\nLink de pagamento:\n👉 ${mpInitPoint}` : null,
+      ``,
+      `Dúvidas? É só chamar! 🐾`,
+    ].filter(Boolean).join('\n'))
+  }
+
   return NextResponse.json({
     agendamento_id:    revisao.id,
-    horario_comercial: comercial,
+    horario_comercial: revisaoEhComercial,
     valor_total:       valorTotal,
-    laudo_incluido:    config.gera_laudo || laudo_solicitado,
+    laudo_incluido:    config.gera_laudo,
+    mp_init_point:     mpInitPoint,
   }, { status: 201 })
 }

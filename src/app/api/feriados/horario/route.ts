@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
 
+export const dynamic = 'force-dynamic'
+
 const KEY_FIM    = 'horario_especial_fim'
 const KEY_INICIO = 'horario_especial_inicio'
 

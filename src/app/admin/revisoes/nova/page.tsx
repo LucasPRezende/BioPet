@@ -2,12 +2,15 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { gerarFeriadosPorAno } from '@/lib/feriados'
 
 interface AgendamentoOriginal {
   id: number
   tipo_exame: string
   data_hora: string
   status: string
+  veterinario_id: number | null
+  duracao_minutos: number | null
   tutores: { nome: string; telefone: string } | null
   pets: { nome: string; especie: string } | null
   pode_agendar: boolean
@@ -25,8 +28,6 @@ interface RevisaoConfig {
   valor_fora_comercial: number
   gera_laudo: boolean
   valor_laudo_extra: number
-  horario_inicio: string
-  horario_fim: string
 }
 
 interface Vet { id: number; nome: string }
@@ -51,26 +52,54 @@ function isComercial(dataHora: string, inicio: string, fim: string, feriados: st
 export default function NovaRevisaoPage() {
   const router = useRouter()
 
-  const [feriadoDatas, setFeriadoDatas] = useState<string[]>([])
-  const [busca,      setBusca]      = useState('')
-  const [resultados, setResultados] = useState<AgendamentoOriginal[]>([])
-  const [buscando,   setBuscando]   = useState(false)
-  const [buscouUmaVez, setBuscouUmaVez] = useState(false)
-  const [original,   setOriginal]   = useState<AgendamentoOriginal | null>(null)
-  const [config,     setConfig]     = useState<RevisaoConfig | null>(null)
+  const [feriadoDatas,    setFeriadoDatas]    = useState<string[]>([])
+  const [horarioInicio,   setHorarioInicio]   = useState('08:00')
+  const [horarioFim,      setHorarioFim]      = useState('17:00')
 
-  const [dataHora,   setDataHora]   = useState('')
-  const [laudoSolic, setLaudoSolic] = useState(false)
-  const [veterinario, setVeterinario] = useState('')
-  const [obs,        setObs]        = useState('')
-  const [vets,       setVets]       = useState<Vet[]>([])
-  const [salvando,   setSalvando]   = useState(false)
-  const [erro,       setErro]       = useState('')
+  const [busca,        setBusca]        = useState('')
+  const [resultados,   setResultados]   = useState<AgendamentoOriginal[]>([])
+  const [buscando,     setBuscando]     = useState(false)
+  const [buscouUmaVez, setBuscouUmaVez] = useState(false)
+  const [original,     setOriginal]     = useState<AgendamentoOriginal | null>(null)
+  const [config,       setConfig]       = useState<RevisaoConfig | null>(null)
+
+  const [data,            setData]            = useState('')
+  const [horaSelecionada, setHoraSelecionada] = useState('')
+  const [horariosLivres,  setHorariosLivres]  = useState<string[]>([])
+  const [loadingHorarios, setLoadingHorarios] = useState(false)
+  const [laudoSolic,      setLaudoSolic]      = useState(false)
+  const [formaPagamento,  setFormaPagamento]  = useState<'pix' | 'cartao'>('pix')
+  const [enviarLink,      setEnviarLink]      = useState(true)
+  const [veterinario,     setVeterinario]     = useState('')
+  const [obs,             setObs]             = useState('')
+  const [vets,            setVets]            = useState<Vet[]>([])
+  const [salvando,        setSalvando]        = useState(false)
+  const [erro,            setErro]            = useState('')
+  const [linkPagamento,   setLinkPagamento]   = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/veterinarios').then(r => r.ok ? r.json() : []).then(setVets).catch(() => {})
-    fetch('/api/feriados').then(r => r.ok ? r.json() : []).then((d: { data: string }[]) => setFeriadoDatas(d.map(f => f.data)))
+    const y = new Date().getFullYear()
+    const gerados = [y - 1, y, y + 1, y + 2].flatMap(gerarFeriadosPorAno).map(f => f.data)
+    fetch('/api/feriados?todos=1')
+      .then(r => r.ok ? r.json() : [])
+      .then((d: { data: string }[]) => setFeriadoDatas(Array.from(new Set([...d.map(f => f.data), ...gerados]))))
+    fetch('/api/feriados/horario').then(r => r.ok ? r.json() : {}).then((d: { horario_inicio?: string; horario_fim?: string }) => {
+      if (d.horario_inicio) setHorarioInicio(d.horario_inicio)
+      if (d.horario_fim)    setHorarioFim(d.horario_fim)
+    }).catch(() => {})
   }, [])
+
+  useEffect(() => {
+    if (!data || !original) { setHorariosLivres([]); return }
+    const duracao = original.duracao_minutos ?? 30
+    setLoadingHorarios(true)
+    setHoraSelecionada('')
+    fetch(`/api/agendamentos/horarios-livres?data=${data}&duracao=${duracao}`)
+      .then(r => r.ok ? r.json() : { horarios_livres: [] })
+      .then(d => { setHorariosLivres(d.horarios_livres ?? []); setLoadingHorarios(false) })
+      .catch(() => setLoadingHorarios(false))
+  }, [data, original])
 
   async function handleBuscar(e: React.FormEvent) {
     e.preventDefault()
@@ -89,9 +118,14 @@ export default function NovaRevisaoPage() {
   async function handleSelecionar(ag: AgendamentoOriginal) {
     setOriginal(ag)
     setResultados([])
-    setDataHora('')
+    setData('')
+    setHoraSelecionada('')
     setLaudoSolic(false)
+    setFormaPagamento('pix')
+    setEnviarLink(true)
+    setLinkPagamento(null)
     setErro('')
+    setVeterinario(String(ag.veterinario_id ?? ''))
 
     const res = await fetch('/api/revisoes/config')
     if (res.ok) {
@@ -100,14 +134,21 @@ export default function NovaRevisaoPage() {
     }
   }
 
-  const comercial  = dataHora && config ? isComercial(dataHora, config.horario_inicio, config.horario_fim, feriadoDatas) : false
-  const valorBase  = config ? (comercial ? config.valor_horario_comercial : config.valor_fora_comercial) : 0
-  const valorLaudo = config && !config.gera_laudo && laudoSolic ? config.valor_laudo_extra : 0
-  const valorTotal = valorBase + valorLaudo
+  const dataHora             = data && horaSelecionada ? `${data}T${horaSelecionada}:00` : ''
+  const comercial            = dataHora ? isComercial(dataHora, horarioInicio, horarioFim, feriadoDatas) : false
+  const originalFoiComercial = original  ? isComercial(original.data_hora, horarioInicio, horarioFim, feriadoDatas) : false
+  const horarioInvalido      = !!(originalFoiComercial && dataHora && !comercial)
+
+  const valorBase  = config
+    ? config.gera_laudo
+      ? (comercial ? config.valor_horario_comercial : config.valor_fora_comercial)
+      : (laudoSolic ? config.valor_laudo_extra : 0)
+    : 0
+  const valorTotal = valorBase
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!original || !config || !dataHora) return
+    if (!original || !config || !data || !horaSelecionada || horarioInvalido) return
     setErro('')
     setSalvando(true)
 
@@ -116,16 +157,24 @@ export default function NovaRevisaoPage() {
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({
         agendamento_original_id: original.id,
-        data_hora:               dataHora,
+        data_hora:               `${data}T${horaSelecionada}:00`,
         laudo_solicitado:        laudoSolic,
+        forma_pagamento:         valorTotal > 0 ? formaPagamento : undefined,
+        enviar_link:             valorTotal > 0 ? enviarLink : undefined,
         veterinario_id:          veterinario ? Number(veterinario) : undefined,
         observacoes:             obs || null,
       }),
     })
 
-    const data = await res.json()
-    if (!res.ok) { setErro(data.error ?? 'Erro ao criar revisão.'); setSalvando(false); return }
-    router.push('/admin/revisoes')
+    const resData = await res.json()
+    if (!res.ok) { setErro(resData.error ?? 'Erro ao criar revisão.'); setSalvando(false); return }
+
+    if (resData.mp_init_point) {
+      setLinkPagamento(resData.mp_init_point)
+      setSalvando(false)
+    } else {
+      router.push('/admin/revisoes')
+    }
   }
 
   return (
@@ -149,7 +198,6 @@ export default function NovaRevisaoPage() {
             </button>
           </form>
 
-          {/* Resultados com status já visível */}
           {resultados.length > 0 && (
             <div className="mt-3 space-y-2">
               {resultados.map(ag => (
@@ -171,15 +219,11 @@ export default function NovaRevisaoPage() {
                       <p className="text-xs text-gray-500 mt-0.5">
                         {ag.tutores?.nome} · {fmtDT(ag.data_hora)}
                       </p>
-
-                      {/* Prazo */}
                       <p className={`text-xs mt-1 font-medium ${ag.prazo_ok ? 'text-green-600' : 'text-red-500'}`}>
                         {ag.prazo_ok
                           ? `✓ Prazo válido até ${ag.prazo_limite}`
                           : `✗ Prazo expirado em ${ag.prazo_limite}`}
                       </p>
-
-                      {/* Revisões existentes */}
                       {ag.revisoes_ativas > 0 && (
                         <p className={`text-xs mt-0.5 font-medium ${ag.revisoes_ativas >= ag.max_revisoes ? 'text-red-500' : 'text-amber-600'}`}>
                           {ag.revisoes_ativas >= ag.max_revisoes
@@ -191,8 +235,6 @@ export default function NovaRevisaoPage() {
                         <p className="text-xs mt-0.5 text-green-600 font-medium">✓ Sem revisões anteriores</p>
                       )}
                     </div>
-
-                    {/* Ícone de ação */}
                     <div className="shrink-0 mt-0.5">
                       {ag.pode_agendar
                         ? <span className="text-[#8a6e36] text-sm font-bold">→</span>
@@ -210,8 +252,28 @@ export default function NovaRevisaoPage() {
         </div>
       )}
 
-      {/* Agendamento selecionado + formulário */}
-      {original && config && (
+      {/* Formulário */}
+      {/* Tela de sucesso com link de pagamento */}
+      {linkPagamento && (
+        <div className="bg-white rounded-xl border shadow-sm p-6 space-y-4 text-center">
+          <div className="text-4xl">✅</div>
+          <h2 className="text-lg font-bold text-[#19202d]">Revisão criada com sucesso!</h2>
+          <p className="text-sm text-gray-500">
+            {enviarLink ? 'O link de pagamento foi gerado e enviado ao tutor via WhatsApp.' : 'O link de pagamento foi gerado. Você pode copiá-lo abaixo.'}
+          </p>
+          <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 flex items-center justify-between gap-3">
+            <span className="text-xs text-gray-500 truncate flex-1">{linkPagamento}</span>
+            <button type="button" onClick={() => navigator.clipboard.writeText(linkPagamento)}
+              className="text-xs font-semibold text-[#8a6e36] hover:underline shrink-0">Copiar</button>
+          </div>
+          <button onClick={() => router.push('/admin/revisoes')}
+            className="w-full bg-[#19202d] hover:bg-[#232d3f] text-white font-bold py-3 rounded-lg transition text-sm">
+            Ver revisões
+          </button>
+        </div>
+      )}
+
+      {original && config && !linkPagamento && (
         <>
           <div className="bg-amber-50 border border-[#8a6e36]/20 rounded-xl p-4 mb-4 flex items-start justify-between">
             <div>
@@ -227,17 +289,92 @@ export default function NovaRevisaoPage() {
           <form onSubmit={handleSubmit} className="bg-white rounded-xl border shadow-sm p-5 space-y-4">
             <h2 className="text-sm font-bold text-[#19202d] uppercase tracking-wide">Configurar revisão</h2>
 
+            {/* Data */}
             <div>
-              <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Data e hora</label>
-              <input type="datetime-local" value={dataHora} onChange={e => setDataHora(e.target.value)}
-                required className={INPUT} />
-              {dataHora && (
-                <p className={`text-xs mt-1 font-medium ${comercial ? 'text-green-600' : 'text-amber-600'}`}>
-                  {comercial ? '✓ Horário comercial' : '⚠ Fora do horário comercial'}
-                  {' '}({config.horario_inicio}–{config.horario_fim}, seg–sex)
-                </p>
-              )}
+              <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Data</label>
+              <p className={`text-xs mb-1.5 font-medium ${originalFoiComercial ? 'text-blue-600' : 'text-violet-600'}`}>
+                {originalFoiComercial
+                  ? `ℹ Exame original em horário comercial — revisão também deve ser em horário comercial`
+                  : `ℹ Exame original em horário especial — revisão pode ser agendada em qualquer horário`}
+              </p>
+              <input type="date" value={data} onChange={e => setData(e.target.value)} required className={INPUT} />
             </div>
+
+            {/* Grade de horários */}
+            {data && (
+              <div>
+                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Horário</label>
+                {loadingHorarios ? (
+                  <p className="text-sm text-gray-400 py-3 text-center">Carregando horários...</p>
+                ) : horariosLivres.length === 0 ? (
+                  <input type="time" value={horaSelecionada} onChange={e => setHoraSelecionada(e.target.value)} className={INPUT} />
+                ) : (
+                  <>
+                    <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                      {horariosLivres.map(h => (
+                        <button key={h} type="button" onClick={() => setHoraSelecionada(h)}
+                          className={`py-2 rounded-lg text-sm font-semibold border transition ${horaSelecionada === h ? 'bg-[#19202d] text-white border-[#19202d]' : 'border-gray-200 hover:border-[#8a6e36] hover:bg-amber-50'}`}>
+                          {h}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="mt-2">
+                      <p className="text-xs text-gray-400 mb-1">Ou digite um horário personalizado:</p>
+                      <input type="time" value={horaSelecionada} onChange={e => setHoraSelecionada(e.target.value)} className={INPUT} />
+                    </div>
+                  </>
+                )}
+
+                {horaSelecionada && !horarioInvalido && (
+                  <p className={`text-xs mt-1 font-medium ${comercial ? 'text-green-600' : 'text-amber-600'}`}>
+                    {comercial ? '✓ Horário comercial' : '⚠ Fora do horário comercial'}
+                    {' '}({horarioInicio}–{horarioFim}, seg–sex)
+                  </p>
+                )}
+                {horarioInvalido && (
+                  <p className="text-xs mt-1 font-medium text-red-600">
+                    ✗ Revisões de exames em horário comercial só podem ser agendadas em horário comercial ({horarioInicio}–{horarioFim}, seg–sex)
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Solicitar laudo (só quando o config não inclui laudo automaticamente) */}
+            {!config.gera_laudo && (
+              <label className="flex items-center gap-3 px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg cursor-pointer hover:bg-amber-50/40 transition">
+                <input type="checkbox" checked={laudoSolic} onChange={e => { setLaudoSolic(e.target.checked); setFormaPagamento('pix') }}
+                  className="w-4 h-4 accent-[#8a6e36]" />
+                <div>
+                  <span className="text-sm font-semibold text-[#19202d]">Solicitar emissão de laudo</span>
+                  {config.valor_laudo_extra > 0 && (
+                    <span className="text-xs text-gray-500 ml-2">
+                      (+ R$ {Number(config.valor_laudo_extra).toFixed(2).replace('.', ',')})
+                    </span>
+                  )}
+                </div>
+              </label>
+            )}
+
+            {/* Forma de pagamento (quando há cobrança) */}
+            {valorTotal > 0 && (
+              <div>
+                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Forma de pagamento</label>
+                <div className="flex gap-3">
+                  {(['pix', 'cartao'] as const).map(op => (
+                    <label key={op} className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border cursor-pointer transition text-sm font-semibold ${formaPagamento === op ? 'bg-[#19202d] text-white border-[#19202d]' : 'border-gray-200 text-gray-700 hover:border-[#8a6e36] hover:bg-amber-50'}`}>
+                      <input type="radio" name="forma_pagamento" value={op} checked={formaPagamento === op}
+                        onChange={() => setFormaPagamento(op)} className="sr-only" />
+                      {op === 'pix' ? '💠 Pix' : '💳 Cartão'}
+                    </label>
+                  ))}
+                </div>
+                <label className="flex items-center gap-2 mt-2 cursor-pointer">
+                  <input type="checkbox" checked={enviarLink} onChange={e => setEnviarLink(e.target.checked)}
+                    className="w-4 h-4 accent-[#8a6e36]" />
+                  <span className="text-xs text-gray-600">Enviar link ao tutor pelo WhatsApp</span>
+                </label>
+              </div>
+            )}
 
             <div>
               <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Veterinário</label>
@@ -252,32 +389,27 @@ export default function NovaRevisaoPage() {
               <input type="text" value={obs} onChange={e => setObs(e.target.value)} placeholder="Opcional" className={INPUT} />
             </div>
 
-            {!config.gera_laudo && (
-              <label className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition">
-                <input type="checkbox" checked={laudoSolic} onChange={e => setLaudoSolic(e.target.checked)}
-                  className="w-4 h-4 accent-[#8a6e36]" />
-                <div>
-                  <p className="text-sm font-semibold text-[#19202d]">Solicitar laudo</p>
-                  <p className="text-xs text-gray-500">
-                    Revisão de ultra não inclui laudo. Custo extra: R$ {config.valor_laudo_extra.toFixed(2).replace('.', ',')}
-                  </p>
-                </div>
-              </label>
-            )}
-
             <div className="bg-gray-50 rounded-lg p-4 border border-gray-100">
               <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Resumo de valores</p>
               <div className="space-y-1 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Revisão ({comercial ? 'horário comercial' : 'fora do horário'})</span>
-                  <span className="font-semibold">
-                    {valorBase === 0 ? <span className="text-green-600">Gratuito</span> : `R$ ${valorBase.toFixed(2).replace('.', ',')}`}
-                  </span>
-                </div>
-                {laudoSolic && !config.gera_laudo && (
+                {config.gera_laudo ? (
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Laudo extra</span>
-                    <span className="font-semibold">R$ {valorLaudo.toFixed(2).replace('.', ',')}</span>
+                    <span className="text-gray-600">Revisão com laudo ({comercial ? 'horário comercial' : 'fora do horário'})</span>
+                    <span className="font-semibold">
+                      {valorBase === 0 ? <span className="text-green-600">Gratuito</span> : `R$ ${valorBase.toFixed(2).replace('.', ',')}`}
+                    </span>
+                  </div>
+                ) : laudoSolic ? (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Revisão + laudo solicitado</span>
+                    <span className="font-semibold">
+                      {valorBase === 0 ? <span className="text-green-600">Gratuito</span> : `R$ ${valorBase.toFixed(2).replace('.', ',')}`}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Revisão sem laudo</span>
+                    <span className="font-semibold text-green-600">Gratuito</span>
                   </div>
                 )}
                 <div className="flex justify-between border-t pt-1 mt-1">
@@ -291,7 +423,7 @@ export default function NovaRevisaoPage() {
 
             {erro && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{erro}</p>}
 
-            <button type="submit" disabled={salvando || !dataHora}
+            <button type="submit" disabled={salvando || !data || !horaSelecionada || horarioInvalido}
               className="w-full bg-[#19202d] hover:bg-[#232d3f] disabled:opacity-60 text-white font-bold py-3 rounded-lg transition text-sm">
               {salvando ? 'Criando...' : 'Criar revisão'}
             </button>

@@ -13,8 +13,6 @@ interface RevisaoConfig {
   valor_fora_comercial: number
   gera_laudo: boolean
   valor_laudo_extra: number
-  horario_inicio: string
-  horario_fim: string
 }
 
 interface ExamePreco {
@@ -294,18 +292,6 @@ export default function RevisoesPage() {
                   <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Valor fora comercial (R$)</label>
                   <input type="number" min={0} step={0.01} value={cfg.valor_fora_comercial}
                     onChange={e => updateConfig(cfg.id, 'valor_fora_comercial', Number(e.target.value))}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8a6e36]" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Início comercial</label>
-                  <input type="time" value={cfg.horario_inicio}
-                    onChange={e => updateConfig(cfg.id, 'horario_inicio', e.target.value)}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8a6e36]" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Fim comercial</label>
-                  <input type="time" value={cfg.horario_fim}
-                    onChange={e => updateConfig(cfg.id, 'horario_fim', e.target.value)}
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8a6e36]" />
                 </div>
                 <div>

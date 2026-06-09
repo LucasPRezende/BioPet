@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
   // Agendamentos originais (não são revisões, tipo permitido)
   const { data: ags, error } = await supabase
     .from('agendamentos')
-    .select('id, tipo_exame, data_hora, status, tutores(nome, telefone), pets(nome, especie)')
+    .select('id, tipo_exame, data_hora, status, veterinario_id, duracao_minutos, tutores(nome, telefone), pets(nome, especie)')
     .or(orClauses)
     .eq('is_revisao', false)
     .in('tipo_exame', tiposPermitidos)
