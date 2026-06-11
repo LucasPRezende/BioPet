@@ -1,11 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { supabase } from '@/lib/supabase'
+import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
 
 export const dynamic = 'force-dynamic'
 import { sendVetInvite } from '@/lib/evolution'
 
-export async function GET() {
+async function autenticar(request: NextRequest) {
+  const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value
+  if (!cookie) return null
+  return parseSystemSession(cookie)
+}
+
+export async function GET(request: NextRequest) {
+  if (!(await autenticar(request))) {
+    return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 })
+  }
+
   const { data, error } = await supabase
     .from('veterinarios')
     .select('id, nome, email, whatsapp, convite_aceito, clinica_id, criado_em, clinicas(nome)')
@@ -16,6 +27,10 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  if (!(await autenticar(request))) {
+    return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 })
+  }
+
   const body = await request.json()
   const nome     = body.nome?.trim()
   const email    = body.email?.trim().toLowerCase() || null

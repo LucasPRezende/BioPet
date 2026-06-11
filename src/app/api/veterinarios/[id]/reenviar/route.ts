@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
 import { sendVetInvite } from '@/lib/evolution'
 
 export async function POST(
   _request: NextRequest,
   { params }: { params: { id: string } },
 ) {
+  const cookie = _request.cookies.get(SESSION_COOKIE_NAME)?.value
+  if (!cookie || !(await parseSystemSession(cookie))) {
+    return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 })
+  }
+
   const { data: vet, error } = await supabase
     .from('veterinarios')
     .select('id, nome, whatsapp, token_convite, convite_aceito')
