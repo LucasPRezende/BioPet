@@ -1,4 +1,7 @@
-// Usa apenas Web Crypto (globalThis.crypto) — funciona em Node.js e Edge Runtime
+// Usa Web Crypto (globalThis.crypto) + consulta ao banco para validar a sessão.
+import { supabase } from './supabase'
+
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000 // 30 dias
 
 const getSecret = () => {
   const s = process.env.AUTH_SECRET
@@ -7,9 +10,22 @@ const getSecret = () => {
 }
 
 // ── Session token ─────────────────────────────────────────────────────────────
-// Formato: "vetId:hmac"
+// Formato: "v2:{vetId}:{exp}:{hmac}"
+//   exp = expiração em epoch ms
+//   hmac = HMAC-SHA256(secret, "v2:vetId:exp:{pwdTag}")
+//   pwdTag = derivado do senha_hash atual → trocar a senha invalida sessões antigas
 
-async function makeHmac(vetId: number): Promise<string> {
+async function sha256Hex(input: string): Promise<string> {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input))
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+async function pwdTag(senhaHash: string | null | undefined): Promise<string> {
+  if (!senhaHash) return ''
+  return (await sha256Hex(senhaHash)).slice(0, 16)
+}
+
+async function makeHmac(payload: string): Promise<string> {
   const key = await crypto.subtle.importKey(
     'raw',
     new TextEncoder().encode(getSecret()),
@@ -17,27 +33,36 @@ async function makeHmac(vetId: number): Promise<string> {
     false,
     ['sign'],
   )
-  const sig = await crypto.subtle.sign(
-    'HMAC',
-    key,
-    new TextEncoder().encode(String(vetId)),
-  )
+  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(payload))
   return Array.from(new Uint8Array(sig))
     .map(b => b.toString(16).padStart(2, '0'))
     .join('')
 }
 
 export async function createVetSession(vetId: number): Promise<string> {
-  return `${vetId}:${await makeHmac(vetId)}`
+  const { data } = await supabase.from('veterinarios').select('senha_hash').eq('id', vetId).single()
+  const tag = await pwdTag(data?.senha_hash)
+  const exp = Date.now() + SESSION_TTL_MS
+  const payload = `v2:${vetId}:${exp}`
+  const hmac = await makeHmac(`${payload}:${tag}`)
+  return `${payload}:${hmac}`
 }
 
 export async function parseVetSession(token: string): Promise<number | null> {
-  const idx = token.indexOf(':')
-  if (idx === -1) return null
-  const vetId = parseInt(token.slice(0, idx))
+  const parts = token.split(':')
+  if (parts.length !== 4 || parts[0] !== 'v2') return null
+  const vetId = parseInt(parts[1])
   if (isNaN(vetId) || vetId <= 0) return null
-  const expected = await createVetSession(vetId)
-  return token === expected ? vetId : null
+
+  const exp = parseInt(parts[2])
+  if (isNaN(exp) || Date.now() > exp) return null
+
+  const { data } = await supabase.from('veterinarios').select('senha_hash').eq('id', vetId).single()
+  if (!data) return null
+
+  const tag = await pwdTag(data.senha_hash)
+  const expected = await makeHmac(`v2:${vetId}:${parts[2]}:${tag}`)
+  return parts[3] === expected ? vetId : null
 }
 
 // ── Password hashing (PBKDF2, sem dependência externa) ────────────────────────

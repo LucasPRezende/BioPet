@@ -1,12 +1,29 @@
 // Autenticação para clínicas parceiras
-// Session format: "{clinicaId}:{ps}:{hmac(clinicaId:ps)}"
-// ps = "1" (primeira_senha = true) | "0"
+// Session format: "v2:{clinicaId}:{ps}:{exp}:{hmac}"
+//   ps  = "1" (primeira_senha = true) | "0"
+//   exp = expiração em epoch ms
+//   hmac = HMAC-SHA256(secret, "v2:clinicaId:ps:exp:{pwdTag}")
+//   pwdTag = derivado do senha_hash atual → trocar a senha invalida sessões antigas
 // Cookie name: clinica_session
+
+import { supabase } from './supabase'
+
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000 // 30 dias
 
 const getSecret = () => {
   const s = process.env.AUTH_SECRET
   if (!s) throw new Error('AUTH_SECRET env var não configurada.')
   return s
+}
+
+async function sha256Hex(input: string): Promise<string> {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input))
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+async function pwdTag(senhaHash: string | null | undefined): Promise<string> {
+  if (!senhaHash) return ''
+  return (await sha256Hex(senhaHash)).slice(0, 16)
 }
 
 async function makeHmac(payload: string): Promise<string> {
@@ -32,28 +49,32 @@ export async function createClinicaSession(
   clinicaId: number,
   primeiraSenha: boolean,
 ): Promise<string> {
-  const ps = primeiraSenha ? '1' : '0'
-  const payload = `${clinicaId}:${ps}`
-  const hmac = await makeHmac(payload)
+  const { data } = await supabase.from('clinicas').select('senha_hash').eq('id', clinicaId).single()
+  const tag = await pwdTag(data?.senha_hash)
+  const ps  = primeiraSenha ? '1' : '0'
+  const exp = Date.now() + SESSION_TTL_MS
+  const payload = `v2:${clinicaId}:${ps}:${exp}`
+  const hmac = await makeHmac(`${payload}:${tag}`)
   return `${payload}:${hmac}`
 }
 
 export async function parseClinicaSession(token: string): Promise<ClinicaSessionData | null> {
-  const lastColon = token.lastIndexOf(':')
-  if (lastColon === -1) return null
-  const payload = token.slice(0, lastColon)
-  const hmac = token.slice(lastColon + 1)
+  const parts = token.split(':')
+  if (parts.length !== 5 || parts[0] !== 'v2') return null
+  const [, clinicaIdStr, ps, expStr, hmac] = parts
 
-  const parts = payload.split(':')
-  if (parts.length !== 2) return null
-
-  const clinicaId = parseInt(parts[0])
-  const ps = parts[1]
-
+  const clinicaId = parseInt(clinicaIdStr)
   if (isNaN(clinicaId) || clinicaId <= 0) return null
   if (ps !== '0' && ps !== '1') return null
 
-  const expectedHmac = await makeHmac(payload)
+  const exp = parseInt(expStr)
+  if (isNaN(exp) || Date.now() > exp) return null
+
+  const { data } = await supabase.from('clinicas').select('senha_hash').eq('id', clinicaId).single()
+  if (!data) return null
+
+  const tag = await pwdTag(data.senha_hash)
+  const expectedHmac = await makeHmac(`v2:${clinicaId}:${ps}:${expStr}:${tag}`)
   if (hmac !== expectedHmac) return null
 
   return { clinicaId, primeiraSenha: ps === '1' }
