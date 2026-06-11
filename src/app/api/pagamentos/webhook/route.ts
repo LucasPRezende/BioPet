@@ -75,9 +75,25 @@ export async function POST(request: NextRequest) {
         // Busca dados do agendamento para notificação e WhatsApp
         const { data: ag } = await supabase
           .from('agendamentos')
-          .select('tipo_exame, tutores(nome, telefone), pets(nome)')
+          .select('tipo_exame, valor, tutores(nome, telefone), pets(nome), agendamento_exames(valor)')
           .eq('id', agendamentoId)
           .single()
+
+        // Defesa em profundidade: confere se o valor pago bate com o esperado.
+        // Não bloqueia (o valor já é fixado server-side e o agendamento pode ter
+        // sido reprecificado após a geração do link) — apenas alerta para conferência.
+        const examesRows   = ag?.agendamento_exames as { valor: number }[] | null
+        const examesSum    = (examesRows ?? []).reduce((s, e) => s + Number(e.valor), 0)
+        const valorEsperado = examesSum > 0 ? examesSum : Number(ag?.valor) || 0
+        const valorPago     = Number(payment.transaction_amount) || 0
+        const divergente    = valorEsperado > 0 && valorPago + 0.01 < valorEsperado
+        if (divergente) {
+          console.warn(
+            `[webhook/mp] DIVERGÊNCIA DE VALOR no agendamento ${agendamentoId}: ` +
+            `pago R$${valorPago.toFixed(2)} < esperado R$${valorEsperado.toFixed(2)} ` +
+            `(payment ${payment.id})`
+          )
+        }
 
         const tutoresRaw = ag?.tutores as unknown
         const tutor = (Array.isArray(tutoresRaw)
@@ -101,13 +117,17 @@ export async function POST(request: NextRequest) {
           console.error(`[webhook/mp] erro ao atualizar agendamento ${agendamentoId}:`, updateError.message)
         }
 
+        const mensagemNotif = divergente
+          ? `Pagamento confirmado via Mercado Pago — ATENÇÃO: valor pago (R$${valorPago.toFixed(2)}) menor que o esperado (R$${valorEsperado.toFixed(2)}). Conferir.`
+          : 'Pagamento PIX confirmado via Mercado Pago'
+
         const { error: notifError } = await supabase.from('notificacoes').insert({
           tipo_evento:      'pagamento_confirmado',
           agendamento_id:   agendamentoId,
           nome_tutor:       nomeTutor,
-          mensagem_cliente: 'Pagamento PIX confirmado via Mercado Pago',
+          mensagem_cliente: mensagemNotif,
           visualizado:      false,
-          motivo:           'pagamento_confirmado',
+          motivo:           divergente ? 'pagamento_divergente' : 'pagamento_confirmado',
           telefone:         '',
         })
 
