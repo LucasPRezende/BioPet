@@ -323,6 +323,9 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
 
   const valorOriginal = ag.valor ?? 0
   const valorMudou    = novoValor !== null && Math.abs(novoValor - valorOriginal) > 0.01
+  const estaPago      = ag.status_pagamento === 'pago'
+  // Diferença quando o agendamento já está pago: >0 falta receber, <0 devolver ao cliente
+  const diferencaPago = (novoValor ?? 0) - valorOriginal
   const podeEnviarLink = pagResp === 'tutor' && entrega === 'link' &&
     formaPag !== 'gratuito' && formaPag !== '' && formaPag !== 'a confirmar' && formaPag !== '—'
 
@@ -424,7 +427,7 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
       setSaving(false); return
     }
 
-    if (fase === 'confirmar' && enviarLink && podeEnviarLink) {
+    if (fase === 'confirmar' && enviarLink && podeEnviarLink && !estaPago) {
       setEnviandoLink(true)
       await fetch('/api/pagamentos/regerar-link', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -469,9 +472,27 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
               A alteração na forma de pagamento resultou em um novo valor para este agendamento.
             </p>
 
+            {estaPago && (
+              <div className="bg-amber-50 border border-amber-300 rounded-xl px-4 py-3 space-y-1.5">
+                <p className="text-sm font-bold text-amber-800">⚠️ Este agendamento já está PAGO</p>
+                <p className="text-xs text-amber-700">
+                  {diferencaPago > 0.01 ? (
+                    <>Faltam <span className="font-bold">{formatBRL(diferencaPago)}</span> a receber do cliente.</>
+                  ) : diferencaPago < -0.01 ? (
+                    <>Há <span className="font-bold">{formatBRL(Math.abs(diferencaPago))}</span> a devolver ao cliente.</>
+                  ) : (
+                    <>O valor total não muda.</>
+                  )}
+                </p>
+                <p className="text-xs text-amber-700">
+                  Não será enviado novo link de pagamento — a diferença precisa ser tratada manualmente.
+                </p>
+              </div>
+            )}
+
             <div className="bg-gray-50 border border-gray-200 rounded-xl divide-y divide-gray-100">
               <div className="flex justify-between items-center px-4 py-3">
-                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Valor atual</span>
+                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">{estaPago ? 'Valor pago' : 'Valor atual'}</span>
                 <span className="text-sm font-semibold text-gray-500 line-through">{formatBRL(valorOriginal)}</span>
               </div>
               <div className="flex justify-between items-center px-4 py-3">
@@ -484,7 +505,7 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
               </div>
             </div>
 
-            {podeEnviarLink && (
+            {podeEnviarLink && !estaPago && (
               <label className={`flex items-center gap-3 px-4 py-3 rounded-xl border cursor-pointer transition select-none ${
                 enviarLink ? 'border-green-300 bg-green-50' : 'border-gray-200 bg-gray-50'
               }`}>

@@ -30,10 +30,13 @@ export async function POST(request: NextRequest) {
 
   const { data: ag } = await supabase
     .from('agendamentos')
-    .select('mp_init_point, valor, tipo_exame, data_hora, duracao_minutos, tutores(nome, telefone), pets(nome)')
+    .select('mp_init_point, valor, status_pagamento, tipo_exame, data_hora, duracao_minutos, tutores(nome, telefone), pets(nome)')
     .eq('id', Number(agendamento_id))
     .single()
 
+  if (ag?.status_pagamento === 'pago') {
+    return NextResponse.json({ error: 'Agendamento já está pago — não é possível reenviar link de pagamento.' }, { status: 400 })
+  }
   if (!ag?.mp_init_point) {
     return NextResponse.json({ error: 'Link de pagamento não disponível.' }, { status: 400 })
   }

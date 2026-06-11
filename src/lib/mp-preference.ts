@@ -9,11 +9,14 @@ export async function gerarPreferenciaMp(agendamentoId: number): Promise<{
 }> {
   const { data: ag } = await supabase
     .from('agendamentos')
-    .select('id, tipo_exame, valor, forma_pagamento, pets(nome)')
+    .select('id, tipo_exame, valor, forma_pagamento, status_pagamento, pets(nome)')
     .eq('id', agendamentoId)
     .single()
 
   if (!ag) throw new Error('Agendamento não encontrado')
+  if (ag.status_pagamento === 'pago') {
+    throw new Error('Agendamento já está pago — não é possível gerar link de pagamento.')
+  }
   if ((ag.forma_pagamento ?? '').toLowerCase() === 'gratuito' || Number(ag.valor) === 0) {
     throw new Error('Exame gratuito — link de pagamento não aplicável.')
   }

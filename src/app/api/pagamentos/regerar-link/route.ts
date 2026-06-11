@@ -48,11 +48,14 @@ export async function POST(request: NextRequest) {
 
   const { data: ag } = await supabase
     .from('agendamentos')
-    .select('id, tipo_exame, valor, forma_pagamento, data_hora, pix_token, mp_preference_id, tutores(nome, telefone), pets(nome)')
+    .select('id, tipo_exame, valor, forma_pagamento, status_pagamento, data_hora, pix_token, mp_preference_id, tutores(nome, telefone), pets(nome)')
     .eq('id', Number(agendamento_id))
     .single()
 
   if (!ag) return NextResponse.json({ error: 'Agendamento não encontrado.' }, { status: 404 })
+  if (ag.status_pagamento === 'pago') {
+    return NextResponse.json({ error: 'Agendamento já está pago — não é possível enviar link de pagamento.' }, { status: 400 })
+  }
   if ((ag.forma_pagamento ?? '').toLowerCase() === 'gratuito' || Number(ag.valor ?? 0) === 0) {
     return NextResponse.json({ error: 'Exame gratuito — link de pagamento não aplicável.' }, { status: 400 })
   }
