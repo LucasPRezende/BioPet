@@ -16,3 +16,4 @@ context-pdfs/.gemini-cache.json
 
 .vercel
 scripts/atualizar-env-vps.sh
+storage/laudos/

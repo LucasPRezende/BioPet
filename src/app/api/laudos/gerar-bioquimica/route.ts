@@ -3,8 +3,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
 import { generateBioquimicaPDF, type BioquimicaPDFData } from '@/lib/generate-bioquimica-pdf'
-
-const BUCKET = 'laudos'
+import { savePdf, deletePdf } from '@/lib/pdf-storage'
 
 async function getComissao() {
   const { data } = await supabase
@@ -73,11 +72,7 @@ export async function POST(request: NextRequest) {
     const filename     = `${token}.pdf`
     const originalName = `laudo_bioquimica_${pdfData.nome_pet.replace(/\s+/g, '_')}.pdf`
 
-    const { error: uploadError } = await supabase.storage
-      .from(BUCKET)
-      .upload(filename, pdfBuffer, { contentType: 'application/pdf' })
-
-    if (uploadError) throw new Error(`Erro ao salvar arquivo: ${uploadError.message}`)
+    await savePdf(filename, pdfBuffer)
 
     const financeiro = await getComissao()
 
@@ -110,7 +105,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) {
-      await supabase.storage.from(BUCKET).remove([filename])
+      await deletePdf(filename)
       throw new Error(error.message)
     }
 

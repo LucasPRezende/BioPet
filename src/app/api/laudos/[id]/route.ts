@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
-
-const BUCKET = 'laudos'
+import { replacePdf } from '@/lib/pdf-storage'
 
 // PATCH — substitui o PDF de um laudo existente
 export async function PATCH(
@@ -35,12 +34,11 @@ export async function PATCH(
 
   const buffer = Buffer.from(await file.arrayBuffer())
 
-  // Substitui o arquivo no Storage (mesmo filename)
-  const { error: uploadError } = await supabase.storage
-    .from(BUCKET)
-    .update(laudo.filename, buffer, { contentType: 'application/pdf', upsert: true })
-
-  if (uploadError) return NextResponse.json({ error: uploadError.message }, { status: 500 })
+  try {
+    await replacePdf(laudo.filename, buffer)
+  } catch {
+    return NextResponse.json({ error: 'Erro ao substituir arquivo.' }, { status: 500 })
+  }
 
   // Atualiza o nome original
   await supabase

@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
-
-const BUCKET = 'laudos'
+import { savePdf, deletePdf } from '@/lib/pdf-storage'
 
 async function getComissao(tipoExame: string | null, agendamentoId?: number | null) {
   if (!tipoExame) return { preco_exame: null, custo_exame: null, valor_comissao: null }
@@ -136,12 +135,10 @@ export async function POST(request: NextRequest) {
   const filename = `${token}.pdf`
   const buffer   = Buffer.from(await file.arrayBuffer())
 
-  const { error: uploadError } = await supabase.storage
-    .from(BUCKET)
-    .upload(filename, buffer, { contentType: 'application/pdf' })
-
-  if (uploadError) {
-    return NextResponse.json({ error: `Erro ao salvar arquivo: ${uploadError.message}` }, { status: 500 })
+  try {
+    await savePdf(filename, buffer)
+  } catch {
+    return NextResponse.json({ error: 'Erro ao salvar arquivo no servidor.' }, { status: 500 })
   }
 
   // Snapshot dos valores financeiros vigentes
@@ -170,7 +167,7 @@ export async function POST(request: NextRequest) {
     .single()
 
   if (error) {
-    await supabase.storage.from(BUCKET).remove([filename])
+    await deletePdf(filename)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 

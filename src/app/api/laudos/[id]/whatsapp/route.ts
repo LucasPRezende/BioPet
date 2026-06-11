@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
 import { sendWhatsAppDocument } from '@/lib/evolution'
-
-const BUCKET = 'laudos'
+import { getPdfPublicUrl } from '@/lib/pdf-storage'
 
 function randomDelay() {
   const ms = Math.floor(Math.random() * 6000) + 4000 // 4–10 segundos
@@ -32,28 +31,21 @@ export async function POST(
 
   const { data: laudo, error } = await supabase
     .from('laudos')
-    .select('nome_pet, tutor, telefone, filename, original_name, veterinarios(whatsapp)')
+    .select('nome_pet, tutor, telefone, filename, original_name, token, veterinarios(whatsapp)')
     .eq('id', id)
     .single()
 
   if (error || !laudo) return NextResponse.json({ error: 'Laudo não encontrado' }, { status: 404 })
   if (!laudo.filename)  return NextResponse.json({ error: 'Laudo sem arquivo.' }, { status: 422 })
 
-  const { data: signed, error: signErr } = await supabase.storage
-    .from(BUCKET)
-    .createSignedUrl(laudo.filename, 3600)
-
-  if (signErr || !signed?.signedUrl) {
-    return NextResponse.json({ error: 'Não foi possível gerar o link do PDF.' }, { status: 500 })
-  }
-
-  const fileName     = laudo.original_name ?? `laudo_${laudo.nome_pet}.pdf`
-  const vetWhatsapp  = (laudo.veterinarios as unknown as { whatsapp: string | null } | null)?.whatsapp
+  const pdfUrl      = getPdfPublicUrl(laudo.token)
+  const fileName    = laudo.original_name ?? `laudo_${laudo.nome_pet}.pdf`
+  const vetWhatsapp = (laudo.veterinarios as unknown as { whatsapp: string | null } | null)?.whatsapp
 
   if (destino === 'tutor' || destino === 'ambos') {
     const ok = await sendWhatsAppDocument(
       laudo.telefone,
-      signed.signedUrl,
+      pdfUrl,
       fileName,
       `Olá! O laudo do *${laudo.nome_pet}* está pronto. Segue o PDF.`,
     )
@@ -64,7 +56,7 @@ export async function POST(
     if (destino === 'ambos') await randomDelay()
     await sendWhatsAppDocument(
       vetWhatsapp,
-      signed.signedUrl,
+      pdfUrl,
       fileName,
       `Segue o PDF do laudo do *${laudo.nome_pet}* (tutor: ${laudo.tutor}).`,
     )
