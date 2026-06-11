@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { supabase } from '@/lib/supabase'
 import { parseClinicaSession, CLINICA_COOKIE_NAME } from '@/lib/clinica-auth'
+import { sanitizeOrTerm } from '@/lib/search-utils'
 
 export async function GET(request: NextRequest) {
   const token = (await cookies()).get(CLINICA_COOKIE_NAME)?.value
@@ -28,10 +29,11 @@ export async function GET(request: NextRequest) {
       .order('nome')
       .limit(8)
 
+    const qSafe = sanitizeOrTerm(q)
     if (isPhone) {
-      query = query.or(`nome.ilike.%${q}%,telefone.ilike.%${digits}%,telefone.ilike.%${telNorm}%`)
+      query = query.or(`nome.ilike.%${qSafe}%,telefone.ilike.%${digits}%,telefone.ilike.%${telNorm}%`)
     } else {
-      query = query.ilike('nome', `%${q}%`)
+      query = query.ilike('nome', `%${qSafe}%`)
     }
 
     const { data } = await query
