@@ -6,7 +6,7 @@
 //   pwdTag = derivado do senha_hash atual → trocar a senha invalida sessões antigas
 // Cookie name: sys_session
 
-import { supabase } from './supabase'
+import { fetchSenhaHashFresh, getSenhaHashCached } from './session-cache'
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000 // 30 dias
 
@@ -52,8 +52,8 @@ export async function createSystemSession(
   role: string,
   primeiraSSenha: boolean,
 ): Promise<string> {
-  const { data } = await supabase.from('system_users').select('senha_hash').eq('id', userId).single()
-  const tag = await pwdTag(data?.senha_hash)
+  const senhaHash = await fetchSenhaHashFresh('system_users', userId)
+  const tag = await pwdTag(senhaHash)
   const ps  = primeiraSSenha ? '1' : '0'
   const exp = Date.now() + SESSION_TTL_MS
   const payload = `v2:${userId}:${role}:${ps}:${exp}`
@@ -74,10 +74,10 @@ export async function parseSystemSession(token: string): Promise<SystemSessionDa
   const exp = parseInt(expStr)
   if (isNaN(exp) || Date.now() > exp) return null
 
-  const { data } = await supabase.from('system_users').select('senha_hash').eq('id', userId).single()
-  if (!data) return null
+  const senhaHash = await getSenhaHashCached('system_users', userId)
+  if (senhaHash === undefined) return null
 
-  const tag = await pwdTag(data.senha_hash)
+  const tag = await pwdTag(senhaHash)
   const payload = `v2:${userId}:${role}:${ps}:${expStr}`
   const expectedHmac = await makeHmac(`${payload}:${tag}`)
   if (hmac !== expectedHmac) return null

@@ -6,7 +6,7 @@
 //   pwdTag = derivado do senha_hash atual → trocar a senha invalida sessões antigas
 // Cookie name: clinica_session
 
-import { supabase } from './supabase'
+import { fetchSenhaHashFresh, getSenhaHashCached } from './session-cache'
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000 // 30 dias
 
@@ -49,8 +49,8 @@ export async function createClinicaSession(
   clinicaId: number,
   primeiraSenha: boolean,
 ): Promise<string> {
-  const { data } = await supabase.from('clinicas').select('senha_hash').eq('id', clinicaId).single()
-  const tag = await pwdTag(data?.senha_hash)
+  const senhaHash = await fetchSenhaHashFresh('clinicas', clinicaId)
+  const tag = await pwdTag(senhaHash)
   const ps  = primeiraSenha ? '1' : '0'
   const exp = Date.now() + SESSION_TTL_MS
   const payload = `v2:${clinicaId}:${ps}:${exp}`
@@ -70,10 +70,10 @@ export async function parseClinicaSession(token: string): Promise<ClinicaSession
   const exp = parseInt(expStr)
   if (isNaN(exp) || Date.now() > exp) return null
 
-  const { data } = await supabase.from('clinicas').select('senha_hash').eq('id', clinicaId).single()
-  if (!data) return null
+  const senhaHash = await getSenhaHashCached('clinicas', clinicaId)
+  if (senhaHash === undefined) return null
 
-  const tag = await pwdTag(data.senha_hash)
+  const tag = await pwdTag(senhaHash)
   const expectedHmac = await makeHmac(`v2:${clinicaId}:${ps}:${expStr}:${tag}`)
   if (hmac !== expectedHmac) return null
 
