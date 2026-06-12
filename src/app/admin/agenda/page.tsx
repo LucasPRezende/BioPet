@@ -19,6 +19,7 @@ interface BioquimicaSubExame {
 interface AgExame {
   tipo_exame:      string
   valor:           number | null
+  desconto?:       number | null
   duracao_minutos?: number | null
   descricao?:      string | null
 }
@@ -242,6 +243,23 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
   const [vets,      setVets]      = useState<{ id: number; nome: string }[]>([])
   const [saving,    setSaving]    = useState(false)
   const [error,     setError]     = useState('')
+  const [isAdmin,   setIsAdmin]   = useState(false)
+  const [descontosAbertos, setDescontosAbertos] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(u => setIsAdmin(u?.role === 'admin'))
+  }, [])
+
+  // Aplica desconto (R$) a um exame, mantendo valor = líquido (bruto − desconto)
+  function aplicarDesconto(tipo: string, descontoRaw: number) {
+    userChangedRef.current = true
+    setExamesAtivos(prev => prev.map(ex => {
+      if (ex.tipo_exame !== tipo) return ex
+      const bruto = Number(ex.valor ?? 0) + Number(ex.desconto ?? 0)
+      const desc  = Math.min(Math.max(0, descontoRaw), bruto) // entre 0 e o bruto
+      return { ...ex, desconto: desc, valor: bruto - desc }
+    }))
+  }
 
   // Recálculo de valor
   const [comissoes,   setComissoes]   = useState<ComissaoInfo[]>([])
@@ -317,7 +335,8 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
       return sum + (isPix ? pixNormal : cartaoNormal)
     }, 0)
 
-    setNovoValor(calc)
+    const descontoTotal = exames.reduce((s, ex) => s + Number(ex.desconto ?? 0), 0)
+    setNovoValor(Math.max(0, calc - descontoTotal))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formaPag, pagResp, data, hora, examesAtivos, ag])
 
@@ -375,18 +394,20 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
       const esp          = ag.encaixe ? false : isEspecial(hora, duracaoAtiva, data, feriadoDatas, horarioFim, horarioInicio)
       const bios   = ag.agendamento_bioquimica ?? []
       const examesCalc: AgExame[] = exsAg.map(ex => {
+        const desc = Number(ex.desconto ?? 0)
+        const liq  = (bruto: number) => Math.max(0, bruto - desc)
         if (ex.tipo_exame === 'Bioquímica') {
           const val = bios.reduce((s, b) => s + Number(isPix ? b.valor_pix : b.valor_cartao), 0)
-          return { ...ex, valor: val }
+          return { ...ex, valor: liq(val), desconto: desc }
         }
         const info = cMap.get(ex.tipo_exame)
         if (!info) return ex
         const pNorm = info.preco_pix_comercial    ?? 0
         const cNorm = info.preco_cartao_comercial ?? 0
-        if (!info.varia_por_horario) return { ...ex, valor: isPix ? pNorm : cNorm }
+        if (!info.varia_por_horario) return { ...ex, valor: liq(isPix ? pNorm : cNorm), desconto: desc }
         const pEsp = info.preco_pix_fora_horario    ?? pNorm
         const cEsp = info.preco_cartao_fora_horario ?? cNorm
-        return { ...ex, valor: esp ? (isPix ? pEsp : cEsp) : (isPix ? pNorm : cNorm) }
+        return { ...ex, valor: liq(esp ? (isPix ? pEsp : cEsp) : (isPix ? pNorm : cNorm)), desconto: desc }
       })
       const calc = examesCalc.reduce((s, ex) => s + (ex.valor ?? 0), 0)
       if (calc > 0) { valorFinal = calc; examesAtualizados = examesCalc }
@@ -402,6 +423,7 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
       tipo_exame:      e.tipo_exame,
       duracao_minutos: cMapSave.get(e.tipo_exame)?.duracao_minutos ?? 30,
       valor:           examesAtualizados?.find(u => u.tipo_exame === e.tipo_exame)?.valor ?? e.valor,
+      desconto:        Number(e.desconto ?? 0),
     }))
 
     const body: Record<string, unknown> = {
@@ -540,23 +562,56 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
               <div>
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Exames agendados</p>
                 <div className="space-y-1.5">
-                  {examesAtivos.map(ex => (
-                    <div key={ex.tipo_exame} className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg border border-gray-200">
-                      <div>
-                        <span className="text-sm text-[#19202d] font-medium">{ex.tipo_exame}</span>
-                        {ex.valor != null && <span className="text-xs text-gray-400 ml-2">{formatBRL(ex.valor)}</span>}
+                  {examesAtivos.map(ex => {
+                    const desc        = Number(ex.desconto ?? 0)
+                    const bruto       = Number(ex.valor ?? 0) + desc
+                    const inputAberto = isAdmin && (descontosAbertos.has(ex.tipo_exame) || desc > 0)
+                    return (
+                    <div key={ex.tipo_exame} className="px-3 py-2 bg-gray-50 rounded-lg border border-gray-200">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-sm text-[#19202d] font-medium">{ex.tipo_exame}</span>
+                          {ex.valor != null && (desc > 0
+                            ? <span className="text-xs ml-2"><span className="text-gray-400 line-through">{formatBRL(bruto)}</span> <span className="text-green-700 font-semibold">{formatBRL(ex.valor)}</span></span>
+                            : <span className="text-xs text-gray-400 ml-2">{formatBRL(ex.valor)}</span>
+                          )}
+                        </div>
+                        {examesAtivos.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => { userChangedRef.current = true; setExamesAtivos(prev => prev.filter(e => e.tipo_exame !== ex.tipo_exame)) }}
+                            className="text-xs text-red-500 hover:text-red-700 border border-red-200 bg-red-50 hover:bg-red-100 px-2 py-0.5 rounded transition shrink-0 ml-3"
+                          >
+                            Remover
+                          </button>
+                        )}
                       </div>
-                      {examesAtivos.length > 1 && (
+                      {isAdmin && (inputAberto ? (
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <span className="text-xs text-gray-500">Desconto R$</span>
+                          <input
+                            type="number" min="0" step="0.01"
+                            value={desc || ''}
+                            onChange={e => aplicarDesconto(ex.tipo_exame, Number(e.target.value))}
+                            placeholder="0,00"
+                            className="w-24 border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-[#8a6e36]"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => { aplicarDesconto(ex.tipo_exame, 0); setDescontosAbertos(prev => { const n = new Set(prev); n.delete(ex.tipo_exame); return n }) }}
+                            className="text-xs text-gray-400 hover:text-red-500"
+                            title="Remover desconto"
+                          >✕</button>
+                        </div>
+                      ) : (
                         <button
                           type="button"
-                          onClick={() => { userChangedRef.current = true; setExamesAtivos(prev => prev.filter(e => e.tipo_exame !== ex.tipo_exame)) }}
-                          className="text-xs text-red-500 hover:text-red-700 border border-red-200 bg-red-50 hover:bg-red-100 px-2 py-0.5 rounded transition shrink-0 ml-3"
-                        >
-                          Remover
-                        </button>
-                      )}
+                          onClick={() => setDescontosAbertos(prev => new Set(prev).add(ex.tipo_exame))}
+                          className="text-xs text-[#8a6e36] hover:underline mt-1"
+                        >+ dar desconto</button>
+                      ))}
                     </div>
-                  ))}
+                  )})}
                 </div>
                 {/* Adicionar exame */}
                 {comissoes.filter(c => !examesAtivos.some(a => a.tipo_exame === c.tipo_exame)).length > 0 && (
@@ -582,6 +637,22 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
                     </button>
                   </div>
                 )}
+                {(() => {
+                  const descontoTotal = examesAtivos.reduce((s, e) => s + Number(e.desconto ?? 0), 0)
+                  const totalLiquido  = examesAtivos.reduce((s, e) => s + Number(e.valor ?? 0), 0)
+                  const subtotalBruto = totalLiquido + descontoTotal
+                  return (
+                    <div className="mt-3 pt-2 border-t border-gray-200 space-y-0.5 text-sm">
+                      {descontoTotal > 0 && (
+                        <>
+                          <div className="flex justify-between text-gray-500"><span>Subtotal</span><span>{formatBRL(subtotalBruto)}</span></div>
+                          <div className="flex justify-between text-green-700"><span>Desconto</span><span>− {formatBRL(descontoTotal)}</span></div>
+                        </>
+                      )}
+                      <div className="flex justify-between font-bold text-[#19202d]"><span>Total</span><span>{formatBRL(totalLiquido)}</span></div>
+                    </div>
+                  )
+                })()}
               </div>
             )}
             <div className="flex gap-3">
