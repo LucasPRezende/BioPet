@@ -183,9 +183,21 @@ export async function POST(request: NextRequest) {
   const dataFmtData = formatDataHora(data_hora, true)
   const horaInicio = (data_hora.split('T')[1] ?? '').substring(0, 5).replace(':', 'h').replace(/h00$/, 'h')
   const horaFim    = horaFimStr(data_hora, totalDuracaoMin).replace(':', 'h').replace(/h00$/, 'h')
-  const valorFmt   = valorTotal > 0
-    ? valorTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-    : null
+  const fmtBRL = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  const descontoTotal = examesArr.reduce((s, e) => s + Number(e.desconto ?? 0), 0)
+  const subtotalBruto = valorTotal + descontoTotal
+  // Linhas de valor da mensagem: mostra Subtotal/Desconto/Total quando há desconto
+  const linhasValor = (labelTotal: string): string[] => {
+    if (valorTotal <= 0) return []
+    if (descontoTotal > 0) {
+      return [
+        `💰 Subtotal: ${fmtBRL(subtotalBruto)}`,
+        `🏷️ Desconto: -${fmtBRL(descontoTotal)}`,
+        `💰 ${labelTotal}: ${fmtBRL(valorTotal)}`,
+      ]
+    }
+    return [`💰 ${labelTotal}: ${fmtBRL(valorTotal)}`]
+  }
 
   const avisos: string[] = []
   if (sedacao_necessaria) avisos.push(`⚠️ *Sedação:* cobrada diretamente pela clínica, não inclusa no valor acima.`)
@@ -232,7 +244,7 @@ export async function POST(request: NextRequest) {
         `🐾 Pet: ${petNomeFinal}`,
         `  💉 ${tipoExameLabel}`,
         isEncaixe ? `📅 ${dataFmt} (horário a confirmar)` : `📅 ${dataFmtData} das ${horaInicio} às ${horaFim}`,
-        valorFmt ? `💰 Total a pagar: ${valorFmt}` : null,
+        ...linhasValor('Total a pagar'),
         ``,
         `💵 O pagamento será realizado presencialmente na BioPet no dia do exame.`,
         ...(avisos.length > 0 ? [``, ...avisos] : []),
@@ -269,7 +281,7 @@ export async function POST(request: NextRequest) {
         `🐾 Pet: ${petNomeFinal}`,
         `  💉 ${tipoExameLabel}`,
         isEncaixe ? `📅 ${dataFmt} (horário a confirmar)` : `📅 ${dataFmtData} das ${horaInicio} às ${horaFim}`,
-        valorFmt ? `💰 Total: ${valorFmt}` : null,
+        ...linhasValor('Total'),
         ``,
         initPoint ? `Para garantir seu horário, efetue o pagamento:\n👉 ${initPoint}` : null,
         ...(avisos.length > 0 ? [``, ...avisos] : []),
