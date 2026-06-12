@@ -3,7 +3,8 @@ import { supabase } from './supabase'
 export interface ExameInput {
   tipo_exame: string
   duracao_minutos: number
-  valor: number
+  valor: number          // valor líquido (preço de tabela − desconto)
+  desconto?: number      // desconto em R$ aplicado a este exame (default 0)
   horario_especial?: boolean
   descricao?: string | null
 }
@@ -82,6 +83,7 @@ export async function insertExames(agendamentoId: number, exames: ExameInput[]):
       tipo_exame:       e.tipo_exame,
       duracao_minutos:  e.duracao_minutos,
       valor:            e.valor,
+      desconto:         e.desconto ?? 0,
       horario_especial: e.horario_especial ?? false,
       descricao:        e.descricao ?? null,
     })),

@@ -95,10 +95,10 @@ export async function PATCH(
   }
 
   if (Array.isArray(agendamento_exames_update) && agendamento_exames_update.length > 0) {
-    for (const ex of agendamento_exames_update as { tipo_exame: string; valor: number | null }[]) {
+    for (const ex of agendamento_exames_update as { tipo_exame: string; valor: number | null; desconto?: number }[]) {
       await supabase
         .from('agendamento_exames')
-        .update({ valor: ex.valor })
+        .update({ valor: ex.valor, desconto: Number(ex.desconto ?? 0) })
         .eq('agendamento_id', Number(params.id))
         .eq('tipo_exame', ex.tipo_exame)
     }
@@ -113,7 +113,7 @@ export async function PATCH(
   }
 
   if (Array.isArray(exames_adicionar) && exames_adicionar.length > 0) {
-    const novos = exames_adicionar as { tipo_exame: string; duracao_minutos: number; valor: number | null }[]
+    const novos = exames_adicionar as { tipo_exame: string; duracao_minutos: number; valor: number | null; desconto?: number }[]
     await supabase
       .from('agendamento_exames')
       .insert(novos.map(e => ({
@@ -121,6 +121,7 @@ export async function PATCH(
         tipo_exame:       e.tipo_exame,
         duracao_minutos:  e.duracao_minutos,
         valor:            e.valor,
+        desconto:         Number(e.desconto ?? 0),
         horario_especial: false,
       })))
   }

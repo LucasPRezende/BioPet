@@ -77,6 +77,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Informe o pet (pet_id ou pet_nome).' }, { status: 400 })
   }
 
+  // Desconto é exclusivo de admin
+  const temDesconto = examesArr.some(e => Number(e.desconto ?? 0) > 0)
+  if (temDesconto && session.role !== 'admin') {
+    return NextResponse.json({ error: 'Apenas administradores podem aplicar desconto.' }, { status: 403 })
+  }
+
   const telNorm = normalizeTelefone(telefone)
 
   // 1. Busca ou cria tutor
