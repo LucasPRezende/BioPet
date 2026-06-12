@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
 
   const { data: ags, error } = await supabase
     .from('agendamentos')
-    .select('id, valor, status_pagamento, pagamento_responsavel, clinica_id, forma_pagamento, entrega_pagamento, data_hora, status')
+    .select('id, valor, status_pagamento, pagamento_responsavel, clinica_id, forma_pagamento, entrega_pagamento, data_hora, status, agendamento_exames(desconto)')
     .gte('data_hora', `${inicio}T00:00:00`)
     .lte('data_hora', `${fim}T23:59:59`)
     .neq('status', 'cancelado')
@@ -26,6 +26,12 @@ export async function GET(request: NextRequest) {
 
   const all = ags ?? []
   const sum = (list: typeof all) => list.reduce((s, r) => s + Number(r.valor ?? 0), 0)
+
+  // Total de descontos concedidos no período (soma agendamento_exames.desconto)
+  const totalDescontos = all.reduce((s, r) => {
+    const exames = r.agendamento_exames as { desconto: number | null }[] | null
+    return s + (exames ?? []).reduce((sx, e) => sx + Number(e.desconto ?? 0), 0)
+  }, 0)
 
   const recebidos      = all.filter(r => r.status_pagamento === 'pago' || r.status_pagamento === 'pago_clinica')
   const aReceberList   = all.filter(r => r.status_pagamento === 'a_receber' || r.status_pagamento === 'pendente')
@@ -63,6 +69,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     total_agendamentos:  all.length,
     receita_total:       sum(all),
+    total_descontos:     totalDescontos,
     total_recebido:      sum(recebidos),
     total_a_receber:     sum(aReceberList),
     total_gratuitos:     gratuitos.length,

@@ -211,6 +211,9 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
   const [formaPagamento,       setFormaPagamento]       = useState<'pix' | 'cartao'>('pix')
   const [entregaPagamento,     setEntregaPagamento]     = useState<'link' | 'presencial'>('link')
   const [gratuito,             setGratuito]             = useState(false)
+  const [descontos,            setDescontos]            = useState<Record<string, number>>({})
+  const [descontosAbertos,     setDescontosAbertos]     = useState<Set<string>>(new Set())
+  const [isAdmin,              setIsAdmin]              = useState(false)
 
   // Bioquímica
   const [bioquimicaExames,       setBioquimicaExames]       = useState<BioquimicaExame[]>([])
@@ -260,12 +263,22 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
     ? calcularValorExame(acrescimoExame, pagamentoResp === 'clinica' ? 'pix' : formaPagamento, especial)
     : 0
   const valorAcrescimo = estudosAdicionaisDesc.length * valorUnitarioAcrescimo
-  const totalValor = gratuito ? 0 : examesSelecionados.reduce((s, e) => {
-    if (e.tipo_exame === 'Bioquímica') {
-      return s + (pagamentoResp === 'clinica' ? totalBioquimicaPix : totalBioquimica)
-    }
-    return s + calcularValorExame(e, pagamentoResp === 'clinica' ? 'pix' : formaPagamento, especial)
-  }, 0) + valorAcrescimo
+  // valor bruto (sem desconto) de um exame selecionado
+  const valorBrutoExame = (e: ExameInfo) => e.tipo_exame === 'Bioquímica'
+    ? (pagamentoResp === 'clinica' ? totalBioquimicaPix : totalBioquimica)
+    : calcularValorExame(e, pagamentoResp === 'clinica' ? 'pix' : formaPagamento, especial)
+  const podeDescontar = modo === 'admin' && isAdmin && !gratuito
+  const descontoTotal = podeDescontar
+    ? examesSelecionados.reduce((s, e) => s + Math.min(descontos[e.tipo_exame] ?? 0, valorBrutoExame(e)), 0)
+    : 0
+  const totalBruto = gratuito ? 0 : examesSelecionados.reduce((s, e) => s + valorBrutoExame(e), 0) + valorAcrescimo
+  const totalValor = Math.max(0, totalBruto - descontoTotal)
+
+  // Detecta admin (desconto é exclusivo de admin no modo admin)
+  useEffect(() => {
+    if (modo !== 'admin') return
+    fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(u => setIsAdmin(u?.role === 'admin'))
+  }, [modo])
 
   // Carrega exames e vets
   useEffect(() => {
@@ -442,14 +455,11 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
   function buildPayload() {
     const dataHora = encaixe ? `${data}T00:00:00` : `${data}T${horaSelecionada}:00`
     const examesPayload = examesSelecionados.map(e => {
-      let valor: number
-      if (e.tipo_exame === 'Bioquímica') {
-        valor = pagamentoResp === 'clinica' ? totalBioquimicaPix : totalBioquimica
-      } else {
-        valor = calcularValorExame(e, pagamentoResp === 'clinica' ? 'pix' : formaPagamento, especial)
-      }
+      const bruto = valorBrutoExame(e)
+      const desc  = podeDescontar ? Math.min(descontos[e.tipo_exame] ?? 0, bruto) : 0
       return {
-        tipo_exame: e.tipo_exame, duracao_minutos: e.duracao_minutos, valor,
+        tipo_exame: e.tipo_exame, duracao_minutos: e.duracao_minutos,
+        valor: Math.max(0, bruto - desc), desconto: desc,
         horario_especial: especial,
         descricao: descricoesPorExame[e.tipo_exame]?.trim() || null,
       }
@@ -460,6 +470,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
           tipo_exame:       acrescimoExame.tipo_exame,
           duracao_minutos:  acrescimoExame.duracao_minutos,
           valor:            valorUnitarioAcrescimo,
+          desconto:         0,
           horario_especial: especial,
           descricao:        desc.trim() || null,
         })
@@ -871,6 +882,56 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
               {pagamentoResp === 'tutor' && totalValor > 0 && (
                 <div className="flex justify-between text-[#8a6e36] font-semibold">
                   <span>Total ({formaPagamento === 'cartao' ? 'cartão' : 'pix'})</span><span>{brl(totalValor)}</span>
+                </div>
+              )}
+            </div>
+          )}
+          {podeDescontar && examesSelecionados.length > 0 && totalBruto > 0 && (
+            <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm space-y-2">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Desconto (admin)</p>
+              {examesSelecionados.map(e => {
+                const bruto  = valorBrutoExame(e)
+                const desc   = Math.min(descontos[e.tipo_exame] ?? 0, bruto)
+                const aberto = descontosAbertos.has(e.tipo_exame) || desc > 0
+                return (
+                  <div key={e.tipo_exame}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-700">{e.tipo_exame}</span>
+                      {desc > 0
+                        ? <span className="text-xs"><span className="text-gray-400 line-through">{brl(bruto)}</span> <span className="text-green-700 font-semibold">{brl(bruto - desc)}</span></span>
+                        : <span className="text-xs text-gray-400">{brl(bruto)}</span>}
+                    </div>
+                    {aberto ? (
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs text-gray-500">Desconto R$</span>
+                        <input
+                          type="number" min="0" step="0.01" value={desc || ''}
+                          onChange={ev => setDescontos(prev => ({ ...prev, [e.tipo_exame]: Math.min(Math.max(0, Number(ev.target.value)), bruto) }))}
+                          placeholder="0,00"
+                          className="w-24 border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-[#8a6e36]"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => { setDescontos(prev => { const n = { ...prev }; delete n[e.tipo_exame]; return n }); setDescontosAbertos(prev => { const n = new Set(prev); n.delete(e.tipo_exame); return n }) }}
+                          className="text-xs text-gray-400 hover:text-red-500"
+                          title="Remover desconto"
+                        >✕</button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setDescontosAbertos(prev => new Set(prev).add(e.tipo_exame))}
+                        className="text-xs text-[#8a6e36] hover:underline mt-0.5"
+                      >+ dar desconto</button>
+                    )}
+                  </div>
+                )
+              })}
+              {descontoTotal > 0 && (
+                <div className="border-t border-gray-200 pt-1.5 space-y-0.5">
+                  <div className="flex justify-between text-gray-500"><span>Subtotal</span><span>{brl(totalBruto)}</span></div>
+                  <div className="flex justify-between text-green-700"><span>Desconto</span><span>− {brl(descontoTotal)}</span></div>
+                  <div className="flex justify-between font-bold text-[#19202d]"><span>Total</span><span>{brl(totalValor)}</span></div>
                 </div>
               )}
             </div>

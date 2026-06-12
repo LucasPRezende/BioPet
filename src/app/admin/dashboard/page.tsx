@@ -13,6 +13,7 @@ interface Resumo {
   valor_gratuitos:    number
   total_antecipados:  number
   valor_antecipados:  number
+  total_descontos:    number
   breakdown: {
     pix_presencial_rec:    number
     pix_link_rec:          number
@@ -624,7 +625,7 @@ export default function DashboardPage() {
                     highlight={resumo.total_a_receber > 0} />
                 </div>
 
-                {(resumo.total_antecipados > 0 || resumo.total_gratuitos > 0) && (
+                {(resumo.total_antecipados > 0 || resumo.total_gratuitos > 0 || resumo.total_descontos > 0) && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {resumo.total_antecipados > 0 && (
                       <StatCard
@@ -639,6 +640,14 @@ export default function DashboardPage() {
                         label="Gratuitos no período"
                         value={String(resumo.total_gratuitos)}
                         sub={`Valor dispensado: ${formatBRL(resumo.valor_gratuitos)}`}
+                      />
+                    )}
+                    {resumo.total_descontos > 0 && (
+                      <StatCard
+                        label="Descontos concedidos"
+                        value={formatBRL(resumo.total_descontos)}
+                        sub="Total descontado no período (já refletido na receita)"
+                        color="text-amber-600"
                       />
                     )}
                   </div>
