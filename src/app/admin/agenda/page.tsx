@@ -859,6 +859,7 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
   // Usa soma dos exames só se bater com ag.valor — protege contra agendamento_exames stale após edição de forma de pag.
   const valorMismatch = totalExames > 0 && Math.abs(totalExames - (ag.valor ?? 0)) > 0.01
   const repasse = valorMismatch ? (ag.valor ?? 0) : totalExames || (ag.valor ?? 0)
+  const descontoTotal = (ag.agendamento_exames ?? []).reduce((s, e) => s + Number(e.desconto ?? 0), 0)
   // Quando há mismatch (agendamento_exames stale), corrige a exibição:
   // - Único exame não-Bio: usa ag.valor diretamente
   // - Múltiplos exames não-Bio: oculta preço individual (val=0) pois está stale; total via repasse
@@ -1012,7 +1013,13 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
                         )}
                       </div>
                     ))}
-                    {exames.length > 1 && repasse > 0 && (
+                    {descontoTotal > 0 && (
+                      <div className="pt-1 border-t border-gray-100 space-y-0.5 text-sm">
+                        <div className="flex justify-between text-gray-400"><span>Subtotal</span><span className="tabular-nums">{formatBRL(repasse + descontoTotal)}</span></div>
+                        <div className="flex justify-between text-green-700"><span>Desconto</span><span className="tabular-nums">− {formatBRL(descontoTotal)}</span></div>
+                      </div>
+                    )}
+                    {(exames.length > 1 || descontoTotal > 0) && repasse > 0 && (
                       <div className="flex justify-between items-center pt-1 border-t border-gray-100 text-sm">
                         <span className="text-gray-400">Total</span>
                         <span className="font-bold text-gray-700 tabular-nums">{formatBRL(repasse)}</span>
