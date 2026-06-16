@@ -28,7 +28,7 @@ export async function GET(
 
   const { data, error } = await supabase
     .from('agendamentos')
-    .select('*, tutores(id, nome, telefone), pets(id, nome, especie, raca), laudos(id, token, tipo_exame), agendamento_exames(tipo_exame, descricao)')
+    .select('*, tutores(id, nome, telefone), pets(id, nome, especie, raca), laudos(id, token, tipo_exame), agendamento_exames(tipo_exame, valor, desconto, duracao_minutos, descricao)')
     .eq('id', Number(params.id))
     .single()
 
