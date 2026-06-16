@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { readPdf } from '@/lib/pdf-storage'
+import { hasAnyValidSession } from '@/lib/auth-multi'
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ token: string }> },
 ) {
+  // Acesso restrito a usuários logados (admin/usuário, veterinário ou clínica).
+  // O cliente final recebe o laudo como PDF direto no WhatsApp, não mais via link.
+  const autorizado = await hasAnyValidSession(n => request.cookies.get(n)?.value)
+  if (!autorizado) {
+    return NextResponse.json({ error: 'Acesso restrito. Faça login no sistema.' }, { status: 401 })
+  }
+
   const { token } = await params
 
   if (!token || token.length < 10) {

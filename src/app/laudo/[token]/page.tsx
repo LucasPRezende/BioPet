@@ -1,8 +1,15 @@
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
 import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
+import { hasAnyValidSession } from '@/lib/auth-multi'
 
 export default async function LaudoPage({ params }: { params: { token: string } }) {
+  // Página restrita a usuários logados — o cliente final recebe o PDF direto.
+  const cookieStore = await cookies()
+  const autorizado = await hasAnyValidSession(n => cookieStore.get(n)?.value)
+  if (!autorizado) redirect(`/login?next=/laudo/${params.token}`)
+
   const { data: laudo } = await supabase
     .from('laudos')
     .select('*, system_users(nome)')

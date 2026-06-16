@@ -4,7 +4,7 @@
 
 export async function sendWhatsAppDocument(
   whatsapp: string,
-  mediaUrl: string,
+  media: string, // URL pública OU conteúdo base64 do arquivo
   fileName: string,
   caption: string,
 ): Promise<boolean> {
@@ -28,7 +28,7 @@ export async function sendWhatsAppDocument(
         number,
         mediatype: 'document',
         mimetype:  'application/pdf',
-        media:     mediaUrl,
+        media,
         fileName,
         caption,
       }),

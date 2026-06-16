@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
 import { sendWhatsAppDocument } from '@/lib/evolution'
-import { getPdfPublicUrl } from '@/lib/pdf-storage'
+import { readPdf } from '@/lib/pdf-storage'
 
 function randomDelay() {
   const ms = Math.floor(Math.random() * 6000) + 4000 // 4–10 segundos
@@ -38,14 +38,18 @@ export async function POST(
   if (error || !laudo) return NextResponse.json({ error: 'Laudo não encontrado' }, { status: 404 })
   if (!laudo.filename)  return NextResponse.json({ error: 'Laudo sem arquivo.' }, { status: 422 })
 
-  const pdfUrl      = getPdfPublicUrl(laudo.token)
+  // Envia o conteúdo do PDF direto (base64) — o endpoint /api/pdf agora exige
+  // login, então não dá mais para a Evolution buscar por URL.
+  const buffer = await readPdf(laudo.filename)
+  if (!buffer) return NextResponse.json({ error: 'Arquivo do laudo não encontrado.' }, { status: 404 })
+  const pdfBase64   = buffer.toString('base64')
   const fileName    = laudo.original_name ?? `laudo_${laudo.nome_pet}.pdf`
   const vetWhatsapp = (laudo.veterinarios as unknown as { whatsapp: string | null } | null)?.whatsapp
 
   if (destino === 'tutor' || destino === 'ambos') {
     const ok = await sendWhatsAppDocument(
       laudo.telefone,
-      pdfUrl,
+      pdfBase64,
       fileName,
       `Olá! O laudo do *${laudo.nome_pet}* está pronto. Segue o PDF.`,
     )
@@ -56,7 +60,7 @@ export async function POST(
     if (destino === 'ambos') await randomDelay()
     await sendWhatsAppDocument(
       vetWhatsapp,
-      pdfUrl,
+      pdfBase64,
       fileName,
       `Segue o PDF do laudo do *${laudo.nome_pet}* (tutor: ${laudo.tutor}).`,
     )
