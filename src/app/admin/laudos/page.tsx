@@ -96,6 +96,50 @@ export default function LaudosPage() {
     }
   }
 
+  // ── Vincular laudo a um agendamento ───────────────────────────────────────────
+  const [vincModal,    setVincModal]    = useState<Laudo | null>(null)
+  const [candidatos,   setCandidatos]   = useState<{ id: number; tipo_exame: string; data_hora: string; status: string; tem_laudo: boolean; match_tipo: boolean; score: number }[]>([])
+  const [sugeridoId,   setSugeridoId]   = useState<number | null>(null)
+  const [loadingCand,  setLoadingCand]  = useState(false)
+  const [vinculandoId, setVinculandoId] = useState<number | null>(null)
+
+  async function abrirVincular(laudo: Laudo) {
+    setVincModal(laudo)
+    setCandidatos([])
+    setSugeridoId(null)
+    setLoadingCand(true)
+    try {
+      const res = await fetch(`/api/laudos/${laudo.id}/vincular`)
+      if (res.ok) {
+        const d = await res.json()
+        setCandidatos(d.candidatos ?? [])
+        setSugeridoId(d.sugerido_id ?? null)
+      }
+    } finally {
+      setLoadingCand(false)
+    }
+  }
+
+  async function vincular(agendamentoId: number) {
+    if (!vincModal) return
+    setVinculandoId(agendamentoId)
+    try {
+      const res = await fetch(`/api/laudos/${vincModal.id}/vincular`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agendamento_id: agendamentoId }),
+      })
+      if (res.ok) {
+        setLaudos(prev => prev.map(l => l.id === vincModal.id ? { ...l, agendamento_id: agendamentoId } : l))
+        setVincModal(null)
+      } else {
+        alert((await res.json()).error ?? 'Erro ao vincular.')
+      }
+    } finally {
+      setVinculandoId(null)
+    }
+  }
+
   async function sendWhatsApp(laudo: Laudo, destino: Destino) {
     setWaModal(null)
     setWaStatus(s => ({ ...s, [laudo.id]: 'sending' }))
@@ -260,6 +304,14 @@ export default function LaudosPage() {
                         </button>
                         {isAdmin && laudo.agendamento_id === null && !laudo.agendamento_dispensado && !dispensados.has(laudo.id) && (
                           <button
+                            onClick={() => abrirVincular(laudo)}
+                            title="Vincular este laudo a um agendamento existente"
+                            className="text-xs px-2.5 py-1.5 rounded-lg font-medium transition whitespace-nowrap bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100">
+                            Vincular
+                          </button>
+                        )}
+                        {isAdmin && laudo.agendamento_id === null && !laudo.agendamento_dispensado && !dispensados.has(laudo.id) && (
+                          <button
                             onClick={() => dispensarLaudo(laudo)}
                             disabled={dispensando === laudo.id}
                             title="Marcar como sem agendamento justificado — remove do alerta do dashboard"
@@ -278,6 +330,53 @@ export default function LaudosPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de vincular laudo a agendamento */}
+      {vincModal && (
+        <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center px-4 py-6 overflow-y-auto" onClick={() => setVincModal(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md my-auto overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="bg-[#19202d] px-5 py-4 flex items-center justify-between">
+              <div>
+                <p className="text-white font-bold text-sm">Vincular laudo a um agendamento</p>
+                <p className="text-gray-400 text-xs mt-0.5">{vincModal.nome_pet} · {vincModal.tipo_exame ?? 'laudo'}</p>
+              </div>
+              <button onClick={() => setVincModal(null)} className="text-gray-400 hover:text-white text-2xl leading-none">×</button>
+            </div>
+            <div className="p-5">
+              {loadingCand ? (
+                <p className="text-sm text-gray-400 text-center py-6">Carregando agendamentos...</p>
+              ) : candidatos.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-6">Nenhum agendamento encontrado para este pet.</p>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs text-gray-500 mb-1">
+                    {sugeridoId ? 'Sugestão em destaque (mesmo exame e data próxima):' : `Agendamentos do pet ${vincModal.nome_pet}:`}
+                  </p>
+                  {candidatos.map(c => {
+                    const sugerido = c.id === sugeridoId
+                    return (
+                    <button
+                      key={c.id}
+                      onClick={() => vincular(c.id)}
+                      disabled={vinculandoId !== null}
+                      className={`w-full flex items-center justify-between text-left px-3 py-2.5 rounded-lg border transition disabled:opacity-50 ${sugerido ? 'border-blue-400 bg-blue-50 ring-1 ring-blue-200' : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'}`}>
+                      <div>
+                        <p className="text-sm font-medium text-[#19202d] flex items-center gap-1.5 flex-wrap">
+                          Ag.{c.id} · {c.tipo_exame}
+                          {sugerido && <span className="text-[10px] bg-blue-600 text-white px-1.5 py-0.5 rounded-full">✨ Provável</span>}
+                          {c.match_tipo && !sugerido && <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">mesmo exame</span>}
+                        </p>
+                        <p className="text-xs text-gray-400">{new Date(c.data_hora).toLocaleDateString('pt-BR')} · {c.status}{c.tem_laudo ? ' · já tem laudo (parcial)' : ''}</p>
+                      </div>
+                      <span className="text-xs text-blue-600 font-semibold shrink-0">{vinculandoId === c.id ? '...' : 'Vincular →'}</span>
+                    </button>
+                  )})}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
