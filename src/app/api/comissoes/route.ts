@@ -118,7 +118,33 @@ export async function DELETE(request: NextRequest) {
   const id = parseInt(searchParams.get('id') ?? '')
   if (!id) return NextResponse.json({ error: 'ID inválido.' }, { status: 400 })
 
+  // Busca o nome do exame antes de deletar para limpar permissões órfãs
+  const { data: exame } = await supabase
+    .from('comissoes_exame')
+    .select('tipo_exame')
+    .eq('id', id)
+    .single()
+
   const { error } = await supabase.from('comissoes_exame').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Remove o tipo de exame deletado das permissões de todos os usuários
+  if (exame?.tipo_exame) {
+    const { data: users } = await supabase
+      .from('system_users')
+      .select('id, permissoes')
+
+    for (const user of users ?? []) {
+      const perms = user.permissoes as { laudos_exames?: string[] } | null
+      const arr = perms?.laudos_exames ?? []
+      if (arr.includes(exame.tipo_exame)) {
+        await supabase
+          .from('system_users')
+          .update({ permissoes: { ...perms, laudos_exames: arr.filter(t => t !== exame.tipo_exame) } })
+          .eq('id', user.id)
+      }
+    }
+  }
+
   return NextResponse.json({ success: true })
 }

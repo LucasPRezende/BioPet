@@ -167,6 +167,7 @@ export async function POST(request: NextRequest) {
       status_pagamento:      statusPag,
       encaixe:               encaixe ?? false,
       clinica_id:            clinica_id ? Number(clinica_id) : null,
+      origem:                'manual',
     })
     .select('id')
     .single()

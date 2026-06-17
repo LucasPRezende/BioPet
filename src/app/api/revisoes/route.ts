@@ -187,6 +187,7 @@ export async function POST(request: NextRequest) {
       is_revisao:                 true,
       agendamento_original_id:    agendamento_original_id,
       laudo_revisao_solicitado:   config.gera_laudo || laudoSolicitado,
+      origem:                     'manual',
     })
     .select('id')
     .single()
