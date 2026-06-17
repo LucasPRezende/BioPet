@@ -14,6 +14,10 @@ interface Resumo {
   total_antecipados:  number
   valor_antecipados:  number
   total_descontos:    number
+  total_clientes:          number
+  total_concluidos:        number
+  a_receber_vencido:       number
+  a_receber_vencido_valor: number
   breakdown: {
     pix_presencial_rec:    number
     pix_link_rec:          number
@@ -24,7 +28,7 @@ interface Resumo {
     a_receber_link:        number
     a_receber_clinica:     number
   }
-  porDia: { data: string; quantidade: number }[]
+  porDia: { data: string; quantidade: number; receita: number }[]
 }
 
 interface Alertas {
@@ -147,23 +151,36 @@ function SectionDivider({ label }: { label: string }) {
   )
 }
 
-function BarChart({ data }: { data: { data: string; quantidade: number }[] }) {
+function Comparativo({ label, atual, anterior, brl }: { label: string; atual: number; anterior: number; brl?: boolean }) {
+  const pct = anterior > 0 ? Math.round(((atual - anterior) / anterior) * 100) : (atual > 0 ? 100 : 0)
+  const up  = pct >= 0
+  return (
+    <span className="flex items-center gap-1">
+      <span className="text-gray-500">{label}:</span>
+      <span className="font-semibold text-[#19202d]">{brl ? formatBRL(atual) : atual}</span>
+      <span className={up ? 'text-green-600 font-semibold' : 'text-red-500 font-semibold'}>{up ? '▲' : '▼'}{Math.abs(pct)}%</span>
+    </span>
+  )
+}
+
+function BarChart({ data, brl }: { data: { data: string; valor: number }[]; brl?: boolean }) {
   if (data.length === 0) return (
     <div className="flex items-center justify-center h-32 text-gray-300 text-sm">Sem dados no período</div>
   )
-  const max  = Math.max(...data.map(d => d.quantidade), 1)
+  const max  = Math.max(...data.map(d => d.valor), 1)
+  const lbl  = (v: number) => brl ? (v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(Math.round(v))) : String(v)
   const barW = Math.max(8, Math.min(40, Math.floor(560 / data.length) - 4))
   return (
     <div className="overflow-x-auto">
       <svg viewBox={`0 0 ${Math.max(600, data.length * (barW + 4))} 110`} className="w-full" style={{ minHeight: 110 }}>
         {data.map((d, i) => {
-          const barH = Math.max(4, Math.round((d.quantidade / max) * 80))
+          const barH = Math.max(4, Math.round((d.valor / max) * 80))
           const x = i * (barW + 4)
           return (
             <g key={d.data}>
-              <rect x={x} y={90 - barH} width={barW} height={barH} rx={3} fill="#c4a35a" opacity={0.85} />
-              <text x={x + barW / 2} y={88 - barH} textAnchor="middle" fontSize={9} fill="#8a6e36" fontWeight="600">
-                {d.quantidade > 0 ? d.quantidade : ''}
+              <rect x={x} y={90 - barH} width={barW} height={barH} rx={3} fill={brl ? '#16a34a' : '#c4a35a'} opacity={0.85} />
+              <text x={x + barW / 2} y={88 - barH} textAnchor="middle" fontSize={9} fill={brl ? '#15803d' : '#8a6e36'} fontWeight="600">
+                {d.valor > 0 ? lbl(d.valor) : ''}
               </text>
               <text x={x + barW / 2} y={104} textAnchor="middle" fontSize={8} fill="#9ca3af">
                 {formatDate(d.data)}
@@ -452,6 +469,7 @@ function ClinicaModal({ clinica, onClose, onRepasseConfirmado }: {
 
 export default function DashboardPage() {
   const [resumo,         setResumo]         = useState<Resumo | null>(null)
+  const [resumoAnterior, setResumoAnterior] = useState<Resumo | null>(null)
   const [alertas,        setAlertas]        = useState<Alertas | null>(null)
   const [laudoStats,     setLaudoStats]     = useState<LaudoStats | null>(null)
   const [clinicas,       setClinicas]       = useState<ClinicaRow[]>([])
@@ -488,6 +506,15 @@ export default function DashboardPage() {
     ])
     if (resumoRes.status === 401) { router.push('/login'); return }
     if (resumoRes.ok) setResumo(await resumoRes.json())
+
+    // Período anterior (mesmo tamanho) para comparativo
+    const dIni = new Date(`${inicio}T12:00:00`), dFim = new Date(`${fim}T12:00:00`)
+    const dias = Math.round((dFim.getTime() - dIni.getTime()) / 86_400_000)
+    const antFim = new Date(dIni); antFim.setDate(antFim.getDate() - 1)
+    const antIni = new Date(antFim); antIni.setDate(antIni.getDate() - dias)
+    const toISO = (d: Date) => d.toLocaleDateString('en-CA')
+    fetch(`/api/admin/dashboard/resumo?inicio=${toISO(antIni)}&fim=${toISO(antFim)}`)
+      .then(r => r.ok ? r.json() : null).then(d => setResumoAnterior(d)).catch(() => {})
     if (laudosRes.ok) setLaudoStats(await laudosRes.json())
     let newClinicas: ClinicaRow[] = []
     if (clinRes.ok) { newClinicas = (await clinRes.json()).clinicas ?? []; setClinicas(newClinicas) }
@@ -644,6 +671,32 @@ export default function DashboardPage() {
                     highlight={resumo.total_a_receber > 0} />
                 </div>
 
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <StatCard label="Ticket médio" value={formatBRL(resumo.total_agendamentos > 0 ? resumo.receita_total / resumo.total_agendamentos : 0)} />
+                  <StatCard label="% Recebido"   value={`${resumo.receita_total > 0 ? Math.round(resumo.total_recebido / resumo.receita_total * 100) : 0}%`} color="text-green-600" />
+                  <StatCard label="Taxa de conclusão" value={`${resumo.total_agendamentos > 0 ? Math.round(resumo.total_concluidos / resumo.total_agendamentos * 100) : 0}%`} sub={`${resumo.total_concluidos} concluídos`} />
+                  <StatCard label="Clientes" value={String(resumo.total_clientes)} sub="atendidos no período" />
+                </div>
+
+                {resumoAnterior && (
+                  <div className="bg-white rounded-xl border shadow-sm px-5 py-3 flex flex-wrap items-center gap-x-6 gap-y-1 text-xs">
+                    <span className="font-bold text-gray-400 uppercase tracking-wide">vs período anterior</span>
+                    <Comparativo label="Receita"      atual={resumo.receita_total}      anterior={resumoAnterior.receita_total} brl />
+                    <Comparativo label="Recebido"     atual={resumo.total_recebido}     anterior={resumoAnterior.total_recebido} brl />
+                    <Comparativo label="Agendamentos" atual={resumo.total_agendamentos} anterior={resumoAnterior.total_agendamentos} />
+                  </div>
+                )}
+
+                {resumo.a_receber_vencido > 0 && (
+                  <div className="bg-red-50 border border-red-200 rounded-xl px-5 py-3 flex items-center gap-3">
+                    <span className="text-red-500 text-lg">⏰</span>
+                    <p className="text-sm font-semibold text-red-700 flex-1">
+                      {resumo.a_receber_vencido} pagamento{resumo.a_receber_vencido > 1 ? 's' : ''} a receber vencido{resumo.a_receber_vencido > 1 ? 's' : ''} — {formatBRL(resumo.a_receber_vencido_valor)}
+                    </p>
+                    <span className="text-xs text-red-500">cobrança em atraso</span>
+                  </div>
+                )}
+
                 {(resumo.total_antecipados > 0 || resumo.total_gratuitos > 0 || resumo.total_descontos > 0) && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {resumo.total_antecipados > 0 && (
@@ -723,12 +776,21 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                {/* Gráfico agendamentos por dia */}
-                <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
-                  <div className="h-1 bg-gold-stripe" />
-                  <div className="p-6">
-                    <h3 className="text-sm font-bold text-[#19202d] uppercase tracking-wide mb-4">Agendamentos por Dia</h3>
-                    <BarChart data={resumo.porDia} />
+                {/* Gráficos por dia */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+                    <div className="h-1 bg-gold-stripe" />
+                    <div className="p-6">
+                      <h3 className="text-sm font-bold text-[#19202d] uppercase tracking-wide mb-4">Agendamentos por Dia</h3>
+                      <BarChart data={resumo.porDia.map(d => ({ data: d.data, valor: d.quantidade }))} />
+                    </div>
+                  </div>
+                  <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+                    <div className="h-1 bg-gold-stripe" />
+                    <div className="p-6">
+                      <h3 className="text-sm font-bold text-[#19202d] uppercase tracking-wide mb-4">Receita por Dia</h3>
+                      <BarChart data={resumo.porDia.map(d => ({ data: d.data, valor: d.receita }))} brl />
+                    </div>
                   </div>
                 </div>
               </>

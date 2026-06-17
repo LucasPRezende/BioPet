@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
 
   const { data: ags, error } = await supabase
     .from('agendamentos')
-    .select('id, valor, status_pagamento, pagamento_responsavel, clinica_id, forma_pagamento, entrega_pagamento, data_hora, status, agendamento_exames(desconto)')
+    .select('id, valor, status_pagamento, pagamento_responsavel, clinica_id, forma_pagamento, entrega_pagamento, data_hora, status, tutor_id, agendamento_exames(desconto)')
     .gte('data_hora', `${inicio}T00:00:00`)
     .lte('data_hora', `${fim}T23:59:59`)
     .neq('status', 'cancelado')
@@ -56,14 +56,23 @@ export async function GET(request: NextRequest) {
     r.pagamento_responsavel === 'clinica'
   ))
 
-  // Agendamentos por dia (para gráfico)
-  const porDiaMap: Record<string, number> = {}
+  // A receber vencido — pagamento pendente cuja data já passou
+  const aReceberVencidoList = aReceberList.filter(r => r.data_hora.slice(0, 10) < hoje)
+
+  // Clientes distintos e concluídos no período
+  const totalClientes   = new Set(all.map(r => r.tutor_id).filter(Boolean)).size
+  const totalConcluidos = all.filter(r => r.status === 'concluído').length
+
+  // Agendamentos e receita por dia (para gráficos)
+  const porDiaMap: Record<string, { quantidade: number; receita: number }> = {}
   for (const ag of all) {
     const dia = ag.data_hora.slice(0, 10)
-    porDiaMap[dia] = (porDiaMap[dia] ?? 0) + 1
+    if (!porDiaMap[dia]) porDiaMap[dia] = { quantidade: 0, receita: 0 }
+    porDiaMap[dia].quantidade++
+    porDiaMap[dia].receita += Number(ag.valor ?? 0)
   }
   const porDia = Object.entries(porDiaMap)
-    .map(([data, quantidade]) => ({ data, quantidade }))
+    .map(([data, v]) => ({ data, quantidade: v.quantidade, receita: v.receita }))
     .sort((a, b) => a.data.localeCompare(b.data))
 
   return NextResponse.json({
@@ -72,6 +81,10 @@ export async function GET(request: NextRequest) {
     total_descontos:     totalDescontos,
     total_recebido:      sum(recebidos),
     total_a_receber:     sum(aReceberList),
+    total_clientes:      totalClientes,
+    total_concluidos:    totalConcluidos,
+    a_receber_vencido:       aReceberVencidoList.length,
+    a_receber_vencido_valor: sum(aReceberVencidoList),
     total_gratuitos:     gratuitos.length,
     valor_gratuitos:     sum(gratuitos),
     total_antecipados:   antecipados.length,
