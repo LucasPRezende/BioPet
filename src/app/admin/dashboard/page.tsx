@@ -163,7 +163,7 @@ function Comparativo({ label, atual, anterior, brl }: { label: string; atual: nu
   )
 }
 
-function BarChart({ data, brl }: { data: { data: string; valor: number }[]; brl?: boolean }) {
+function BarChart({ data, brl }: { data: { data: string; valor: number; info?: number }[]; brl?: boolean }) {
   if (data.length === 0) return (
     <div className="flex items-center justify-center h-32 text-gray-300 text-sm">Sem dados no período</div>
   )
@@ -183,7 +183,7 @@ function BarChart({ data, brl }: { data: { data: string; valor: number }[]; brl?
                 {d.valor > 0 ? lbl(d.valor) : ''}
               </text>
               <text x={x + barW / 2} y={104} textAnchor="middle" fontSize={8} fill="#9ca3af">
-                {formatDate(d.data)}
+                {formatDate(d.data)}{d.info != null ? ` (${d.info})` : ''}
               </text>
             </g>
           )
@@ -776,21 +776,15 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                {/* Gráficos por dia */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
-                    <div className="h-1 bg-gold-stripe" />
-                    <div className="p-6">
-                      <h3 className="text-sm font-bold text-[#19202d] uppercase tracking-wide mb-4">Agendamentos por Dia</h3>
-                      <BarChart data={resumo.porDia.map(d => ({ data: d.data, valor: d.quantidade }))} />
+                {/* Gráfico receita por dia (com nº de agendamentos no rótulo) */}
+                <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+                  <div className="h-1 bg-gold-stripe" />
+                  <div className="p-6">
+                    <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                      <h3 className="text-sm font-bold text-[#19202d] uppercase tracking-wide">Receita por Dia</h3>
+                      <span className="text-[11px] text-gray-400">barras = receita · (n) = nº de agendamentos</span>
                     </div>
-                  </div>
-                  <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
-                    <div className="h-1 bg-gold-stripe" />
-                    <div className="p-6">
-                      <h3 className="text-sm font-bold text-[#19202d] uppercase tracking-wide mb-4">Receita por Dia</h3>
-                      <BarChart data={resumo.porDia.map(d => ({ data: d.data, valor: d.receita }))} brl />
-                    </div>
+                    <BarChart data={resumo.porDia.map(d => ({ data: d.data, valor: d.receita, info: d.quantidade }))} brl />
                   </div>
                 </div>
               </>
