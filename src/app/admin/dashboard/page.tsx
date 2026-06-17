@@ -31,9 +31,9 @@ interface Alertas {
   laudos_sem_agendamento:      number
   falta_laudo:                 number
   falta_laudo_lista:           { id: number; tipo_exame: string; data_hora: string; pet_nome: string }[]
-  falta_pagamento_hoje:        number
-  falta_pagamento_hoje_valor:  number
-  falta_pagamento_hoje_lista:  { id: number; tipo_exame: string; valor: number; status_pagamento: string; pet_nome: string }[]
+  falta_pagamento:             number
+  falta_pagamento_valor:       number
+  falta_pagamento_lista:       { id: number; tipo_exame: string; valor: number; status_pagamento: string; data_hora: string; pet_nome: string }[]
 }
 
 interface VetEntry {
@@ -502,7 +502,7 @@ export default function DashboardPage() {
     ? inicio.split('-').reverse().join('/')
     : `${inicio.split('-').reverse().join('/')} — ${fim.split('-').reverse().join('/')}`
 
-  const hasAlertas = alertas && (alertas.laudos_sem_agendamento > 0 || alertas.falta_laudo > 0 || alertas.falta_pagamento_hoje > 0)
+  const hasAlertas = alertas && (alertas.laudos_sem_agendamento > 0 || alertas.falta_laudo > 0 || alertas.falta_pagamento > 0)
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -539,7 +539,7 @@ export default function DashboardPage() {
                   <div className="mt-3 space-y-1.5 pl-8">
                     {alertas.falta_laudo_lista.map(ag => (
                       <div key={ag.id} className="flex items-center gap-2 text-xs text-amber-800 flex-wrap">
-                        <Link href={`/admin/agenda`} className="font-semibold text-amber-700 hover:underline">Ag.{ag.id}</Link>
+                        <Link href={`/admin/agenda?data=${ag.data_hora.slice(0, 10)}&abrir=${ag.id}`} className="font-semibold text-amber-700 hover:underline">Ag.{ag.id}</Link>
                         <span>{ag.tipo_exame}</span>
                         <span>—</span>
                         <span className="font-medium">{ag.pet_nome}</span>
@@ -550,12 +550,12 @@ export default function DashboardPage() {
                 )}
               </div>
             )}
-            {alertas.falta_pagamento_hoje > 0 && (
+            {alertas.falta_pagamento > 0 && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-5 py-3">
                 <div className="flex items-center gap-3">
                   <span className="text-yellow-500 text-lg">💸</span>
                   <p className="text-sm font-semibold text-yellow-800">
-                    {alertas.falta_pagamento_hoje} pagamento{alertas.falta_pagamento_hoje > 1 ? 's' : ''} pendentes hoje — {formatBRL(alertas.falta_pagamento_hoje_valor)}
+                    {alertas.falta_pagamento} pagamento{alertas.falta_pagamento > 1 ? 's' : ''} pendente{alertas.falta_pagamento > 1 ? 's' : ''} — {formatBRL(alertas.falta_pagamento_valor)}
                   </p>
                   <button onClick={() => setShowFaltaPag(v => !v)} className="ml-auto text-xs text-yellow-700 underline shrink-0">
                     {showFaltaPag ? 'Ocultar' : 'Ver lista'}
@@ -563,9 +563,9 @@ export default function DashboardPage() {
                 </div>
                 {showFaltaPag && (
                   <div className="mt-3 space-y-1.5 pl-8">
-                    {alertas.falta_pagamento_hoje_lista.map(ag => (
+                    {alertas.falta_pagamento_lista.map(ag => (
                       <div key={ag.id} className="flex items-center gap-2 text-xs text-yellow-800 flex-wrap">
-                        <Link href={`/admin/agenda`} className="font-semibold text-yellow-700 hover:underline">Ag.{ag.id}</Link>
+                        <Link href={`/admin/agenda?data=${ag.data_hora.slice(0, 10)}&abrir=${ag.id}`} className="font-semibold text-yellow-700 hover:underline">Ag.{ag.id}</Link>
                         <span>{ag.tipo_exame}</span>
                         <span>—</span>
                         <span className="font-medium">{ag.pet_nome}</span>

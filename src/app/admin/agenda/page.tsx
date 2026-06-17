@@ -1219,6 +1219,7 @@ export default function AgendaPage() {
   const [detalhesAg,   setDetalhesAg]   = useState<Agendamento | null>(null)
   const [editingAg,    setEditingAg]    = useState<Agendamento | null>(null)
   const [laudosPermitidos, setLaudosPermitidos] = useState<string[] | null>(null)
+  const abrirIdRef = useRef<number | null>(null)
 
   const fetchDias = useCallback(async () => {
     const inicio = toDateStr(weekStart)
@@ -1265,6 +1266,28 @@ export default function AgendaPage() {
     const interval = setInterval(() => fetchAgendamentos(true), 30_000)
     return () => clearInterval(interval)
   }, [fetchAgendamentos])
+
+  // Abre direto um agendamento via ?data=YYYY-MM-DD&abrir=ID (vindo do dashboard)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const dataParam  = params.get('data')
+    const abrirParam = params.get('abrir')
+    if (dataParam) {
+      setSelectedDate(dataParam)
+      setWeekStart(getSunday(new Date(`${dataParam}T12:00:00`)))
+    }
+    if (abrirParam) abrirIdRef.current = Number(abrirParam)
+  }, [])
+
+  useEffect(() => {
+    if (abrirIdRef.current == null) return
+    const ag = agendamentos.find(a => a.id === abrirIdRef.current)
+    if (ag) {
+      setDetalhesAg(ag)
+      abrirIdRef.current = null
+      window.history.replaceState(null, '', '/admin/agenda')
+    }
+  }, [agendamentos])
 
   function selectDate(d: string) {
     setSelectedDate(d)

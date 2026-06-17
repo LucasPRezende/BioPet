@@ -69,27 +69,27 @@ export async function GET(request: NextRequest) {
       }))
   }
 
-  // 3) Agendamentos hoje com pagamento pendente
-  const { data: pagHoje } = await supabase
+  // 3) Todos os agendamentos com pagamento pendente (não só hoje)
+  const { data: pagPend } = await supabase
     .from('agendamentos')
-    .select('id, tipo_exame, valor, status_pagamento, pets(nome), tutores(nome)')
-    .gte('data_hora', `${hojeStr}T00:00:00`)
-    .lte('data_hora', `${hojeStr}T23:59:59`)
+    .select('id, tipo_exame, valor, status_pagamento, data_hora, pets(nome), tutores(nome)')
     .in('status_pagamento', ['pendente', 'a_receber'])
     .neq('status', 'cancelado')
     .neq('forma_pagamento', 'gratuito')
+    .order('data_hora', { ascending: true })
 
   return NextResponse.json({
     laudos_sem_agendamento:    laudosSemAg ?? 0,
     falta_laudo:               faltaLaudoLista.length,
     falta_laudo_lista:         faltaLaudoLista,
-    falta_pagamento_hoje:      (pagHoje ?? []).length,
-    falta_pagamento_hoje_valor: (pagHoje ?? []).reduce((s, r) => s + Number(r.valor ?? 0), 0),
-    falta_pagamento_hoje_lista: (pagHoje ?? []).map(ag => ({
+    falta_pagamento:           (pagPend ?? []).length,
+    falta_pagamento_valor:     (pagPend ?? []).reduce((s, r) => s + Number(r.valor ?? 0), 0),
+    falta_pagamento_lista:     (pagPend ?? []).map(ag => ({
       id:              ag.id,
       tipo_exame:      ag.tipo_exame,
       valor:           ag.valor,
       status_pagamento: ag.status_pagamento,
+      data_hora:       ag.data_hora,
       pet_nome:        (Array.isArray(ag.pets) ? ag.pets[0] : ag.pets as { nome: string } | null)?.nome ?? '—',
     })),
   })

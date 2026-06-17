@@ -46,8 +46,8 @@ const NAV: NavGroup[] = [
   {
     title: 'FINANCEIRO',
     items: [
-      { icon: '📊', label: 'Dashboard',  href: '/admin/dashboard'  },
-      { icon: '💰', label: 'Preços',     href: '/admin/comissoes'  },
+      { icon: '📊', label: 'Dashboard',  href: '/admin/dashboard', adminOnly: true },
+      { icon: '💰', label: 'Preços',     href: '/admin/comissoes', adminOnly: true },
       { icon: '🩸', label: 'Extrações',  href: '/admin/extracoes'  },
     ],
   },
@@ -120,7 +120,7 @@ export default function Sidebar({ isOpen, onClose }: Props) {
 
         {/* Logo */}
         <Link
-          href="/admin/dashboard"
+          href={isAdmin ? '/admin/dashboard' : '/admin/laudos'}
           onClick={onClose}
           className="flex items-center gap-3 px-4 py-4 border-b border-white/10 hover:bg-white/5 transition shrink-0"
         >
