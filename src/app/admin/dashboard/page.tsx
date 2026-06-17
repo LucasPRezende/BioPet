@@ -465,6 +465,8 @@ export default function DashboardPage() {
   const [clinicaModal,   setClinicaModal]   = useState<ClinicaRow | null>(null)
   const [showFaltaLaudo, setShowFaltaLaudo] = useState(false)
   const [showFaltaPag,   setShowFaltaPag]   = useState(false)
+  const [comissoesLaudo, setComissoesLaudo] = useState<{ usuario_id: number; nome: string; a_pagar: number; pago: number; qtd_a_pagar: number }[]>([])
+  const [marcandoCom,    setMarcandoCom]    = useState<number | null>(null)
   const router = useRouter()
 
   const { inicio, fim } = getRange(periodo, inicioCustom, fimCustom)
@@ -477,19 +479,35 @@ export default function DashboardPage() {
 
   const fetchStats = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
-    const [resumoRes, laudosRes, clinRes] = await Promise.all([
+    const [resumoRes, laudosRes, clinRes, comRes] = await Promise.all([
       fetch(`/api/admin/dashboard/resumo?inicio=${inicio}&fim=${fim}`),
       fetch(`/api/laudos/stats?inicio=${inicio}&fim=${fim}`),
       fetch(`/api/admin/relatorio/clinicas?inicio=${inicio}&fim=${fim}`),
+      fetch(`/api/admin/comissoes-pagamento?inicio=${inicio}&fim=${fim}`),
     ])
     if (resumoRes.status === 401) { router.push('/login'); return }
     if (resumoRes.ok) setResumo(await resumoRes.json())
     if (laudosRes.ok) setLaudoStats(await laudosRes.json())
     let newClinicas: ClinicaRow[] = []
     if (clinRes.ok) { newClinicas = (await clinRes.json()).clinicas ?? []; setClinicas(newClinicas) }
+    if (comRes.ok)  setComissoesLaudo((await comRes.json()).laudo_por_usuario ?? [])
     if (!silent) setLoading(false)
     return newClinicas
   }, [inicio, fim, router])
+
+  async function marcarComissaoPaga(usuarioId: number, desmarcar = false) {
+    setMarcandoCom(usuarioId)
+    try {
+      await fetch('/api/admin/comissoes-pagamento', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ usuario_id: usuarioId, inicio, fim, pago: !desmarcar }),
+      })
+      await fetchStats(true)
+    } finally {
+      setMarcandoCom(null)
+    }
+  }
 
   useEffect(() => {
     fetchAlertas()
@@ -731,6 +749,44 @@ export default function DashboardPage() {
                     sub="recebido − custo − comissão"
                   />
                 </div>
+
+                {comissoesLaudo.length > 0 && (
+                  <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+                    <div className="h-1 bg-gold-stripe" />
+                    <div className="p-6">
+                      <h3 className="text-sm font-bold text-[#19202d] uppercase tracking-wide mb-4">Comissões de laudo a pagar — {fmtRange}</h3>
+                      <div className="space-y-2">
+                        {comissoesLaudo.map(c => (
+                          <div key={c.usuario_id} className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border border-gray-100 hover:bg-amber-50/30 transition flex-wrap">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-[#19202d]">{c.nome}</p>
+                              <p className="text-xs text-gray-400">
+                                A pagar: <span className="text-amber-600 font-semibold">{formatBRL(c.a_pagar)}</span>
+                                {c.pago > 0 && <> · Pago: <span className="text-green-600 font-semibold">{formatBRL(c.pago)}</span></>}
+                              </p>
+                            </div>
+                            {c.a_pagar > 0 ? (
+                              <button
+                                onClick={() => marcarComissaoPaga(c.usuario_id)}
+                                disabled={marcandoCom === c.usuario_id}
+                                className="text-xs px-3 py-1.5 rounded-lg font-semibold bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 disabled:opacity-50 whitespace-nowrap">
+                                {marcandoCom === c.usuario_id ? '...' : `Marcar pago (${c.qtd_a_pagar})`}
+                              </button>
+                            ) : c.pago > 0 ? (
+                              <button
+                                onClick={() => marcarComissaoPaga(c.usuario_id, true)}
+                                disabled={marcandoCom === c.usuario_id}
+                                className="text-xs px-3 py-1.5 rounded-lg text-gray-400 border border-gray-100 hover:bg-gray-50 disabled:opacity-50 whitespace-nowrap">
+                                {marcandoCom === c.usuario_id ? '...' : '✓ Pago · desfazer'}
+                              </button>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-[11px] text-gray-400 mt-3">Confirma a comissão dos laudos deste usuário no período selecionado.</p>
+                    </div>
+                  </div>
+                )}
 
                 {laudoStats.porTipo.length > 0 && (
                   <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
