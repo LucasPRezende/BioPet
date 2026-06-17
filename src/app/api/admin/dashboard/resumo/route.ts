@@ -56,8 +56,8 @@ export async function GET(request: NextRequest) {
     r.pagamento_responsavel === 'clinica'
   ))
 
-  // A receber vencido — pagamento pendente cuja data já passou
-  const aReceberVencidoList = aReceberList.filter(r => r.data_hora.slice(0, 10) < hoje)
+  // A receber vencido — pagamento pendente cuja data já passou e com valor real
+  const aReceberVencidoList = aReceberList.filter(r => r.data_hora.slice(0, 10) < hoje && Number(r.valor ?? 0) > 0)
 
   // Clientes distintos e concluídos no período
   const totalClientes   = new Set(all.map(r => r.tutor_id).filter(Boolean)).size

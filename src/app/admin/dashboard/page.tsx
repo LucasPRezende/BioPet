@@ -99,7 +99,7 @@ function formatBRL(n: number | null | undefined) {
 
 function formatDate(d: string) {
   const [, m, day] = d.split('-')
-  return `${day}/${m}`
+  return `${parseInt(day)}/${parseInt(m)}`
 }
 
 function formatDateTime(dt: string) {
@@ -167,22 +167,26 @@ function BarChart({ data, brl }: { data: { data: string; valor: number; info?: n
   if (data.length === 0) return (
     <div className="flex items-center justify-center h-32 text-gray-300 text-sm">Sem dados no período</div>
   )
-  const max  = Math.max(...data.map(d => d.valor), 1)
-  const lbl  = (v: number) => brl ? (v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(Math.round(v))) : String(v)
-  const barW = Math.max(8, Math.min(40, Math.floor(560 / data.length) - 4))
+  const max   = Math.max(...data.map(d => d.valor), 1)
+  const lbl   = (v: number) => brl ? (v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(Math.round(v))) : String(v)
+  const PAD   = 24
+  // Garante slot mínimo de 32px por barra para caber o rótulo sem sobreposição
+  const slot  = Math.max(32, Math.floor(560 / Math.min(data.length, 15)))
+  const barW  = slot - 6
+  const svgW  = Math.max(600, PAD + data.length * slot + PAD)
   return (
     <div className="overflow-x-auto">
-      <svg viewBox={`0 0 ${Math.max(600, data.length * (barW + 4))} 110`} className="w-full" style={{ minHeight: 110 }}>
+      <svg viewBox={`0 0 ${svgW} 115`} className="w-full" style={{ minHeight: 115 }}>
         {data.map((d, i) => {
-          const barH = Math.max(4, Math.round((d.valor / max) * 80))
-          const x = i * (barW + 4)
+          const barH = Math.max(4, Math.round((d.valor / max) * 78))
+          const x = PAD + i * slot
           return (
             <g key={d.data}>
-              <rect x={x} y={90 - barH} width={barW} height={barH} rx={3} fill={brl ? '#16a34a' : '#c4a35a'} opacity={0.85} />
-              <text x={x + barW / 2} y={88 - barH} textAnchor="middle" fontSize={9} fill={brl ? '#15803d' : '#8a6e36'} fontWeight="600">
+              <rect x={x} y={88 - barH} width={barW} height={barH} rx={3} fill={brl ? '#16a34a' : '#c4a35a'} opacity={0.85} />
+              <text x={x + barW / 2} y={86 - barH} textAnchor="middle" fontSize={9} fill={brl ? '#15803d' : '#8a6e36'} fontWeight="600">
                 {d.valor > 0 ? lbl(d.valor) : ''}
               </text>
-              <text x={x + barW / 2} y={104} textAnchor="middle" fontSize={8} fill="#9ca3af">
+              <text x={x + barW / 2} y={102} textAnchor="middle" fontSize={7.5} fill="#9ca3af">
                 {formatDate(d.data)}{d.info != null ? ` (${d.info})` : ''}
               </text>
             </g>
