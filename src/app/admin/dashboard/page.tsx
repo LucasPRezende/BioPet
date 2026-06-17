@@ -466,6 +466,7 @@ export default function DashboardPage() {
   const [showFaltaLaudo, setShowFaltaLaudo] = useState(false)
   const [showFaltaPag,   setShowFaltaPag]   = useState(false)
   const [comissoesLaudo, setComissoesLaudo] = useState<{ usuario_id: number; nome: string; a_pagar: number; pago: number; qtd_a_pagar: number }[]>([])
+  const [extracaoVet,    setExtracaoVet]    = useState<{ vet_id: number; nome: string; devido: number; qtd: number }[]>([])
   const [marcandoCom,    setMarcandoCom]    = useState<number | null>(null)
   const router = useRouter()
 
@@ -490,7 +491,7 @@ export default function DashboardPage() {
     if (laudosRes.ok) setLaudoStats(await laudosRes.json())
     let newClinicas: ClinicaRow[] = []
     if (clinRes.ok) { newClinicas = (await clinRes.json()).clinicas ?? []; setClinicas(newClinicas) }
-    if (comRes.ok)  setComissoesLaudo((await comRes.json()).laudo_por_usuario ?? [])
+    if (comRes.ok)  { const dc = await comRes.json(); setComissoesLaudo(dc.laudo_por_usuario ?? []); setExtracaoVet(dc.extracao_por_vet ?? []) }
     if (!silent) setLoading(false)
     return newClinicas
   }, [inicio, fim, router])
@@ -788,6 +789,27 @@ export default function DashboardPage() {
                   </div>
                 )}
 
+                {extracaoVet.length > 0 && (
+                  <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+                    <div className="h-1 bg-gold-stripe" />
+                    <div className="p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-sm font-bold text-[#19202d] uppercase tracking-wide">Extrações devidas — {fmtRange}</h3>
+                        <Link href="/admin/extracoes" className="text-xs text-[#8a6e36] hover:underline">Gerenciar →</Link>
+                      </div>
+                      <div className="space-y-2">
+                        {extracaoVet.map(e => (
+                          <div key={e.vet_id} className="flex items-center justify-between px-3 py-2.5 rounded-lg border border-gray-100">
+                            <p className="text-sm font-semibold text-[#19202d]">{e.nome} <span className="text-xs text-gray-400 font-normal">· {e.qtd} extração{e.qtd > 1 ? 'ões' : ''}</span></p>
+                            <span className="text-sm font-bold text-amber-600">{formatBRL(e.devido)}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-[11px] text-gray-400 mt-3">Comissões de extração ainda não pagas. Confirme o pagamento em Extrações.</p>
+                    </div>
+                  </div>
+                )}
+
                 {laudoStats.porTipo.length > 0 && (
                   <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
                     <div className="h-1 bg-gold-stripe" />
@@ -800,7 +822,7 @@ export default function DashboardPage() {
                         <table className="w-full">
                           <thead>
                             <tr className="border-b">
-                              {['Tipo', 'Qtd', '%', 'Custo', 'Comissão', 'Lucro'].map(h => (
+                              {['Tipo', 'Qtd', '%', 'Receita', 'Custo', 'Comissão', 'Lucro'].map(h => (
                                 <th key={h} className="text-left py-2 px-3 text-xs font-bold text-gray-400 uppercase tracking-wide">{h}</th>
                               ))}
                             </tr>
@@ -818,6 +840,7 @@ export default function DashboardPage() {
                                     <span className="text-xs text-gray-500">{row.percentual}%</span>
                                   </div>
                                 </td>
+                                <td className="py-3 px-3 text-gray-700 text-sm font-medium">{formatBRL(row.receita)}</td>
                                 <td className="py-3 px-3 text-red-500 text-sm">{formatBRL(row.custo)}</td>
                                 <td className="py-3 px-3 text-amber-600 text-sm">{formatBRL(row.comissao)}</td>
                                 <td className={`py-3 px-3 text-sm font-semibold ${row.lucro >= 0 ? 'text-green-600' : 'text-red-500'}`}>

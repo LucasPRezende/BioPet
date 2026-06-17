@@ -47,7 +47,36 @@ export async function GET(request: NextRequest) {
 
   const laudo_por_usuario = Array.from(map.values()).sort((a, b) => b.a_pagar - a.a_pagar)
 
-  return NextResponse.json({ laudo_por_usuario })
+  // Extrações devidas no período (comissão de extração ainda não paga), por veterinário
+  const { data: extr } = await supabase
+    .from('agendamentos')
+    .select('vet_extracao_id, comissao_extracao')
+    .not('vet_extracao_id', 'is', null)
+    .eq('comissao_paga', false)
+    .gte('data_hora', `${inicio}T00:00:00`)
+    .lte('data_hora', `${fim}T23:59:59`)
+
+  const extrMap = new Map<number, { vet_id: number; devido: number; qtd: number }>()
+  for (const r of extr ?? []) {
+    const vid = r.vet_extracao_id as number
+    const val = Number(r.comissao_extracao ?? 0)
+    if (val <= 0) continue
+    if (!extrMap.has(vid)) extrMap.set(vid, { vet_id: vid, devido: 0, qtd: 0 })
+    const e = extrMap.get(vid)!
+    e.devido += val; e.qtd++
+  }
+
+  const vetIds = Array.from(extrMap.keys())
+  const { data: vets } = vetIds.length
+    ? await supabase.from('veterinarios').select('id, nome').in('id', vetIds)
+    : { data: [] }
+  const nomeMap = new Map((vets ?? []).map(v => [v.id, v.nome as string]))
+
+  const extracao_por_vet = Array.from(extrMap.values())
+    .map(e => ({ ...e, nome: nomeMap.get(e.vet_id) ?? '—' }))
+    .sort((a, b) => b.devido - a.devido)
+
+  return NextResponse.json({ laudo_por_usuario, extracao_por_vet })
 }
 
 // PATCH — marca como paga a comissão de laudo de um usuário no período (lote)
