@@ -89,8 +89,8 @@ interface ClinicaRow {
 
 type Periodo = 'hoje' | 'semana' | 'mes' | 'personalizado'
 
-function formatBRL(n: number) {
-  return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+function formatBRL(n: number | null | undefined) {
+  return Number(n ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
 function formatDate(d: string) {
@@ -539,7 +539,7 @@ export default function DashboardPage() {
                   <div className="mt-3 space-y-1.5 pl-8">
                     {alertas.falta_laudo_lista.map(ag => (
                       <div key={ag.id} className="flex items-center gap-2 text-xs text-amber-800 flex-wrap">
-                        <Link href={`/admin/agenda?data=${ag.data_hora.slice(0, 10)}&abrir=${ag.id}`} className="font-semibold text-amber-700 hover:underline">Ag.{ag.id}</Link>
+                        <Link href={`/admin/agenda?data=${(ag.data_hora ?? '').slice(0, 10)}&abrir=${ag.id}`} className="font-semibold text-amber-700 hover:underline">Ag.{ag.id}</Link>
                         <span>{ag.tipo_exame}</span>
                         <span>—</span>
                         <span className="font-medium">{ag.pet_nome}</span>
@@ -565,7 +565,7 @@ export default function DashboardPage() {
                   <div className="mt-3 space-y-1.5 pl-8">
                     {alertas.falta_pagamento_lista.map(ag => (
                       <div key={ag.id} className="flex items-center gap-2 text-xs text-yellow-800 flex-wrap">
-                        <Link href={`/admin/agenda?data=${ag.data_hora.slice(0, 10)}&abrir=${ag.id}`} className="font-semibold text-yellow-700 hover:underline">Ag.{ag.id}</Link>
+                        <Link href={`/admin/agenda?data=${(ag.data_hora ?? '').slice(0, 10)}&abrir=${ag.id}`} className="font-semibold text-yellow-700 hover:underline">Ag.{ag.id}</Link>
                         <span>{ag.tipo_exame}</span>
                         <span>—</span>
                         <span className="font-medium">{ag.pet_nome}</span>
