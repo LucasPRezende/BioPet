@@ -3,6 +3,20 @@ import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
 import { sendWhatsAppText } from '@/lib/evolution'
 
+const DIAS_PT = ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado']
+
+function formatDataHora(isoStr: string): string {
+  const [datePart, timePart = '00:00'] = isoStr.split('T')
+  const [year, month, day] = datePart.split('-').map(Number)
+  const [hour, minute]     = timePart.split(':').map(Number)
+  const d      = new Date(year, month - 1, day, hour, minute)
+  const dd     = String(day).padStart(2, '0')
+  const mm     = String(month).padStart(2, '0')
+  const hh     = String(hour).padStart(2, '0')
+  const minStr = minute > 0 ? `:${String(minute).padStart(2, '0')}` : ''
+  return `${DIAS_PT[d.getDay()]}, ${dd}/${mm} às ${hh}h${minStr}`
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -60,9 +74,7 @@ export async function POST(
   if (tutorObj?.telefone) {
     const digits   = tutorObj.telefone.replace(/\D/g, '')
     const telTutor = digits.startsWith('55') ? digits : `55${digits}`
-    const dataFmt  = ag.data_hora
-      ? new Date(ag.data_hora).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' })
-      : null
+    const dataFmt  = ag.data_hora ? formatDataHora(ag.data_hora) : null
     const msg = [
       `❌ Infelizmente seu agendamento para *${petObj?.nome ?? 'seu pet'}* (${ag.tipo_exame})`,
       dataFmt ? `em *${dataFmt}*` : null,
