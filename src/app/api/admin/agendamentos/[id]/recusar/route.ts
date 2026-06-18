@@ -22,7 +22,7 @@ export async function POST(
 
   const { data: ag } = await supabase
     .from('agendamentos')
-    .select('id, status, tipo_exame, clinicas(nome, telefone)')
+    .select('id, status, tipo_exame, data_hora, clinicas(nome, telefone), tutores(telefone), pets(nome)')
     .eq('id', agId)
     .single()
 
@@ -52,6 +52,24 @@ export async function POST(
       `Entre em contato para remarcar ou mais informações.`,
     ].filter(Boolean).join('\n')
     await sendWhatsAppText(telClin, msg)
+  }
+
+  // WhatsApp para o tutor
+  const tutorObj = Array.isArray(ag.tutores) ? ag.tutores[0] : ag.tutores as { telefone: string | null } | null
+  const petObj   = Array.isArray(ag.pets)    ? ag.pets[0]    : ag.pets    as { nome: string } | null
+  if (tutorObj?.telefone) {
+    const digits   = tutorObj.telefone.replace(/\D/g, '')
+    const telTutor = digits.startsWith('55') ? digits : `55${digits}`
+    const dataFmt  = ag.data_hora
+      ? new Date(ag.data_hora).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' })
+      : null
+    const msg = [
+      `❌ Infelizmente seu agendamento para *${petObj?.nome ?? 'seu pet'}* (${ag.tipo_exame})`,
+      dataFmt ? `em *${dataFmt}*` : null,
+      `não pôde ser confirmado.`,
+      `Responda esta mensagem para reagendar ou tirar dúvidas.`,
+    ].filter(Boolean).join(' ')
+    await sendWhatsAppText(telTutor, msg)
   }
 
   return NextResponse.json({ sucesso: true })
