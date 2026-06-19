@@ -1,23 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { parseEvolutionWebhook } from '@/lib/agente/conversa'
+import { sendWhatsAppText } from '@/lib/evolution'
 
 /**
  * Webhook de recepção de mensagens do WhatsApp (Evolution API).
  *
- * ETAPA 1 (captura): por enquanto este endpoint apenas RECEBE e LOGA o payload
- * cru que a Evolution dispara, para descobrirmos o formato real do evento
- * `messages.upsert` desta instância. Ainda NÃO responde nada — assim não há
- * risco de loop (mensagens nossas vêm com `fromMe: true`) antes de o parse
- * estar pronto.
+ * ETAPA 2 (echo): faz o parse do evento `messages.upsert`, descarta ruído
+ * (`fromMe`, grupos, mensagens sem texto, remetente sem telefone) e responde
+ * um echo simples — para validar o round-trip completo (recepção → envio)
+ * nesta instância, incluindo o endereçamento @lid.
  *
- * Próximas etapas (depois de vermos um payload real):
- *  - parse: extrair telefone, texto, msgId; ignorar `fromMe` e grupos (@g.us)
- *  - estado da conversa (tabela `conversas`)
- *  - orquestrador + resposta via Evolution (sendWhatsAppText)
+ * Próxima etapa: estado da conversa (tabela `conversas`) + orquestrador (IA).
  */
 
 export const dynamic = 'force-dynamic'
 
-// A Evolution (e alguns painéis) fazem um GET para verificar se o webhook está no ar.
+// A Evolution faz um GET para verificar se o webhook está no ar.
 export async function GET() {
   return NextResponse.json({ ok: true, endpoint: 'agente/webhook' })
 }
@@ -25,9 +23,22 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null)
 
-  // Log greppable nos logs da VPS: `pm2 logs | grep '[agente/webhook]'`
-  console.log('[agente/webhook] payload recebido:\n' + JSON.stringify(body, null, 2))
+  const msg = parseEvolutionWebhook(body)
 
-  // Responde 200 rápido para a Evolution não reenfileirar/reenviar.
+  if (!msg.processavel) {
+    console.log(`[agente/webhook] ignorado (${msg.motivo})`)
+    return NextResponse.json({ ok: true, ignorado: msg.motivo })
+  }
+
+  console.log(
+    `[agente/webhook] de ${msg.pushName ?? '?'} (${msg.telefone}): "${msg.texto}"`,
+  )
+
+  // ETAPA 2 — echo de confirmação (substituído pelo orquestrador na próxima etapa).
+  await sendWhatsAppText(
+    msg.telefone!,
+    `Recebi sua mensagem: "${msg.texto}" ✅\n_(assistente da BioPet em construção)_`,
+  )
+
   return NextResponse.json({ ok: true })
 }
