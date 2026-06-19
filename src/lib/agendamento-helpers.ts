@@ -7,6 +7,8 @@ import {
   isHorarioEspecial,
   type FormaPagamento,
 } from './pricing'
+import { gerarPreferenciaMp, expirarPreferenciaMp } from './mp-preference'
+import { gerarPixToken } from './pix-token'
 
 export interface ExameInput {
   tipo_exame: string
@@ -245,4 +247,84 @@ export async function recalcularTotal(agendamentoId: number): Promise<number> {
     .eq('id', agendamentoId)
 
   return total
+}
+
+// ─── Reconciliação do link de pagamento (Fase 2 / decisão jun/2026) ─────────────
+
+export interface EstadoPagamento {
+  forma_pagamento:       string | null
+  entrega_pagamento:     string | null
+  pagamento_responsavel: string | null
+  valor:                 number | null
+  status_pagamento:      string | null
+  mp_preference_id:      string | null
+  mp_init_point:         string | null
+  pix_token:             string | null
+}
+
+type TipoLink = 'cartao' | 'pix' | 'nenhum'
+
+/** Que link o agendamento DEVE ter, dado (forma, entrega, responsável). */
+function linkDesejado(e: Pick<EstadoPagamento, 'forma_pagamento' | 'entrega_pagamento' | 'pagamento_responsavel'>): TipoLink {
+  const forma = (e.forma_pagamento ?? '').toLowerCase()
+  if (e.pagamento_responsavel === 'clinica')   return 'nenhum'
+  if (forma === 'gratuito')                     return 'nenhum'
+  if ((e.entrega_pagamento ?? '') !== 'link')   return 'nenhum'   // presencial / não definido
+  if (forma.includes('cartao'))                 return 'cartao'
+  if (forma.includes('pix'))                    return 'pix'
+  return 'nenhum'                                                  // 'a confirmar' etc.
+}
+
+/**
+ * Reconcilia o link de pagamento guardado com o estado atual do agendamento, após
+ * uma edição. Mantém o invariante: o link gravado está sempre válido e batendo com
+ * (forma, entrega, valor), ou ausente — nunca defasado-mas-válido. Regra:
+ *  - JÁ PAGO (pago/pago_clinica) → não mexe em nada (mudança de valor é tratada
+ *    manualmente pela equipe; não gera nem invalida link).
+ *  - cartão → expira a preferência MP antiga + gera nova (quando virou cartão OU o
+ *    valor mudou; se continuou cartão com mesmo valor, mantém o link).
+ *  - pix    → expira MP antigo (se havia) + garante o link de pix (o pix se
+ *    auto-valida pelo valor atual; não precisa regerar por mudança de valor).
+ *  - nenhum (presencial/gratuito/clínica) → expira MP antigo (se havia) + limpa.
+ * Best-effort: falha ao gerar/expirar no MP NÃO derruba a edição (deixa sem link).
+ */
+export async function reconciliarLinkPagamento(
+  agendamentoId: number,
+  antes: EstadoPagamento,
+  depois: EstadoPagamento,
+): Promise<void> {
+  if (['pago', 'pago_clinica'].includes((depois.status_pagamento ?? '').toLowerCase())) return
+
+  const desejado      = linkDesejado(depois)
+  const desejadoAntes = linkDesejado(antes)
+  const valorMudou    = Math.abs(Number(depois.valor ?? 0) - Number(antes.valor ?? 0)) > 0.01
+  const expirarAntigo = async () => { if (antes.mp_preference_id) await expirarPreferenciaMp(antes.mp_preference_id) }
+  const limpar = () =>
+    supabase.from('agendamentos')
+      .update({ mp_init_point: null, mp_preference_id: null, pix_token: null })
+      .eq('id', agendamentoId)
+
+  if (desejado === 'cartao') {
+    if (desejadoAntes === 'cartao' && !valorMudou) return   // mesmo cartão, mesmo valor → mantém
+    await expirarAntigo()
+    try {
+      await gerarPreferenciaMp(agendamentoId)               // grava mp_init_point/mp_preference_id
+    } catch (err) {
+      console.error('[reconciliarLink] falha ao gerar preferência MP:', err instanceof Error ? err.message : err)
+      await limpar()                                        // best-effort: deixa sem link
+    }
+  } else if (desejado === 'pix') {
+    if (desejadoAntes === 'pix') return                     // já era pix → mantém (auto-valida)
+    await expirarAntigo()
+    const pixToken = antes.pix_token ?? gerarPixToken()
+    await supabase.from('agendamentos')
+      .update({ pix_token: pixToken, mp_init_point: `${process.env.NEXT_PUBLIC_URL}/pagamento/pix/${pixToken}`, mp_preference_id: null })
+      .eq('id', agendamentoId)
+  } else {
+    // nenhum: presencial / gratuito / clínica
+    if (antes.mp_init_point || antes.mp_preference_id || antes.pix_token) {
+      await expirarAntigo()
+      await limpar()
+    }
+  }
 }

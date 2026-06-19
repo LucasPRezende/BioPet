@@ -431,7 +431,9 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
       let linkOk = false
       let linkErr = ''
       try {
-        const linkRes = await fetch('/api/pagamentos/regerar-link', {
+        // O PATCH acima já (re)gerou e guardou o link correto; aqui só enviamos o link
+        // guardado ao cliente (reenviar-link), sem gerar de novo.
+        const linkRes = await fetch('/api/pagamentos/reenviar-link', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ agendamento_id: ag.id }),
         })

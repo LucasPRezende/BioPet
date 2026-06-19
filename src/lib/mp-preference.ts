@@ -3,6 +3,22 @@ import { supabase } from './supabase'
 
 const client = new MercadoPagoConfig({ accessToken: (process.env.MP_ACCESS_TOKEN ?? '').trim() })
 
+/** Expira uma preferência de pagamento no Mercado Pago (o link para de funcionar). */
+export async function expirarPreferenciaMp(preferenceId: string): Promise<void> {
+  try {
+    await fetch(`https://api.mercadopago.com/checkout/preferences/${preferenceId}`, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${(process.env.MP_ACCESS_TOKEN ?? '').trim()}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ expires: true, expiration_date_to: new Date(Date.now() - 1000).toISOString() }),
+    })
+  } catch (err) {
+    console.warn('[mp] falha ao expirar preferência:', err instanceof Error ? err.message : err)
+  }
+}
+
 export async function gerarPreferenciaMp(agendamentoId: number): Promise<{
   init_point: string
   preference_id: string

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
 import { sendWhatsAppText } from '@/lib/evolution'
-import { recalcularTotal } from '@/lib/agendamento-helpers'
+import { recalcularTotal, reconciliarLinkPagamento, type EstadoPagamento } from '@/lib/agendamento-helpers'
 
 const DIAS_PT = ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado']
 function formatDT(isoStr: string): string {
@@ -77,22 +77,13 @@ export async function PATCH(
   if (status_pagamento     !== undefined) update.status_pagamento     = status_pagamento
   if (laudo_dispensado     !== undefined) update.laudo_dispensado     = laudo_dispensado
 
-  // Se a forma de pagamento mudou, o link antigo não corresponde mais à nova forma:
-  // invalida mp_init_point/mp_preference_id/pix_token. Uma regeração bem-sucedida
-  // (regerar-link) grava o link novo; se falhar, o campo fica nulo e o "Reenviar link"
-  // (reenviar-link, que manda o mp_init_point gravado) não envia o link errado.
-  if (forma_pagamento !== undefined) {
-    const { data: atual } = await supabase
-      .from('agendamentos')
-      .select('forma_pagamento')
-      .eq('id', Number(params.id))
-      .single()
-    if (String(atual?.forma_pagamento ?? '').toLowerCase() !== String(forma_pagamento ?? '').toLowerCase()) {
-      update.mp_init_point    = null
-      update.mp_preference_id = null
-      update.pix_token        = null
-    }
-  }
+  // Estado de pagamento ANTES da edição — usado para reconciliar o link de pagamento
+  // depois que tudo (forma, valor via recalcularTotal, entrega, responsável) for aplicado.
+  const { data: antesPag } = await supabase
+    .from('agendamentos')
+    .select('forma_pagamento, entrega_pagamento, pagamento_responsavel, valor, status_pagamento, mp_preference_id, mp_init_point, pix_token')
+    .eq('id', Number(params.id))
+    .single()
 
   const hasExameChanges =
     (Array.isArray(exames_remover)  && exames_remover.length  > 0) ||
@@ -166,6 +157,26 @@ export async function PATCH(
     (Array.isArray(agendamento_exames_update) && agendamento_exames_update.length > 0) || hasExameChanges
   if (examesMudaram) {
     await recalcularTotal(Number(params.id))
+  }
+
+  // Reconcilia o link de pagamento com o estado final, quando algo de pagamento
+  // mudou (forma, entrega, responsável ou valor). Respeita "já pago" e é best-effort.
+  if (antesPag) {
+    const { data: depoisPag } = await supabase
+      .from('agendamentos')
+      .select('forma_pagamento, entrega_pagamento, pagamento_responsavel, valor, status_pagamento, mp_preference_id, mp_init_point, pix_token')
+      .eq('id', Number(params.id))
+      .single()
+
+    const a = antesPag as EstadoPagamento
+    const d = (depoisPag ?? antesPag) as EstadoPagamento
+    const mudouPagamento =
+      (a.forma_pagamento ?? '')       !== (d.forma_pagamento ?? '') ||
+      (a.entrega_pagamento ?? '')     !== (d.entrega_pagamento ?? '') ||
+      (a.pagamento_responsavel ?? '') !== (d.pagamento_responsavel ?? '') ||
+      Math.abs(Number(a.valor ?? 0) - Number(d.valor ?? 0)) > 0.01
+
+    if (mudouPagamento) await reconciliarLinkPagamento(Number(params.id), a, d)
   }
 
   // Notifica tutor quando data/hora foi alterada
