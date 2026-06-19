@@ -9,9 +9,11 @@ import {
   upsertTutor,
   insertExames,
   insertBioquimica,
+  precificarExames,
   type ExameInput,
   type BioquimicaInput,
 } from '@/lib/agendamento-helpers'
+import { formaEfetiva } from '@/lib/pricing'
 
 const DIAS_PT = ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado']
 
@@ -149,9 +151,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Já existe um agendamento neste horário.' }, { status: 409 })
   }
 
-  // 4. Cria agendamento
-  const tipoExameLabel = examesArr.map(e => e.tipo_exame).join(', ')
-  const valorTotal     = examesArr.reduce((sum, e) => sum + (e.valor ?? 0), 0)
+  // 4. Recalcula os preços no backend (fonte de verdade) e cria o agendamento
+  const bioPayload     = Array.isArray(bioquimica_selecionados) ? bioquimica_selecionados as BioquimicaInput[] : []
+  const examesPrecificados = await precificarExames(examesArr, {
+    forma:    formaEfetiva(pagamento_responsavel, forma_pagamento),
+    gratuito: (forma_pagamento ?? '').toLowerCase() === 'gratuito',
+    bio:      bioPayload,
+    dataHora: data_hora,
+    encaixe:  false,
+  })
+  const tipoExameLabel = examesPrecificados.map(e => e.tipo_exame).join(', ')
+  const valorTotal     = examesPrecificados.reduce((sum, e) => sum + (e.valor ?? 0), 0)
 
   const { data: agendamento, error: errAg } = await supabase
     .from('agendamentos')
@@ -179,9 +189,9 @@ export async function POST(request: NextRequest) {
 
   if (errAg) return NextResponse.json({ error: errAg.message }, { status: 500 })
 
-  // 5. Insere exames e sub-exames de bioquímica
-  await insertExames(agendamento.id, examesArr)
-  await insertBioquimica(agendamento.id, Array.isArray(bioquimica_selecionados) ? bioquimica_selecionados as BioquimicaInput[] : [])
+  // 5. Insere exames (já precificados pelo backend) e sub-exames de bioquímica
+  await insertExames(agendamento.id, examesPrecificados)
+  await insertBioquimica(agendamento.id, bioPayload)
 
   // 6. Nome do vet
   let vetNome = 'Não informado'

@@ -10,9 +10,11 @@ import {
   upsertTutor,
   insertExames,
   insertBioquimica,
+  precificarExames,
   type ExameInput,
   type BioquimicaInput,
 } from '@/lib/agendamento-helpers'
+import { formaEfetiva } from '@/lib/pricing'
 
 const DIAS_PT = ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado']
 
@@ -134,17 +136,26 @@ export async function POST(request: NextRequest) {
     if (conflito) return NextResponse.json({ error: 'Já existe um agendamento neste horário.' }, { status: 409 })
   }
 
-  // 4. Cria agendamento
-  const tipoExameLabel  = examesArr.map(e => e.tipo_exame).join(', ')
-  const valorTotal      = examesArr.reduce((s, e) => s + (e.valor ?? 0), 0)
-  const totalDuracaoMin = examesArr.reduce((s, e) => s + e.duracao_minutos, 0)
-
+  // 4. Recalcula os preços no backend (fonte de verdade) e cria o agendamento
   const pagResp         = pagamento_responsavel ?? 'tutor'
   const entrega         = entrega_pagamento ?? 'link'
   const pagarGratuito   = (forma_pagamento ?? '').toLowerCase() === 'gratuito'
   const pagarClinica    = !pagarGratuito && (pagResp === 'clinica' || forma_pagamento === 'pix_presencial')
   const pagarPresencial = !pagarGratuito && !pagarClinica && entrega === 'presencial'
   const statusPag       = pagarGratuito ? 'pago' : (pagarClinica || pagarPresencial ? 'a_receber' : 'pendente')
+
+  const bioPayload      = Array.isArray(bioquimica_selecionados) ? bioquimica_selecionados as BioquimicaInput[] : []
+  const examesPrecificados = await precificarExames(examesArr, {
+    forma:    formaEfetiva(pagResp, forma_pagamento),
+    gratuito: pagarGratuito,
+    bio:      bioPayload,
+    dataHora: data_hora,
+    encaixe:  encaixe ?? false,
+  })
+
+  const tipoExameLabel  = examesPrecificados.map(e => e.tipo_exame).join(', ')
+  const valorTotal      = examesPrecificados.reduce((s, e) => s + (e.valor ?? 0), 0)
+  const totalDuracaoMin = examesPrecificados.reduce((s, e) => s + e.duracao_minutos, 0)
 
   const { data: agendamento, error: errAg } = await supabase
     .from('agendamentos')
@@ -174,9 +185,9 @@ export async function POST(request: NextRequest) {
 
   if (errAg) return NextResponse.json({ error: errAg.message }, { status: 500 })
 
-  // 5. Insere exames e sub-exames de bioquímica
-  await insertExames(agendamento.id, examesArr)
-  await insertBioquimica(agendamento.id, Array.isArray(bioquimica_selecionados) ? bioquimica_selecionados as BioquimicaInput[] : [])
+  // 5. Insere exames (já precificados pelo backend) e sub-exames de bioquímica
+  await insertExames(agendamento.id, examesPrecificados)
+  await insertBioquimica(agendamento.id, bioPayload)
 
   // 6. Notificação WhatsApp para o tutor
   const isEncaixe  = encaixe ?? false
@@ -185,7 +196,7 @@ export async function POST(request: NextRequest) {
   const horaInicio = (data_hora.split('T')[1] ?? '').substring(0, 5).replace(':', 'h').replace(/h00$/, 'h')
   const horaFim    = horaFimStr(data_hora, totalDuracaoMin).replace(':', 'h').replace(/h00$/, 'h')
   const fmtBRL = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-  const descontoTotal = examesArr.reduce((s, e) => s + Number(e.desconto ?? 0), 0)
+  const descontoTotal = examesPrecificados.reduce((s, e) => s + Number(e.desconto ?? 0), 0)
   const subtotalBruto = valorTotal + descontoTotal
   // Linhas de valor da mensagem: mostra Subtotal/Desconto/Total quando há desconto
   const linhasValor = (labelTotal: string): string[] => {

@@ -54,48 +54,8 @@ export async function GET(request: NextRequest) {
 
   const result = rows ?? []
 
-  // Para agendamentos de clínica onde agendamento_exames.valor = 0 (bug legado),
-  // enriquecer com o preço PIX de comissoes_exame
-  const tiposComValorZero = new Set<string>()
-  for (const ag of result) {
-    if (!ag.clinica_id) continue
-    const exames = (ag as Record<string, unknown>).agendamento_exames as { tipo_exame: string; valor: number | null }[] | null
-    if (!exames) continue
-    for (const ex of exames) {
-      if (!ex.valor || ex.valor === 0) tiposComValorZero.add(ex.tipo_exame)
-    }
-  }
-
-  if (tiposComValorZero.size > 0) {
-    const { data: comissoes } = await supabase
-      .from('comissoes_exame')
-      .select('tipo_exame, preco_pix_comercial')
-      .in('tipo_exame', Array.from(tiposComValorZero))
-
-    const precoMap = new Map<string, number>()
-    for (const c of comissoes ?? []) {
-      const preco = c.preco_pix_comercial ?? 0
-      precoMap.set(c.tipo_exame, preco)
-    }
-
-    for (const ag of result) {
-      if (!ag.clinica_id) continue
-      const exames = (ag as Record<string, unknown>).agendamento_exames as { tipo_exame: string; valor: number | null }[] | null
-      if (!exames) continue
-      let valorTotal = 0
-      for (const ex of exames) {
-        if (!ex.valor || ex.valor === 0) {
-          ex.valor = precoMap.get(ex.tipo_exame) ?? 0
-        }
-        valorTotal += ex.valor ?? 0
-      }
-      // Corrige ag.valor também se estiver nulo/zero
-      const agRecord = ag as Record<string, unknown>
-      if (!agRecord.valor && valorTotal > 0) {
-        agRecord.valor = valorTotal
-      }
-    }
-  }
-
+  // (Fase 3) Removida a enrichment "bug legado clínica": o backend agora precifica
+  // na criação (precificarExames) e mantém o invariante ag.valor == soma(partes),
+  // então agendamento_exames.valor não nasce mais zerado.
   return NextResponse.json(result)
 }

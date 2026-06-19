@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
 
   const { data: ag } = await supabase
     .from('agendamentos')
-    .select('id, tipo_exame, valor, data_hora, status_pagamento, forma_pagamento, entrega_pagamento, pets(nome), agendamento_exames(tipo_exame, valor), tutores(nome)')
+    .select('id, tipo_exame, valor, data_hora, status_pagamento, forma_pagamento, entrega_pagamento, pets(nome), tutores(nome)')
     .eq('pix_token', String(pix_token))
     .single()
 
@@ -53,10 +53,8 @@ export async function POST(request: NextRequest) {
   const firstName = nomeParts[0] || 'Cliente'
   const lastName  = nomeParts.slice(1).join(' ') || 'BioPet'
 
-  const exames = ag.agendamento_exames as { tipo_exame: string; valor: number }[] | null
-  const valor  = exames && exames.length > 0
-    ? exames.reduce((s, e) => s + Number(e.valor), 0)
-    : Number(ag.valor) || 0
+  // Invariante (Fase 2): ag.valor == soma(agendamento_exames.valor).
+  const valor = Number(ag.valor) || 0
 
   const agDate    = new Date(ag.data_hora)
   const now       = new Date()

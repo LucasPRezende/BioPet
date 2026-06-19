@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { ESPECIES } from '@/lib/especies'
 import { isHorarioEspecial as isHorarioEspecialLib, motivoHorarioEspecial } from '@/lib/feriados'
+import { precoExame } from '@/lib/pricing'
 
 // ─── Interfaces ────────────────────────────────────────────────────────────────
 
@@ -68,20 +69,13 @@ function validarCPF(cpf: string): boolean {
   return calc(9) === parseInt(c[9]) && calc(10) === parseInt(c[10])
 }
 
+// Delega à fonte única de verdade (pricing.ts). ExameInfo já tem o shape de PrecoExame.
 function calcularValorExame(
   exame: ExameInfo,
   formaPagamento: 'pix' | 'cartao',
   especial: boolean,
 ): number {
-  if (!exame.varia_por_horario) return formaPagamento === 'cartao' ? (exame.valor_cartao ?? exame.valor_pix ?? 0) : (exame.valor_pix ?? 0)
-  if (especial) {
-    return formaPagamento === 'cartao'
-      ? (exame.valor_especial_cartao ?? exame.valor_cartao ?? 0)
-      : (exame.valor_especial_pix    ?? exame.valor_pix    ?? 0)
-  }
-  return formaPagamento === 'cartao'
-    ? (exame.valor_cartao ?? 0)
-    : (exame.valor_pix    ?? 0)
+  return precoExame(exame, { forma: formaPagamento, especial })
 }
 
 // ─── Sub-components ────────────────────────────────────────────────────────────

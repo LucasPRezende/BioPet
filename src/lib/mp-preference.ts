@@ -29,14 +29,11 @@ export async function gerarPreferenciaMp(agendamentoId: number): Promise<{
   const petNome: string =
     (Array.isArray(ag.pets) ? ag.pets[0]?.nome : (ag.pets as { nome: string } | null)?.nome) ?? '—'
 
-  const agValor    = Number(ag.valor) || 0
-  const examesSum  = (examesRows ?? []).reduce((s, e) => s + Number(e.valor), 0)
-  // Se os valores individuais batem com o total do agendamento, usa detalhado.
-  // Caso contrário (ex: forma de pagamento foi editada), usa o total atualizado como item único.
-  const useDetalhado = examesRows && examesRows.length > 0 && Math.abs(examesSum - agValor) < 0.01
-
-  const items = useDetalhado
-    ? examesRows!.map(e => ({
+  const agValor = Number(ag.valor) || 0
+  // Invariante (Fase 2): soma de agendamento_exames.valor == ag.valor. Itemiza por
+  // exame quando há partes; senão cai para um item único com o total.
+  const items = examesRows && examesRows.length > 0
+    ? examesRows.map(e => ({
         id:          `exame-${e.id}`,
         title:       `BioPet — ${e.tipo_exame} — ${petNome}`,
         quantity:    1,

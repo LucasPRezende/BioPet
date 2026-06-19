@@ -1,4 +1,12 @@
 import { supabase } from './supabase'
+import {
+  precoExame,
+  precoBioquimica,
+  valorLiquido,
+  fromComissao,
+  isHorarioEspecial,
+  type FormaPagamento,
+} from './pricing'
 
 export interface ExameInput {
   tipo_exame: string
@@ -100,4 +108,141 @@ export async function insertBioquimica(agendamentoId: number, bio: BioquimicaInp
       valor_cartao:        b.valor_cartao,
     })),
   )
+}
+
+// ─── Pricing como fonte de verdade no backend (Fase 2) ──────────────────────────
+
+const COMISSAO_COLS =
+  'tipo_exame, varia_por_horario, preco_pix_comercial, preco_cartao_comercial, ' +
+  'preco_pix_fora_horario, preco_cartao_fora_horario'
+
+interface ComissaoRowDb {
+  tipo_exame:                string
+  varia_por_horario:         boolean
+  preco_pix_comercial:       number | null
+  preco_cartao_comercial:    number | null
+  preco_pix_fora_horario:    number | null
+  preco_cartao_fora_horario: number | null
+}
+
+/**
+ * Determina no backend se o agendamento cai em horário especial (fonte de verdade),
+ * sem confiar em flag do cliente. Espelha o cálculo do front: usa os feriados da
+ * tabela `feriados` + o horário comercial de `system_config`
+ * (`horario_especial_inicio`/`_fim`, defaults 08:00–17:00), a partir do `data_hora`
+ * e da duração total. Encaixe → hora vazia (mesma semântica do front: a checagem
+ * passa a depender só da data — fim de semana/feriado).
+ */
+export async function calcularEspecial(
+  dataHora: string,
+  totalDuracao: number,
+  encaixe: boolean,
+): Promise<boolean> {
+  const [datePart, timePart = ''] = dataHora.split('T')
+  const hora = encaixe ? '' : timePart.slice(0, 5)
+
+  const [{ data: feriadosRows }, { data: horarioRows }] = await Promise.all([
+    supabase.from('feriados').select('data'),
+    supabase.from('system_config').select('key, value').in('key', ['horario_especial_inicio', 'horario_especial_fim']),
+  ])
+
+  const feriados = (feriadosRows ?? []).map((f: { data: string }) => f.data)
+  const map = Object.fromEntries((horarioRows ?? []).map((r: { key: string; value: string }) => [r.key, r.value]))
+  const inicio = map['horario_especial_inicio'] ?? '08:00'
+  const fim    = map['horario_especial_fim']    ?? '17:00'
+
+  return isHorarioEspecial(hora, totalDuracao, datePart, feriados, fim, inicio)
+}
+
+/**
+ * Recalcula o valor de cada exame a partir de `comissoes_exame` (fonte de verdade),
+ * em vez de confiar no `valor` enviado pelo cliente. Aplica o desconto por exame.
+ *  - gratuito → todos os valores 0 (não consulta a tabela). Ver [[gratuidade-admin-only]].
+ *  - Bioquímica → soma dos sub-exames (`bio`), conforme a forma.
+ *  - tipo sem comissão cadastrada → cai para o `valor` enviado (defensivo).
+ *
+ * O `horario_especial` é RECALCULADO no backend via {@link calcularEspecial}
+ * (a partir de `dataHora`/`encaixe`/duração total) — o flag enviado pelo cliente é
+ * ignorado, fechando a brecha de manipular o preço mandando especial=false.
+ */
+export async function precificarExames(
+  exames: ExameInput[],
+  opts: { forma: FormaPagamento; gratuito: boolean; bio: BioquimicaInput[]; dataHora: string; encaixe: boolean },
+): Promise<ExameInput[]> {
+  const totalDuracao = exames.reduce((s, e) => s + (e.duracao_minutos ?? 0), 0)
+  const especial = await calcularEspecial(opts.dataHora, totalDuracao, opts.encaixe)
+
+  const tiposTabela = Array.from(
+    new Set(exames.filter(e => e.tipo_exame !== 'Bioquímica').map(e => e.tipo_exame)),
+  )
+
+  const comMap = new Map<string, ComissaoRowDb>()
+  if (!opts.gratuito && tiposTabela.length > 0) {
+    const { data } = await supabase
+      .from('comissoes_exame')
+      .select(COMISSAO_COLS)
+      .in('tipo_exame', tiposTabela)
+    for (const c of (data ?? []) as unknown as ComissaoRowDb[]) comMap.set(c.tipo_exame, c)
+  }
+
+  const brutoBio = opts.gratuito
+    ? 0
+    : precoBioquimica(
+        opts.bio.map(b => ({ valor_pix: Number(b.valor_pix), valor_cartao: Number(b.valor_cartao) })),
+        opts.forma,
+      )
+
+  return exames.map(e => {
+    const desconto = opts.gratuito ? 0 : Number(e.desconto ?? 0)
+    let bruto = 0
+    if (!opts.gratuito) {
+      if (e.tipo_exame === 'Bioquímica') {
+        bruto = brutoBio
+      } else {
+        const com = comMap.get(e.tipo_exame)
+        bruto = com
+          ? precoExame(fromComissao(com), { forma: opts.forma, especial })
+          : Number(e.valor ?? 0)
+      }
+    }
+    return {
+      tipo_exame:       e.tipo_exame,
+      duracao_minutos:  e.duracao_minutos,
+      valor:            opts.gratuito ? 0 : valorLiquido(bruto, desconto),
+      desconto,
+      horario_especial: especial,
+      descricao:        e.descricao ?? null,
+    }
+  })
+}
+
+/**
+ * Re-deriva e persiste `agendamentos.valor` a partir das partes
+ * (`agendamento_exames.valor`, já líquidos) — fonte única de verdade do total,
+ * a ser chamada após qualquer mudança de exames. Respeita gratuidade: forma
+ * 'gratuito' → 0 sem somar a tabela. Mantém a convenção de gravar `null` quando 0.
+ * Retorna o total calculado.
+ */
+export async function recalcularTotal(agendamentoId: number): Promise<number> {
+  const { data: ag } = await supabase
+    .from('agendamentos')
+    .select('forma_pagamento')
+    .eq('id', agendamentoId)
+    .single()
+
+  let total = 0
+  if ((ag?.forma_pagamento ?? '').toLowerCase() !== 'gratuito') {
+    const { data: exames } = await supabase
+      .from('agendamento_exames')
+      .select('valor')
+      .eq('agendamento_id', agendamentoId)
+    total = (exames ?? []).reduce((s, e) => s + Number(e.valor ?? 0), 0)
+  }
+
+  await supabase
+    .from('agendamentos')
+    .update({ valor: total > 0 ? total : null })
+    .eq('id', agendamentoId)
+
+  return total
 }

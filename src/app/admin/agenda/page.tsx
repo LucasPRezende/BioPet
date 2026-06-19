@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { AgendamentoForm } from '@/components/AgendamentoForm'
 import { isHorarioEspecial as isHorarioEspecialLib } from '@/lib/feriados'
+import { precoExame, precoBioquimica, fromComissao, valorLiquido, type FormaPagamento } from '@/lib/pricing'
 
 interface Tutor { id: number; nome: string | null; telefone: string }
 interface Pet   { id: number; nome: string; especie: string | null; raca: string | null }
@@ -316,23 +317,14 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
     const especial     = ag.encaixe ? false : isEspecial(hora, duracaoAtiva, data, feriadoDatas, horarioFim, horarioInicio)
     const bioRows  = ag.agendamento_bioquimica ?? []
 
+    const forma: FormaPagamento = isPix ? 'pix' : 'cartao'
     const calc = exames.reduce((sum, ex) => {
       if (ex.tipo_exame === 'Bioquímica') {
-        return sum + bioRows.reduce((s, b) => s + Number(isPix ? b.valor_pix : b.valor_cartao), 0)
+        return sum + precoBioquimica(bioRows, forma)
       }
       const info = comMap.get(ex.tipo_exame)
       if (!info) return sum
-      const pixNormal    = info.preco_pix_comercial    ?? 0
-      const cartaoNormal = info.preco_cartao_comercial ?? 0
-      if (!info.varia_por_horario) {
-        return sum + (isPix ? pixNormal : cartaoNormal)
-      }
-      if (especial) {
-        return sum + (isPix
-          ? (info.preco_pix_fora_horario    ?? pixNormal)
-          : (info.preco_cartao_fora_horario ?? cartaoNormal))
-      }
-      return sum + (isPix ? pixNormal : cartaoNormal)
+      return sum + precoExame(fromComissao(info), { forma, especial })
     }, 0)
 
     const descontoTotal = exames.reduce((s, ex) => s + Number(ex.desconto ?? 0), 0)
@@ -356,16 +348,7 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
     // Usa ag.duracao_minutos como base + duração do novo exame — evita depender de null no banco
     const duracaoAtiva = (ag.duracao_minutos ?? 0) + (info.duracao_minutos ?? 0)
     const esp          = ag.encaixe ? false : isEspecial(hora, duracaoAtiva, data, feriadoDatas, horarioFim, horarioInicio)
-    const pixNorm      = info.preco_pix_comercial    ?? 0
-    const carNorm      = info.preco_cartao_comercial ?? 0
-    let valor: number
-    if (!info.varia_por_horario) {
-      valor = isPix ? pixNorm : carNorm
-    } else if (esp) {
-      valor = isPix ? (info.preco_pix_fora_horario ?? pixNorm) : (info.preco_cartao_fora_horario ?? carNorm)
-    } else {
-      valor = isPix ? pixNorm : carNorm
-    }
+    const valor = precoExame(fromComissao(info), { forma: isPix ? 'pix' : 'cartao', especial: esp })
     userChangedRef.current = true
     setExamesAtivos(prev => [...prev, { tipo_exame: exameParaAdicionar, valor, duracao_minutos: info.duracao_minutos ?? null }])
     setExameParaAdicionar('')
@@ -393,21 +376,15 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
       const duracaoAtiva = (ag.duracao_minutos ?? 0) + duracaoAddS - duracaoRemS
       const esp          = ag.encaixe ? false : isEspecial(hora, duracaoAtiva, data, feriadoDatas, horarioFim, horarioInicio)
       const bios   = ag.agendamento_bioquimica ?? []
+      const forma: FormaPagamento = isPix ? 'pix' : 'cartao'
       const examesCalc: AgExame[] = exsAg.map(ex => {
         const desc = Number(ex.desconto ?? 0)
-        const liq  = (bruto: number) => Math.max(0, bruto - desc)
         if (ex.tipo_exame === 'Bioquímica') {
-          const val = bios.reduce((s, b) => s + Number(isPix ? b.valor_pix : b.valor_cartao), 0)
-          return { ...ex, valor: liq(val), desconto: desc }
+          return { ...ex, valor: valorLiquido(precoBioquimica(bios, forma), desc), desconto: desc }
         }
         const info = cMap.get(ex.tipo_exame)
         if (!info) return ex
-        const pNorm = info.preco_pix_comercial    ?? 0
-        const cNorm = info.preco_cartao_comercial ?? 0
-        if (!info.varia_por_horario) return { ...ex, valor: liq(isPix ? pNorm : cNorm), desconto: desc }
-        const pEsp = info.preco_pix_fora_horario    ?? pNorm
-        const cEsp = info.preco_cartao_fora_horario ?? cNorm
-        return { ...ex, valor: liq(esp ? (isPix ? pEsp : cEsp) : (isPix ? pNorm : cNorm)), desconto: desc }
+        return { ...ex, valor: valorLiquido(precoExame(fromComissao(info), { forma, especial: esp }), desc), desconto: desc }
       })
       const calc = examesCalc.reduce((s, ex) => s + (ex.valor ?? 0), 0)
       if (calc > 0) { valorFinal = calc; examesAtualizados = examesCalc }
@@ -856,21 +833,11 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
     totalExames += val
     return { ...ex, val, isBio }
   })
-  // Usa soma dos exames só se bater com ag.valor — protege contra agendamento_exames stale após edição de forma de pag.
-  const valorMismatch = totalExames > 0 && Math.abs(totalExames - (ag.valor ?? 0)) > 0.01
-  const repasse = valorMismatch ? (ag.valor ?? 0) : totalExames || (ag.valor ?? 0)
+  // Backend é a fonte de verdade: ag.valor == soma(agendamento_exames.valor),
+  // invariante garantido por recalcularTotal (Fase 2). Soma direta das partes.
+  const repasse = totalExames || (ag.valor ?? 0)
   const descontoTotal = (ag.agendamento_exames ?? []).reduce((s, e) => s + Number(e.desconto ?? 0), 0)
-  // Quando há mismatch (agendamento_exames stale), corrige a exibição:
-  // - Único exame não-Bio: usa ag.valor diretamente
-  // - Múltiplos exames não-Bio: oculta preço individual (val=0) pois está stale; total via repasse
-  // - Bio: sempre correto (armazena valor_pix e valor_cartao separados)
-  const examesDisplay = valorMismatch
-    ? examesComVal.map(ex => {
-        if (ex.isBio) return ex
-        if (examesComVal.length === 1) return { ...ex, val: ag.valor ?? 0 }
-        return { ...ex, val: 0 }
-      })
-    : examesComVal
+  const examesDisplay = examesComVal
 
   async function handleStatusChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const s = e.target.value; setStatus(s)

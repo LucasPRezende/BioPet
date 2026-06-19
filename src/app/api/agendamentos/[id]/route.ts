@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
 import { sendWhatsAppText } from '@/lib/evolution'
+import { recalcularTotal } from '@/lib/agendamento-helpers'
 
 const DIAS_PT = ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado']
 function formatDT(isoStr: string): string {
@@ -139,6 +140,15 @@ export async function PATCH(
       .from('agendamentos')
       .update({ duracao_minutos: novaDuracao, tipo_exame: novoTipoExame })
       .eq('id', Number(params.id))
+  }
+
+  // Backend é a fonte de verdade do total: re-deriva agendamentos.valor das partes
+  // sempre que os exames mudaram nesta requisição (respeita gratuidade). Sobrepõe o
+  // `valor` que o cliente possa ter enviado.
+  const examesMudaram =
+    (Array.isArray(agendamento_exames_update) && agendamento_exames_update.length > 0) || hasExameChanges
+  if (examesMudaram) {
+    await recalcularTotal(Number(params.id))
   }
 
   // Notifica tutor quando data/hora foi alterada
