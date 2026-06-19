@@ -172,12 +172,15 @@ export async function PATCH(
   if (data_hora !== undefined) {
     const { data: ag } = await supabase
       .from('agendamentos')
-      .select('tipo_exame, data_hora, tutores(nome, telefone), pets(nome)')
+      .select('tipo_exame, data_hora, valor, tutores(nome, telefone), pets(nome)')
       .eq('id', Number(params.id))
       .single()
 
     const tutor = ag ? (Array.isArray(ag.tutores) ? ag.tutores[0] : ag.tutores as { nome: string | null; telefone: string } | null) : null
     const pet   = ag ? (Array.isArray(ag.pets)    ? ag.pets[0]    : ag.pets    as { nome: string } | null) : null
+    const valorFmt = ag?.valor != null && Number(ag.valor) > 0
+      ? Number(ag.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+      : null
 
     if (tutor?.telefone) {
       const digits = tutor.telefone.replace(/\D/g, '')
@@ -188,6 +191,7 @@ export async function PATCH(
         `🐾 Pet: ${pet?.nome ?? '—'}`,
         `  💉 ${ag!.tipo_exame}`,
         `📅 Nova data: ${formatDT(ag!.data_hora)}`,
+        ...(valorFmt ? [`💰 Total: ${valorFmt}`] : []),
         `📍 BioPet - Volta Redonda`,
         ``,
         `Dúvidas? É só chamar! 🐾`,
