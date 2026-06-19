@@ -428,11 +428,26 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
 
     if (fase === 'confirmar' && enviarLink && podeEnviarLink && !estaPago) {
       setEnviandoLink(true)
-      await fetch('/api/pagamentos/regerar-link', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agendamento_id: ag.id }),
-      })
+      let linkOk = false
+      let linkErr = ''
+      try {
+        const linkRes = await fetch('/api/pagamentos/regerar-link', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ agendamento_id: ag.id }),
+        })
+        linkOk = linkRes.ok
+        if (!linkRes.ok) {
+          const d = await linkRes.json().catch(() => ({} as { error?: string }))
+          linkErr = d.error ?? ''
+        }
+      } catch {
+        linkErr = 'falha de conexão'
+      }
       setEnviandoLink(false)
+      // Salvamento já foi persistido; só o envio do link falhou. Avisa em vez de falhar calado.
+      if (!linkOk) {
+        alert(`⚠️ Agendamento salvo, mas não consegui enviar o link de pagamento${linkErr ? `:\n${linkErr}` : '.'}\n\nAbra os detalhes do agendamento e use "Reenviar link" para tentar novamente.`)
+      }
     }
 
     onSaved({
