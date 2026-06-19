@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
   const {
     tutor_id, pet_id, tipo_exame, data_hora,
     duracao_minutos, valor, forma_pagamento,
-    google_calendar_id, observacoes,
+    google_calendar_id, observacoes, status, origem,
   } = body ?? {}
 
   if (!tutor_id || !tipo_exame || !data_hora) {
@@ -43,7 +43,8 @@ export async function POST(request: NextRequest) {
       forma_pagamento:    forma_pagamento ?? 'a confirmar',
       google_calendar_id: google_calendar_id ?? null,
       observacoes:        observacoes ?? null,
-      status:             'agendado',
+      status:             status ?? 'agendado',
+      origem:             origem ?? 'agente',
       system_user_id:     process.env.AGENT_USER_ID ? Number(process.env.AGENT_USER_ID) : null,
     })
     .select('id')

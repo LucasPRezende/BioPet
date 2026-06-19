@@ -9,6 +9,10 @@
  * O número real vem em `key.remoteJidAlt` (`55DDD9XXXXXXXX@s.whatsapp.net`).
  * Por isso priorizamos `remoteJidAlt` ao resolver o telefone.
  */
+import { supabase } from '@/lib/supabase'
+
+/** Minutos de inatividade até a conversa expirar (reinicia o histórico). */
+const TTL_MINUTOS = 60
 
 export interface MensagemRecebida {
   /** True quando há uma mensagem de texto de usuário para processar. */
@@ -76,4 +80,104 @@ export function parseEvolutionWebhook(body: any): MensagemRecebida {
     msgId: key.id,
     pushName: data.pushName,
   }
+}
+
+// ---------------------------------------------------------------------------
+// Estado da conversa (tabela `conversas`)
+// ---------------------------------------------------------------------------
+
+export interface EstadoConversa {
+  /** Histórico no formato da Anthropic Messages API (array de {role, content}). */
+  historico: any[]
+  /** ID da última mensagem já processada (dedupe). */
+  ultimaMsgId: string | null
+}
+
+/**
+ * Carrega o estado da conversa. Se a conversa expirou (inatividade), retorna
+ * histórico vazio — começa do zero sem apagar a linha (será sobrescrita).
+ */
+export async function carregarConversa(telefone: string): Promise<EstadoConversa> {
+  const { data } = await supabase
+    .from('conversas')
+    .select('historico, ultima_msg_id, expira_em')
+    .eq('telefone', telefone)
+    .maybeSingle()
+
+  if (!data) return { historico: [], ultimaMsgId: null }
+
+  const expirou = data.expira_em && new Date(data.expira_em) < new Date()
+  return {
+    historico: expirou ? [] : ((data.historico as any[]) ?? []),
+    ultimaMsgId: expirou ? null : (data.ultima_msg_id ?? null),
+  }
+}
+
+/** Persiste o histórico atualizado + marca a última mensagem processada. */
+export async function salvarConversa(
+  telefone: string,
+  historico: any[],
+  msgId: string | undefined,
+): Promise<void> {
+  const agora = new Date()
+  const expira = new Date(agora.getTime() + TTL_MINUTOS * 60_000)
+  await supabase.from('conversas').upsert(
+    {
+      telefone,
+      historico,
+      ultima_msg_id: msgId ?? null,
+      atualizado_em: agora.toISOString(),
+      expira_em: expira.toISOString(),
+    },
+    { onConflict: 'telefone' },
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Guard-rails de recepção
+// ---------------------------------------------------------------------------
+
+/** Normaliza um telefone para dígitos com DDI 55. */
+export function normalizarTelefone(telefone: string): string {
+  const digits = telefone.replace(/\D/g, '')
+  return digits.startsWith('55') ? digits : `55${digits}`
+}
+
+/** True se o número está na lista de bloqueados (configuracoes_agente). */
+export async function telefoneBloqueado(telefone: string): Promise<boolean> {
+  const { data } = await supabase
+    .from('configuracoes_agente')
+    .select('numeros_bloqueados')
+    .order('id')
+    .limit(1)
+    .maybeSingle()
+
+  const lista = (data?.numeros_bloqueados as { numero: string }[] | null) ?? []
+  const alvo = normalizarTelefone(telefone)
+  return lista.some((n) => normalizarTelefone(n.numero ?? '') === alvo)
+}
+
+/**
+ * True se o tutor está em atendimento humano ativo (o bot deve silenciar).
+ * Auto-desbloqueia quando o prazo `atendimento_humano_ate` expira.
+ */
+export async function emAtendimentoHumano(telefone: string): Promise<boolean> {
+  const telNorm = normalizarTelefone(telefone)
+  const digits = telefone.replace(/\D/g, '')
+  const { data: tutor } = await supabase
+    .from('tutores')
+    .select('id, atendimento_humano, atendimento_humano_ate')
+    .or(`telefone.eq.${telNorm},telefone.eq.${digits}`)
+    .maybeSingle()
+
+  if (!tutor?.atendimento_humano) return false
+
+  if (tutor.atendimento_humano_ate && new Date(tutor.atendimento_humano_ate) < new Date()) {
+    await supabase
+      .from('tutores')
+      .update({ atendimento_humano: false, atendimento_humano_ate: null })
+      .eq('id', tutor.id)
+    return false
+  }
+  return true
 }
