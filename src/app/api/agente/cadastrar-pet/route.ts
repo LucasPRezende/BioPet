@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { verifyAgentKey } from '@/lib/agent-auth'
+import { normalizarEspecie } from '@/lib/especies'
 
 export async function POST(request: NextRequest) {
   if (!verifyAgentKey(request)) {
@@ -8,7 +9,8 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json().catch(() => null)
-  const { tutor_id, nome, especie, raca } = body ?? {}
+  const { tutor_id, nome, raca } = body ?? {}
+  const especie = normalizarEspecie(body?.especie) // "gato" -> "Felina", etc.
 
   if (!tutor_id || !nome) {
     return NextResponse.json({ error: 'Campos "tutor_id" e "nome" são obrigatórios.' }, { status: 400 })

@@ -106,6 +106,12 @@ const TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'listar_veterinarios',
+    description:
+      'Lista os veterinários cadastrados (id e nome). Use para casar o nome que o cliente disser com o veterinário correto antes de agendar.',
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
     name: 'agendar',
     description:
       'Cria o agendamento. Só chame APÓS confirmação explícita do cliente (pet, exame, data/hora e valor). O agendamento entra como pendente para a clínica confirmar.',
@@ -119,6 +125,7 @@ const TOOLS: Anthropic.Tool[] = [
         valor: { type: 'number' },
         duracao_minutos: { type: 'number' },
         forma_pagamento: { type: 'string', description: "'pix' ou 'cartao'" },
+        veterinario_id: { type: 'number', description: 'Opcional — id do veterinário responsável (de listar_veterinarios)' },
       },
       required: ['tutor_id', 'tipo_exame', 'data_hora'],
     },
@@ -183,6 +190,13 @@ async function executarTool(
       return chamarApi(`/api/agente/contexto?telefone=${tel}`, 'GET')
     case 'consultar_precos':
       return chamarApi('/api/agente/precos', 'GET')
+    case 'listar_veterinarios': {
+      const { data } = await supabase
+        .from('veterinarios')
+        .select('id, nome')
+        .order('nome')
+      return { veterinarios: data ?? [] }
+    }
     case 'horarios_livres':
       return chamarApi(
         `/api/agente/horarios-livres?data=${encodeURIComponent(input.data)}` +
@@ -285,7 +299,8 @@ function systemPrompt(telefone: string, primeira: boolean): string {
       ? '- Esta é a PRIMEIRA mensagem da conversa: apresente-se de forma acolhedora ("Olá! Eu sou a assistente virtual da BioPet 🐾") antes de ajudar.'
       : '- Continue a conversa de forma natural, sem se reapresentar.',
     '- No início, use identificar_tutor para saber se o cliente já é cadastrado e quais pets tem. Se já for cadastrado, chame-o pelo nome.',
-    '- Se o tutor não existir, peça o nome e use cadastrar_tutor. Para marcar, é preciso um pet — se não houver, pergunte nome e espécie e use cadastrar_pet.',
+    '- Se o tutor não existir, peça o nome e use cadastrar_tutor. Para marcar, é preciso um pet — se não houver, pergunte nome e espécie e use cadastrar_pet. Espécie deve ser uma de: Canina, Felina, Lagomorfo, Aves, Equina, Bovina, Ovina, Caprina (ex.: gato = Felina, cachorro/cão = Canina).',
+    '- Você pode perguntar (opcional) se o cliente sabe qual veterinário vai acompanhar o exame. Se ele disser um nome, use listar_veterinarios e passe o veterinario_id correspondente ao agendar. Se não souber, siga sem veterinário — é opcional, não insista.',
     '- Para valores, use consultar_precos. NUNCA invente preços.',
     '- Para horários, use horarios_livres com a data desejada (YYYY-MM-DD). Só ofereça horários retornados por ela.',
     '- HORÁRIO COMERCIAL: segunda a sexta, 9h às 16h30. Fora disso (noite, sábado, domingo, feriado) é HORÁRIO ESPECIAL — você PODE agendar normalmente, mas avise que é horário especial e informe o preço especial (campo "fora_horario" em consultar_precos, quando o exame varia por horário). Em horário comercial use o preço comercial.',

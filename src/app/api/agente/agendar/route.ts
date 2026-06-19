@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
   const {
     tutor_id, pet_id, tipo_exame, data_hora,
     duracao_minutos, valor, forma_pagamento,
-    google_calendar_id, observacoes, status, origem,
+    google_calendar_id, observacoes, status, origem, veterinario_id,
   } = body ?? {}
 
   if (!tutor_id || !tipo_exame || !data_hora) {
@@ -100,6 +100,7 @@ export async function POST(request: NextRequest) {
       data_hora,
       duracao_minutos:    duracao_minutos ?? null,
       valor:              valor ?? null,
+      veterinario_id:     veterinario_id ? Number(veterinario_id) : null,
       forma_pagamento:    forma_pagamento ?? 'a confirmar',
       google_calendar_id: google_calendar_id ?? null,
       observacoes:        observacoes ?? null,
