@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
   const data     = params.get('data')
   const duracao  = parseInt(params.get('duracao') ?? '30')
   const inicio   = params.get('inicio') ?? '08:00'
-  const fim      = params.get('fim')    ?? '18:00'
+  const fim      = params.get('fim')    ?? '20:00'
   const intervalo = parseInt(params.get('intervalo') ?? '30')
 
   if (!data) return NextResponse.json({ error: 'Parâmetro "data" é obrigatório.' }, { status: 400 })
@@ -32,8 +32,10 @@ export async function GET(request: NextRequest) {
   const endMin   = fH * 60 + fM
   const horarios: string[] = []
 
+  // `fim` é o último horário de INÍCIO ofertado (inclusivo) — ex: 20:00 fica clicável.
+  // O exame roda sua duração a partir do horário escolhido.
   let cur = iH * 60 + iM
-  while (cur + duracao <= endMin) {
+  while (cur <= endMin) {
     const h      = Math.floor(cur / 60)
     const m      = cur % 60
     const slotStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
