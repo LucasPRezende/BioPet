@@ -82,25 +82,16 @@ export async function POST(request: NextRequest) {
   let link: string
 
   if (forma.includes('pix')) {
-    // Expira preferência MP anterior para que o link de cartão pare de funcionar
-    if (ag.mp_preference_id) {
-      await expirarPreferenciaMp(ag.mp_preference_id)
-      await supabase
-        .from('agendamentos')
-        .update({ mp_preference_id: null, mp_init_point: null })
-        .eq('id', Number(agendamento_id))
-    }
+    // Expira a preferência MP anterior (o link de cartão para de funcionar)
+    if (ag.mp_preference_id) await expirarPreferenciaMp(ag.mp_preference_id)
 
-    let pixToken = ag.pix_token
-    if (!pixToken) {
-      // Agendamento criado originalmente como cartão — gera token PIX agora
-      pixToken = gerarPixToken()
-      await supabase
-        .from('agendamentos')
-        .update({ pix_token: pixToken })
-        .eq('id', Number(agendamento_id))
-    }
+    const pixToken = ag.pix_token ?? gerarPixToken()
     link = `${process.env.NEXT_PUBLIC_URL}/pagamento/pix/${pixToken}`
+    // Persiste o link atual em mp_init_point para que "Reenviar link" reenvie o correto
+    await supabase
+      .from('agendamentos')
+      .update({ pix_token: pixToken, mp_init_point: link, mp_preference_id: null })
+      .eq('id', Number(agendamento_id))
   } else {
     try {
       const result = await gerarPreferenciaMp(Number(agendamento_id))

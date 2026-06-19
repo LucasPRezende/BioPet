@@ -77,6 +77,23 @@ export async function PATCH(
   if (status_pagamento     !== undefined) update.status_pagamento     = status_pagamento
   if (laudo_dispensado     !== undefined) update.laudo_dispensado     = laudo_dispensado
 
+  // Se a forma de pagamento mudou, o link antigo não corresponde mais à nova forma:
+  // invalida mp_init_point/mp_preference_id/pix_token. Uma regeração bem-sucedida
+  // (regerar-link) grava o link novo; se falhar, o campo fica nulo e o "Reenviar link"
+  // (reenviar-link, que manda o mp_init_point gravado) não envia o link errado.
+  if (forma_pagamento !== undefined) {
+    const { data: atual } = await supabase
+      .from('agendamentos')
+      .select('forma_pagamento')
+      .eq('id', Number(params.id))
+      .single()
+    if (String(atual?.forma_pagamento ?? '').toLowerCase() !== String(forma_pagamento ?? '').toLowerCase()) {
+      update.mp_init_point    = null
+      update.mp_preference_id = null
+      update.pix_token        = null
+    }
+  }
+
   const hasExameChanges =
     (Array.isArray(exames_remover)  && exames_remover.length  > 0) ||
     (Array.isArray(exames_adicionar) && exames_adicionar.length > 0)
