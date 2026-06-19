@@ -1025,12 +1025,28 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
             </div>
 
             {/* Pagamento */}
-            {ag.forma_pagamento && ag.forma_pagamento !== 'a confirmar' && (
-              <div>
-                <p className={LABEL}>Pagamento</p>
-                <p className="text-sm text-gray-600 capitalize">{ag.forma_pagamento}</p>
-              </div>
-            )}
+            {ag.forma_pagamento && ag.forma_pagamento !== 'a confirmar' && (() => {
+              const semLink = ag.forma_pagamento === 'gratuito' || ag.pagamento_responsavel === 'clinica'
+              const porLink = !semLink && ag.entrega_pagamento === 'link'
+              return (
+                <div>
+                  <p className={LABEL}>Pagamento</p>
+                  <p className="text-sm text-gray-600 capitalize">
+                    {ag.forma_pagamento}
+                    {!semLink && ag.entrega_pagamento && (
+                      <span className="text-gray-400 normal-case"> · {ag.entrega_pagamento === 'presencial' ? 'presencial' : 'por link'}</span>
+                    )}
+                  </p>
+                  {porLink && (
+                    <p className="text-xs mt-0.5">
+                      {ag.mp_init_point
+                        ? <span className="text-green-600 font-medium">🔗 Link de pagamento enviado</span>
+                        : <span className="text-gray-400">link de pagamento pendente</span>}
+                    </p>
+                  )}
+                </div>
+              )
+            })()}
 
             {/* Ações de status */}
             <div>
