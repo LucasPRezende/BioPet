@@ -446,6 +446,10 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
       setEnviandoLink(false)
       // Salvamento já foi persistido; só o envio do link falhou. Avisa em vez de falhar calado.
       if (!linkOk) {
+        // Se a forma mudou, o backend invalidou o link antigo. Reflete isso no estado local
+        // para o botão "Reenviar link" não aparecer (e não reenviar um link defasado).
+        const formaMudou = String(ag.forma_pagamento ?? '').toLowerCase() !== String(formaPag ?? '').toLowerCase()
+        if (formaMudou) body.mp_init_point = null
         alert(`⚠️ Agendamento salvo, mas não foi possível enviar o link de pagamento agora${linkErr ? `:\n${linkErr}` : '.'}`)
       }
     }
@@ -798,6 +802,7 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
   const [status,        setStatus]        = useState(ag.status)
   const [confirming,    setConfirming]    = useState(false)
   const [refusing,      setRefusing]      = useState(false)
+  const [reenviarLink,  setReenviarLink]  = useState(false)
   const [confirmingPag, setConfirmingPag] = useState(false)
   const [editandoLaudo, setEditandoLaudo] = useState<{ laudo: { id: number; token: string }; petNome: string } | null>(null)
   const [renotifStatus, setRenotifStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
@@ -888,6 +893,11 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
     const res = await fetch(`/api/admin/agendamentos/${ag.id}/confirmar-pagamento`, { method: 'POST' })
     if (res.ok) { const { status_pagamento } = await res.json(); onUpdated(ag.id, { status_pagamento }) }
     setConfirmingPag(false)
+  }
+  async function handleReenviarLink() {
+    setReenviarLink(true)
+    await fetch('/api/pagamentos/reenviar-link', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agendamento_id: ag.id }) })
+    setReenviarLink(false)
   }
   async function handleRenotificar() {
     setRenotifStatus('sending')
@@ -1057,6 +1067,12 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
                     className="flex-1 bg-green-600 hover:bg-green-700 text-white text-sm font-bold px-3 py-2 rounded-lg transition disabled:opacity-50">
                     {confirmingPag ? '...' : ag.pagamento_responsavel === 'clinica' ? '💰 Clínica pagou' : '💰 Confirmar recebimento'}
                   </button>
+                  {ag.mp_init_point && (
+                    <button onClick={handleReenviarLink} disabled={reenviarLink}
+                      className="border border-yellow-300 bg-yellow-50 hover:bg-yellow-100 text-yellow-700 text-sm font-semibold px-3 py-2 rounded-lg transition disabled:opacity-50">
+                      {reenviarLink ? '...' : '🔔 Reenviar link'}
+                    </button>
+                  )}
                 </div>
               )}
 
