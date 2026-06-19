@@ -13,8 +13,8 @@ export default function AdminNav({ titulo }: Props) {
 
   useEffect(() => {
     fetch('/api/admin/notificacoes')
-      .then(r => r.ok ? r.json() : { nao_visualizadas: 0 })
-      .then(d => setUnread(d.nao_visualizadas ?? 0))
+      .then(r => r.ok ? r.json() : { nao_visualizadas: 0, agendamentos_novos: 0 })
+      .then(d => setUnread((d.nao_visualizadas ?? 0) + (d.agendamentos_novos ?? 0)))
       .catch(() => {})
   }, [])
 

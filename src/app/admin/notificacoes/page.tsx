@@ -18,30 +18,34 @@ interface Notificacao {
 }
 
 const MOTIVO_LABEL: Record<string, string> = {
-  pergunta_laudo:   'Pergunta sobre laudo',
-  pergunta_tecnica: 'Dúvida técnica',
-  ia_travou:        'IA travou',
-  erro_tecnico:     'Erro técnico',
-  agendamento:      'Novo agendamento',
-  remarcacao:       'Remarcação',
-  cancelamento:     'Cancelamento',
+  pergunta_laudo:      'Pergunta sobre laudo',
+  pergunta_tecnica:    'Dúvida técnica',
+  ia_travou:           'IA travou',
+  erro_tecnico:        'Erro técnico',
+  agendamento:         'Novo agendamento',
+  agendamento_clinica: 'Agendamento (clínica)',
+  remarcacao:          'Remarcação',
+  cancelamento:        'Cancelamento',
 }
 
 const MOTIVO_COLOR: Record<string, string> = {
-  pergunta_laudo:   'bg-blue-100 text-blue-700',
-  pergunta_tecnica: 'bg-yellow-100 text-yellow-700',
-  ia_travou:        'bg-orange-100 text-orange-700',
-  erro_tecnico:     'bg-red-100 text-red-700',
-  agendamento:      'bg-green-100 text-green-700',
-  remarcacao:       'bg-purple-100 text-purple-700',
-  cancelamento:     'bg-gray-100 text-gray-600',
+  pergunta_laudo:      'bg-blue-100 text-blue-700',
+  pergunta_tecnica:    'bg-yellow-100 text-yellow-700',
+  ia_travou:           'bg-orange-100 text-orange-700',
+  erro_tecnico:        'bg-red-100 text-red-700',
+  agendamento:         'bg-green-100 text-green-700',
+  agendamento_clinica: 'bg-teal-100 text-teal-700',
+  remarcacao:          'bg-purple-100 text-purple-700',
+  cancelamento:        'bg-gray-100 text-gray-600',
 }
 
 const TIPOS_REQUER_ATENCAO = new Set([
   'ia_travou', 'pergunta_laudo', 'pergunta_tecnica', 'erro_tecnico',
 ])
 
-const TIPOS_AGENDAMENTO = new Set(['agendamento', 'remarcacao', 'cancelamento'])
+const TIPOS_AGENDAMENTO = new Set([
+  'agendamento', 'remarcacao', 'cancelamento', 'agendamento_clinica',
+])
 
 function tipoEfetivo(n: Notificacao): string {
   return n.tipo_evento ?? n.motivo
@@ -53,7 +57,7 @@ function isRequerAtencao(n: Notificacao): boolean {
 
 function iconeNotificacao(n: Notificacao): string {
   const tipo = tipoEfetivo(n)
-  if (tipo === 'agendamento')  return '📅'
+  if (tipo === 'agendamento' || tipo === 'agendamento_clinica') return '📅'
   if (tipo === 'remarcacao')   return '🔄'
   if (tipo === 'cancelamento') return '❌'
   return '🔴'
@@ -109,9 +113,20 @@ export default function NotificacoesPage() {
     setResolving(null)
   }
 
+  async function abrirAgendamentos() {
+    setFiltro('agendamentos')
+    // Agendamentos são informativos: ao abrir a aba, marca todos como vistos
+    // para limpar o badge do menu.
+    if (notifs.some(n => !n.visualizado && n.tipo_evento && TIPOS_AGENDAMENTO.has(n.tipo_evento))) {
+      await fetch('/api/admin/notificacoes/marcar-vistos', { method: 'POST' })
+      fetchNotifs()
+    }
+  }
+
   const pendentesAtencao = notifs.filter(n => !n.visualizado && isRequerAtencao(n)).length
   const totalAtencao     = notifs.filter(n => isRequerAtencao(n)).length
   const totalAgendamentos = notifs.filter(n => n.tipo_evento && TIPOS_AGENDAMENTO.has(n.tipo_evento)).length
+  const agendamentosNovos = notifs.filter(n => !n.visualizado && n.tipo_evento && TIPOS_AGENDAMENTO.has(n.tipo_evento)).length
 
   const exibidas = filtro === 'atencao'
     ? notifs.filter(n => isRequerAtencao(n))
@@ -144,14 +159,19 @@ export default function NotificacoesPage() {
               🔴 Requer atenção {totalAtencao > 0 && `(${totalAtencao})`}
             </button>
             <button
-              onClick={() => setFiltro('agendamentos')}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
+              onClick={abrirAgendamentos}
+              className={`relative px-4 py-2 rounded-lg text-sm font-semibold transition ${
                 filtro === 'agendamentos'
                   ? 'bg-[#19202d] text-white'
                   : 'bg-white border text-gray-600 hover:bg-gray-50'
               }`}
             >
               📅 Agendamentos {totalAgendamentos > 0 && `(${totalAgendamentos})`}
+              {agendamentosNovos > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                  {agendamentosNovos > 99 ? '99+' : agendamentosNovos}
+                </span>
+              )}
             </button>
             <button
               onClick={() => setFiltro('todos')}

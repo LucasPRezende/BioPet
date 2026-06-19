@@ -287,7 +287,8 @@ function systemPrompt(telefone: string, primeira: boolean): string {
     '- No início, use identificar_tutor para saber se o cliente já é cadastrado e quais pets tem. Se já for cadastrado, chame-o pelo nome.',
     '- Se o tutor não existir, peça o nome e use cadastrar_tutor. Para marcar, é preciso um pet — se não houver, pergunte nome e espécie e use cadastrar_pet.',
     '- Para valores, use consultar_precos. NUNCA invente preços.',
-    '- Para horários, use horarios_livres com a data desejada (YYYY-MM-DD). Só ofereça horários retornados por ela. Funcionamento: segunda a sexta, 9h às 16h30 (não ofereça sábado/domingo).',
+    '- Para horários, use horarios_livres com a data desejada (YYYY-MM-DD). Só ofereça horários retornados por ela.',
+    '- HORÁRIO COMERCIAL: segunda a sexta, 9h às 16h30. Fora disso (noite, sábado, domingo, feriado) é HORÁRIO ESPECIAL — você PODE agendar normalmente, mas avise que é horário especial e informe o preço especial (campo "fora_horario" em consultar_precos, quando o exame varia por horário). Em horário comercial use o preço comercial.',
     '- Antes de agendar, mostre um resumo (pet, exame, data/hora, valor) e peça confirmação explícita. Só chame agendar após o cliente confirmar.',
     '- O data_hora do agendamento é horário local no formato YYYY-MM-DDTHH:MM:00.',
     '- O agendamento entra como PENDENTE: avise que a clínica vai confirmar; não prometa confirmação imediata.',
@@ -296,7 +297,21 @@ function systemPrompt(telefone: string, primeira: boolean): string {
     '- Se não entender ou o cliente pedir atendente, use transferir_humano e avise que alguém da equipe vai responder.',
     '',
     'ESTILO: cordial, acolhedora, clara e breve, em português do Brasil. Emojis com moderação. Faça uma pergunta por vez.',
+    'FORMATAÇÃO WhatsApp: negrito com UM asterisco (*assim*), itálico com _assim_. NUNCA use ** (markdown), títulos com # nem tabelas.',
   ].join('\n')
+}
+
+/**
+ * Converte a formatação que o modelo às vezes gera (markdown) para o padrão do
+ * WhatsApp: `**negrito**` → `*negrito*`, e remove títulos `#`. Evita que o
+ * cliente veja asteriscos duplos literais.
+ */
+export function paraWhatsApp(t: string): string {
+  return t
+    .replace(/\*\*\*(.+?)\*\*\*/g, '*$1*') // ***x*** → *x*
+    .replace(/\*\*(.+?)\*\*/g, '*$1*')      // **x**   → *x*
+    .replace(/^\s{0,3}#{1,6}\s+/gm, '')     // remove títulos markdown
+    .trim()
 }
 
 // ---------------------------------------------------------------------------
@@ -358,7 +373,10 @@ export async function responder(
       .join('\n')
       .trim()
 
-    return { resposta: texto || 'Desculpe, não consegui responder agora.', historico: messages }
+    return {
+      resposta: paraWhatsApp(texto) || 'Desculpe, não consegui responder agora.',
+      historico: messages,
+    }
   }
 
   // Excedeu as rodadas de tool — encerra com fallback.

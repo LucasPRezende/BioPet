@@ -6,6 +6,10 @@ const TIPOS_REQUER_ATENCAO = new Set([
   'ia_travou', 'pergunta_laudo', 'pergunta_tecnica', 'erro_tecnico',
 ])
 
+const TIPOS_AGENDAMENTO = new Set([
+  'agendamento', 'remarcacao', 'cancelamento', 'agendamento_clinica',
+])
+
 export async function GET(request: NextRequest) {
   const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value
   if (!cookie) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 })
@@ -28,5 +32,15 @@ export async function GET(request: NextRequest) {
     (n.tipo_evento === null || n.tipo_evento === undefined || TIPOS_REQUER_ATENCAO.has(n.tipo_evento))
   ).length
 
-  return NextResponse.json({ notificacoes: data ?? [], nao_visualizadas: naoVisualizadas })
+  // Agendamentos novos (agente/clínica/remarcação/cancelamento) ainda não vistos —
+  // antes ficavam escondidos sem badge.
+  const agendamentosNovos = (data ?? []).filter(n =>
+    !n.visualizado && n.tipo_evento && TIPOS_AGENDAMENTO.has(n.tipo_evento)
+  ).length
+
+  return NextResponse.json({
+    notificacoes: data ?? [],
+    nao_visualizadas: naoVisualizadas,
+    agendamentos_novos: agendamentosNovos,
+  })
 }
