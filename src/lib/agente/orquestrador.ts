@@ -252,16 +252,42 @@ async function transferirHumano(telefone: string): Promise<unknown> {
 // Prompt do sistema
 // ---------------------------------------------------------------------------
 
-function systemPrompt(telefone: string, hoje: string): string {
+/**
+ * Calendário de referência dos próximos 14 dias (data ISO = dia da semana).
+ * O modelo é ruim em calcular "que dia cai a segunda" — então damos a tabela
+ * pronta e ele só consulta.
+ */
+function calendarioRef(): string {
+  const tz = 'America/Sao_Paulo'
+  const agora = new Date()
+  const linhas: string[] = []
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(agora.getTime() + i * 86_400_000)
+    const iso = d.toLocaleDateString('en-CA', { timeZone: tz }) // YYYY-MM-DD
+    const dow = d.toLocaleDateString('pt-BR', { timeZone: tz, weekday: 'long' })
+    const br = d.toLocaleDateString('pt-BR', { timeZone: tz, day: '2-digit', month: '2-digit' })
+    const rotulo = i === 0 ? ' (hoje)' : i === 1 ? ' (amanhã)' : ''
+    linhas.push(`${iso} = ${dow}, ${br}${rotulo}`)
+  }
+  return linhas.join('\n')
+}
+
+function systemPrompt(telefone: string, primeira: boolean): string {
   return [
-    'Você é o assistente virtual da BioPet, um laboratório/clínica veterinária. Atende tutores pelo WhatsApp para MARCAR EXAMES, informar valores, ver laudos e gerenciar agendamentos.',
-    `O telefone do cliente nesta conversa é ${telefone}. Hoje é ${hoje} (horário de Brasília).`,
+    'Você é a assistente virtual da BioPet, um laboratório/clínica veterinária. Atende tutores pelo WhatsApp para MARCAR EXAMES, informar valores, ver laudos e gerenciar agendamentos.',
+    `O telefone do cliente nesta conversa é ${telefone}.`,
+    '',
+    'CALENDÁRIO (use para converter dias da semana, "hoje" e "amanhã" em datas YYYY-MM-DD — NUNCA calcule a data de cabeça):',
+    calendarioRef(),
     '',
     'REGRAS:',
-    '- No início, use identificar_tutor para saber se o cliente já é cadastrado e quais pets tem.',
+    primeira
+      ? '- Esta é a PRIMEIRA mensagem da conversa: apresente-se de forma acolhedora ("Olá! Eu sou a assistente virtual da BioPet 🐾") antes de ajudar.'
+      : '- Continue a conversa de forma natural, sem se reapresentar.',
+    '- No início, use identificar_tutor para saber se o cliente já é cadastrado e quais pets tem. Se já for cadastrado, chame-o pelo nome.',
     '- Se o tutor não existir, peça o nome e use cadastrar_tutor. Para marcar, é preciso um pet — se não houver, pergunte nome e espécie e use cadastrar_pet.',
     '- Para valores, use consultar_precos. NUNCA invente preços.',
-    '- Para horários, use horarios_livres com a data desejada (YYYY-MM-DD). Só ofereça horários retornados por ela. Funcionamento: segunda a sexta, 9h às 16h30.',
+    '- Para horários, use horarios_livres com a data desejada (YYYY-MM-DD). Só ofereça horários retornados por ela. Funcionamento: segunda a sexta, 9h às 16h30 (não ofereça sábado/domingo).',
     '- Antes de agendar, mostre um resumo (pet, exame, data/hora, valor) e peça confirmação explícita. Só chame agendar após o cliente confirmar.',
     '- O data_hora do agendamento é horário local no formato YYYY-MM-DDTHH:MM:00.',
     '- O agendamento entra como PENDENTE: avise que a clínica vai confirmar; não prometa confirmação imediata.',
@@ -269,7 +295,7 @@ function systemPrompt(telefone: string, hoje: string): string {
     '- NÃO dê orientação clínica/veterinária. Apenas agendamento e informações operacionais.',
     '- Se não entender ou o cliente pedir atendente, use transferir_humano e avise que alguém da equipe vai responder.',
     '',
-    'ESTILO: cordial, claro e breve, em português do Brasil. Emojis com moderação. Faça uma pergunta por vez.',
+    'ESTILO: cordial, acolhedora, clara e breve, em português do Brasil. Emojis com moderação. Faça uma pergunta por vez.',
   ].join('\n')
 }
 
@@ -292,8 +318,7 @@ export async function responder(
   historico: any[],
 ): Promise<RespostaOrquestrador> {
   const client = getAnthropic()
-  const hoje = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
-  const system = systemPrompt(telefone, hoje)
+  const system = systemPrompt(telefone, historico.length === 0)
 
   const messages: Anthropic.MessageParam[] = [
     ...(historico as Anthropic.MessageParam[]),

@@ -6,14 +6,16 @@ import {
   telefoneBloqueado,
   emAtendimentoHumano,
 } from '@/lib/agente/conversa'
+import { enfileirarMensagem } from '@/lib/agente/debounce'
 import { responder } from '@/lib/agente/orquestrador'
 import { sendWhatsAppText } from '@/lib/evolution'
 
 /**
  * Webhook de recepção do WhatsApp (Evolution API) — agente com IA.
  *
- * Fluxo: parse → descarta ruído → guard-rails (bloqueio / atendimento humano /
- * dedupe) → orquestrador (Claude) → persiste estado → responde via Evolution.
+ * A mensagem é enfileirada no debounce (junta mensagens quebradas) e respondida
+ * uma vez quando a janela fecha. O processamento roda fora do ciclo da resposta
+ * HTTP (processo persistente PM2), então retornamos 200 na hora para a Evolution.
  */
 
 export const dynamic = 'force-dynamic'
@@ -32,38 +34,36 @@ export async function POST(request: NextRequest) {
 
   const telefone = msg.telefone!
 
-  try {
-    // Guard-rails de recepção
-    if (await telefoneBloqueado(telefone)) {
-      console.log(`[agente/webhook] número bloqueado: ${telefone}`)
-      return NextResponse.json({ ok: true, ignorado: 'bloqueado' })
+  // Acumula mensagens fragmentadas; processa o conjunto após a janela de silêncio.
+  enfileirarMensagem(telefone, msg.texto!, msg.msgId, msg.pushName, async (texto, msgId, pushName) => {
+    try {
+      // Guard-rails (avaliados ao fechar a janela)
+      if (await telefoneBloqueado(telefone)) {
+        console.log(`[agente/webhook] número bloqueado: ${telefone}`)
+        return
+      }
+      if (await emAtendimentoHumano(telefone)) {
+        console.log(`[agente/webhook] atendimento humano ativo: ${telefone}`)
+        return
+      }
+
+      const estado = await carregarConversa(telefone)
+      if (msgId && estado.ultimaMsgId === msgId) return // já processada
+
+      console.log(`[agente/webhook] de ${pushName ?? '?'} (${telefone}): "${texto}"`)
+
+      const { resposta, historico } = await responder(telefone, texto, estado.historico)
+
+      await salvarConversa(telefone, historico, msgId)
+      await sendWhatsAppText(telefone, resposta)
+    } catch (err) {
+      console.error('[agente/webhook] erro ao processar:', err)
+      await sendWhatsAppText(
+        telefone,
+        'Tive um probleminha técnico agora. Pode tentar de novo em instantes? 🙏',
+      ).catch(() => {})
     }
-    if (await emAtendimentoHumano(telefone)) {
-      console.log(`[agente/webhook] atendimento humano ativo: ${telefone}`)
-      return NextResponse.json({ ok: true, ignorado: 'atendimento_humano' })
-    }
+  })
 
-    // Dedupe: a Evolution reenvia o mesmo evento às vezes
-    const estado = await carregarConversa(telefone)
-    if (msg.msgId && estado.ultimaMsgId === msg.msgId) {
-      return NextResponse.json({ ok: true, ignorado: 'duplicada' })
-    }
-
-    console.log(`[agente/webhook] de ${msg.pushName ?? '?'} (${telefone}): "${msg.texto}"`)
-
-    const { resposta, historico } = await responder(telefone, msg.texto!, estado.historico)
-
-    await salvarConversa(telefone, historico, msg.msgId)
-    await sendWhatsAppText(telefone, resposta)
-
-    return NextResponse.json({ ok: true })
-  } catch (err) {
-    console.error('[agente/webhook] erro:', err)
-    // Não estoura para a Evolution ficar reenviando; avisa o cliente.
-    await sendWhatsAppText(
-      telefone,
-      'Tive um probleminha técnico agora. Pode tentar de novo em instantes? 🙏',
-    ).catch(() => {})
-    return NextResponse.json({ ok: false }, { status: 200 })
-  }
+  return NextResponse.json({ ok: true })
 }
