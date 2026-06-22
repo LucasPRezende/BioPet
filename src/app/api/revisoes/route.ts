@@ -100,12 +100,14 @@ export async function POST(request: NextRequest) {
   if (errOrig || !original) return NextResponse.json({ error: 'Agendamento original não encontrado.' }, { status: 404 })
 
   // 2. Busca configuração de revisão para o tipo de exame
-  const { data: config } = await supabase
+  // Suporta tipo_exame combinado (ex: "Raio-X, Ultrassom Abdominal")
+  const tiposNoAgendamento = original.tipo_exame.split(',').map((t: string) => t.trim())
+  const { data: configs } = await supabase
     .from('revisao_config')
     .select('*')
-    .eq('tipo_exame', original.tipo_exame)
+    .in('tipo_exame', tiposNoAgendamento)
     .eq('permite_revisao', true)
-    .single()
+  const config = (configs ?? [])[0] ?? null
 
   if (!config) {
     return NextResponse.json({ error: `O exame "${original.tipo_exame}" não permite revisão.` }, { status: 422 })

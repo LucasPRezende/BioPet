@@ -35,19 +35,27 @@ export async function GET(request: NextRequest) {
     petIds.length   > 0 ? `pet_id.in.(${petIds.join(',')})` : null,
   ].filter(Boolean).join(',')
 
-  // Agendamentos originais (não são revisões, tipo permitido)
+  // Agendamentos originais (não são revisões)
+  // Limite maior para compensar a filtragem JS de multi-exames
   const { data: ags, error } = await supabase
     .from('agendamentos')
     .select('id, tipo_exame, data_hora, status, veterinario_id, duracao_minutos, tutores(nome, telefone), pets(nome, especie)')
     .or(orClauses)
     .eq('is_revisao', false)
-    .in('tipo_exame', tiposPermitidos)
     .order('data_hora', { ascending: false })
-    .limit(20)
+    .limit(40)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  const agIds = (ags ?? []).map(a => a.id)
+  // Suporta tipo_exame combinado (ex: "Raio-X, Ultrassom Abdominal"):
+  // retorna o primeiro tipo do agendamento que esteja na revisao_config
+  const tiposPermitidosSet = new Set(tiposPermitidos)
+  const getTipoPermitido = (tipoExame: string): string | null =>
+    tipoExame.split(',').map(t => t.trim()).find(t => tiposPermitidosSet.has(t)) ?? null
+
+  const agsPermitidos = (ags ?? []).filter(ag => getTipoPermitido(ag.tipo_exame) !== null).slice(0, 20)
+
+  const agIds = agsPermitidos.map(a => a.id)
   if (agIds.length === 0) return NextResponse.json([])
 
   // Conta revisões ativas (não canceladas) por agendamento original em lote
@@ -67,8 +75,8 @@ export async function GET(request: NextRequest) {
   const configMap = Object.fromEntries((configs ?? []).map(c => [c.tipo_exame, c]))
   const agora = new Date()
 
-  const resultado = (ags ?? []).map(ag => {
-    const cfg            = configMap[ag.tipo_exame]
+  const resultado = agsPermitidos.map(ag => {
+    const cfg            = configMap[getTipoPermitido(ag.tipo_exame)!]
     const dataOriginal   = new Date(ag.data_hora)
     const prazoLimite    = new Date(dataOriginal.getTime() + cfg.prazo_dias * 86400000)
     const prazo_ok       = agora <= prazoLimite
