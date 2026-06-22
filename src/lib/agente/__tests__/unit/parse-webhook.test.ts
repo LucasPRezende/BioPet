@@ -1,0 +1,83 @@
+import { describe, it, expect } from 'vitest'
+import { parseEvolutionWebhook } from '@/lib/agente/conversa'
+
+/** Payload base de um messages.upsert (instância usa addressingMode "lid"). */
+function payload(over: Record<string, any> = {}) {
+  return {
+    event: 'messages.upsert',
+    data: {
+      key: {
+        remoteJid: '28278182142054@lid',
+        remoteJidAlt: '5524981367482@s.whatsapp.net',
+        fromMe: false,
+        id: 'ABC123',
+        ...(over.key ?? {}),
+      },
+      pushName: 'Lucas Rezende',
+      message: { conversation: 'Olá', ...(over.message ?? {}) },
+      ...(over.data ?? {}),
+    },
+    ...(over.root ?? {}),
+  }
+}
+
+describe('parseEvolutionWebhook', () => {
+  it('resolve o telefone real pelo remoteJidAlt (ignora o @lid)', () => {
+    const r = parseEvolutionWebhook(payload())
+    expect(r.processavel).toBe(true)
+    expect(r.telefone).toBe('5524981367482')
+    expect(r.texto).toBe('Olá')
+    expect(r.msgId).toBe('ABC123')
+    expect(r.pushName).toBe('Lucas Rezende')
+  })
+
+  it('ignora mensagens próprias (fromMe)', () => {
+    const r = parseEvolutionWebhook(payload({ key: { fromMe: true } }))
+    expect(r.processavel).toBe(false)
+    expect(r.motivo).toBe('fromMe')
+  })
+
+  it('ignora mensagens de grupo (@g.us)', () => {
+    const r = parseEvolutionWebhook(payload({ key: { remoteJid: '123@g.us' } }))
+    expect(r.processavel).toBe(false)
+    expect(r.motivo).toBe('grupo')
+  })
+
+  it('ignora eventos que não são messages.upsert', () => {
+    const r = parseEvolutionWebhook({ event: 'messages.update', data: {} })
+    expect(r.processavel).toBe(false)
+  })
+
+  it('ignora mensagens sem texto', () => {
+    const r = parseEvolutionWebhook(payload({ message: { conversation: undefined } }))
+    expect(r.processavel).toBe(false)
+    expect(r.motivo).toBe('mensagem sem texto')
+  })
+
+  it('extrai texto de extendedTextMessage', () => {
+    const r = parseEvolutionWebhook(
+      payload({ message: { conversation: undefined, extendedTextMessage: { text: 'oi estendido' } } }),
+    )
+    expect(r.processavel).toBe(true)
+    expect(r.texto).toBe('oi estendido')
+  })
+
+  it('quando só há @lid (sem remoteJidAlt), descarta por falta de telefone', () => {
+    const r = parseEvolutionWebhook(payload({ key: { remoteJidAlt: undefined } }))
+    expect(r.processavel).toBe(false)
+    expect(r.motivo).toContain('telefone')
+  })
+
+  it('normaliza telefone sem DDI 55 adicionando o prefixo', () => {
+    const r = parseEvolutionWebhook(
+      payload({ key: { remoteJid: '24981367482@s.whatsapp.net', remoteJidAlt: undefined } }),
+    )
+    expect(r.processavel).toBe(true)
+    expect(r.telefone).toBe('5524981367482')
+  })
+
+  it('faz trim do texto', () => {
+    const r = parseEvolutionWebhook(payload({ message: { conversation: '  oi  ' } }))
+    expect(r.texto).toBe('oi')
+  })
+})

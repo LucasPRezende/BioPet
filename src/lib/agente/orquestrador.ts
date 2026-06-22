@@ -358,7 +358,8 @@ function systemPrompt(telefone: string, primeira: boolean): string {
     '- O agendamento entra como PENDENTE: avise que a clínica vai confirmar; não prometa confirmação imediata.',
     '- NUNCA ofereça ou marque exame gratuito (gratuidade é exclusiva da clínica/admin).',
     '- LAUDO: para enviar um laudo, use listar_laudos, confirme com o cliente qual ele quer (pet/exame/data) e use enviar_laudo com o id. O laudo vai como PDF — NUNCA mande link (os links exigem login).',
-    '- NÃO dê orientação clínica/veterinária nem interprete resultados. Se o cliente perguntar sobre o resultado/diagnóstico, sobre algo técnico, fizer uma reclamação, algo fora do escopo (agendamento/laudo/preço), ou se você simplesmente não entender, use transferir_humano (escolhendo o motivo) e avise gentilmente que um atendente da equipe vai responder em breve.',
+    '- NÃO dê orientação clínica/veterinária nem interprete resultados. Sua função é só agendamento/laudo/preço.',
+    '- IMPORTANTE: se o cliente relatar QUALQUER sintoma, doença, emergência ou que o pet está doente/passando mal ("está vomitando", "não come", "machucou"), NÃO oriente e NÃO minimize — use transferir_humano (motivo pergunta_tecnica) imediatamente, pois pode ser urgente. O mesmo vale para perguntas sobre resultado/diagnóstico, dúvidas técnicas, reclamações, qualquer coisa fora do escopo, ou se você não entender. Sempre avise gentilmente que um atendente da equipe vai responder em breve.',
     '- Em caso de erro ao executar uma ação, não invente — informe que houve um problema e use transferir_humano (motivo erro_tecnico).',
     '',
     'ESTILO: cordial, acolhedora, clara e breve, em português do Brasil. Emojis com moderação. Faça uma pergunta por vez.',
@@ -388,6 +389,18 @@ export interface RespostaOrquestrador {
   historico: any[]
 }
 
+/** Executor de tools — injetável para testes (fake) sem tocar banco/WhatsApp. */
+export type ToolExecutor = (
+  nome: string,
+  input: Record<string, any>,
+  telefone: string,
+) => Promise<unknown>
+
+export interface ResponderDeps {
+  /** Sobrescreve a execução das tools (default: chamadas reais aos /api/agente/*). */
+  executar?: ToolExecutor
+}
+
 /**
  * Processa uma mensagem do usuário e devolve a resposta + histórico atualizado
  * (para persistir). `historico` é a lista de mensagens das rodadas anteriores.
@@ -396,8 +409,10 @@ export async function responder(
   telefone: string,
   textoUsuario: string,
   historico: any[],
+  deps: ResponderDeps = {},
 ): Promise<RespostaOrquestrador> {
   const client = getAnthropic()
+  const executar = deps.executar ?? executarTool
   const system = systemPrompt(telefone, historico.length === 0)
 
   const messages: Anthropic.MessageParam[] = [
@@ -420,7 +435,7 @@ export async function responder(
       const results: Anthropic.ToolResultBlockParam[] = []
       for (const block of resp.content) {
         if (block.type === 'tool_use') {
-          const out = await executarTool(block.name, block.input as Record<string, any>, telefone)
+          const out = await executar(block.name, block.input as Record<string, any>, telefone)
           results.push({
             type: 'tool_result',
             tool_use_id: block.id,

@@ -5,7 +5,10 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "test": "vitest run src/lib/agente/__tests__/unit",
+    "test:watch": "vitest src/lib/agente/__tests__/unit",
+    "test:agent": "vitest run src/lib/agente/__tests__/behavior"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.105.0",
@@ -38,6 +41,7 @@
     "pg": "^8.20.0",
     "postcss": "^8.4.38",
     "tailwindcss": "^3.4.4",
-    "typescript": "^5.4.5"
+    "typescript": "^5.4.5",
+    "vitest": "^4.1.9"
   }
 }
