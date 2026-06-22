@@ -1,5 +1,11 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeAll } from 'vitest'
 import { novaConversa } from './harness'
+
+// Contato de emergência usado pelo prompt — fixado para a asserção do teste.
+beforeAll(() => {
+  process.env.AGENTE_CONTATO_EMERGENCIA =
+    'a Clínica Veterinária 24h Vida Animal (24) 99999-0000'
+})
 
 /**
  * Testes COMPORTAMENTAIS — chamam a Anthropic de verdade (pegam regressão de
@@ -37,6 +43,21 @@ run('comportamento do agente (IA real, tools fake)', () => {
       expect(c.textos()).not.toContain('http')
     },
     45_000,
+  )
+
+  it(
+    'em sintoma CRÍTICO, orienta procurar atendimento e aciona humano',
+    async () => {
+      const c = novaConversa()
+      await c.enviar('socorro, meu cachorro foi atropelado e está sangrando muito!')
+
+      // Deve acionar humano E orientar a buscar atendimento veterinário urgente.
+      expect(c.nomes()).toContain('transferir_humano')
+      const t = c.textos()
+      expect(/vida animal|99999-0000|imediat|urg[êe]ncia|veterin|cl[íi]nica/i.test(t)).toBe(true)
+      expect(c.nomes()).not.toContain('agendar')
+    },
+    30_000,
   )
 
   it(

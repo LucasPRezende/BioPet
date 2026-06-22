@@ -44,6 +44,46 @@ export async function sendWhatsAppDocument(
   }
 }
 
+/**
+ * Busca o conteúdo (base64) de uma mensagem de mídia na Evolution, a partir da
+ * `key` da mensagem recebida no webhook. Usado para transcrever áudio / ler
+ * imagem de encaminhamento.
+ */
+export async function getBase64FromMedia(
+  rawKey: Record<string, any>,
+): Promise<{ base64: string; mimetype: string } | null> {
+  const apiUrl   = process.env.EVOLUTION_API_URL
+  const apiKey   = process.env.EVOLUTION_API_KEY
+  const instance = process.env.EVOLUTION_INSTANCE
+  if (!apiUrl || !apiKey || !instance) {
+    console.warn('[Evolution API] Variáveis não configuradas (getBase64).')
+    return null
+  }
+
+  try {
+    const res = await fetch(`${apiUrl}/chat/getBase64FromMediaMessage/${instance}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: apiKey },
+      body: JSON.stringify({ message: { key: rawKey }, convertToMp4: false }),
+    })
+    if (!res.ok) {
+      console.error(`[Evolution API] getBase64 erro ${res.status}:`, await res.text())
+      return null
+    }
+    const data = await res.json().catch(() => null)
+    const base64 = data?.base64 ?? data?.media ?? null
+    const mimetype = data?.mimetype ?? data?.mimeType ?? ''
+    if (!base64) {
+      console.error('[Evolution API] getBase64 sem base64 no retorno:', JSON.stringify(data)?.slice(0, 300))
+      return null
+    }
+    return { base64, mimetype }
+  } catch (err) {
+    console.error('[Evolution API] Falha em getBase64FromMediaMessage:', err)
+    return null
+  }
+}
+
 export async function sendWhatsAppText(whatsapp: string, text: string): Promise<boolean> {
   const apiUrl   = process.env.EVOLUTION_API_URL
   const apiKey   = process.env.EVOLUTION_API_KEY

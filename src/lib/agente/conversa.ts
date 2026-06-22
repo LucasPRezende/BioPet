@@ -27,6 +27,12 @@ export interface MensagemRecebida {
   msgId?: string
   /** Nome do contato no WhatsApp (útil para cadastrar tutor novo). */
   pushName?: string
+  /** Tipo de mídia, quando a mensagem é áudio/imagem (em vez de texto). */
+  tipoMidia?: 'audio' | 'imagem'
+  /** Legenda da mídia (caption da imagem), quando houver. */
+  legenda?: string
+  /** `key` crua da mensagem — necessária para buscar o base64 na Evolution. */
+  rawKey?: Record<string, any>
 }
 
 /** Extrai o texto de mensagens de texto simples ou estendidas. */
@@ -67,19 +73,25 @@ export function parseEvolutionWebhook(body: any): MensagemRecebida {
   const remoteJid: string = key.remoteJid ?? ''
   if (remoteJid.endsWith('@g.us')) return { processavel: false, motivo: 'grupo' }
 
-  const texto = extrairTexto(data.message)
-  if (!texto) return { processavel: false, motivo: 'mensagem sem texto' }
-
   const telefone = resolverTelefone(key)
   if (!telefone) return { processavel: false, motivo: 'sem telefone (apenas @lid)' }
 
-  return {
-    processavel: true,
-    telefone,
-    texto: texto.trim(),
-    msgId: key.id,
-    pushName: data.pushName,
+  const msg = data.message ?? {}
+  const base = { telefone, msgId: key.id, pushName: data.pushName, rawKey: key }
+
+  // Mídia: áudio (PTT/voz) e imagem (encaminhamento por foto).
+  if (msg.audioMessage) {
+    return { processavel: true, tipoMidia: 'audio', ...base }
   }
+  if (msg.imageMessage) {
+    const legenda = typeof msg.imageMessage.caption === 'string' ? msg.imageMessage.caption.trim() : undefined
+    return { processavel: true, tipoMidia: 'imagem', legenda, ...base }
+  }
+
+  const texto = extrairTexto(msg)
+  if (!texto) return { processavel: false, motivo: 'mensagem sem texto' }
+
+  return { processavel: true, texto: texto.trim(), ...base }
 }
 
 // ---------------------------------------------------------------------------

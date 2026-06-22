@@ -92,6 +92,9 @@ export function novaConversa(): Conversa {
       const r = await responder(TELEFONE, texto, historico, { executar })
       historico = r.historico
       respostas.push(r.resposta)
+      if (process.env.DEBUG_AGENTE) {
+        console.log(`\n>>> USER: ${texto}\n<<< BOT: ${r.resposta}\n--- tools: ${calls.map((c) => c.nome).join(', ')}`)
+      }
     },
   }
 }

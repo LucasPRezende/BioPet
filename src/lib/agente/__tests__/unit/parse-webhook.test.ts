@@ -80,4 +80,33 @@ describe('parseEvolutionWebhook', () => {
     const r = parseEvolutionWebhook(payload({ message: { conversation: '  oi  ' } }))
     expect(r.texto).toBe('oi')
   })
+
+  it('detecta áudio (audioMessage) e carrega a key para buscar o base64', () => {
+    const r = parseEvolutionWebhook(
+      payload({ message: { conversation: undefined, audioMessage: { mimetype: 'audio/ogg', ptt: true } } }),
+    )
+    expect(r.processavel).toBe(true)
+    expect(r.tipoMidia).toBe('audio')
+    expect(r.telefone).toBe('5524981367482')
+    expect(r.rawKey?.id).toBe('ABC123')
+  })
+
+  it('detecta imagem (imageMessage) e captura a legenda', () => {
+    const r = parseEvolutionWebhook(
+      payload({
+        message: { conversation: undefined, imageMessage: { mimetype: 'image/jpeg', caption: 'encaminhamento do Rex' } },
+      }),
+    )
+    expect(r.processavel).toBe(true)
+    expect(r.tipoMidia).toBe('imagem')
+    expect(r.legenda).toBe('encaminhamento do Rex')
+  })
+
+  it('ignora mídia de mensagem própria (fromMe) também', () => {
+    const r = parseEvolutionWebhook(
+      payload({ key: { fromMe: true }, message: { conversation: undefined, audioMessage: {} } }),
+    )
+    expect(r.processavel).toBe(false)
+    expect(r.motivo).toBe('fromMe')
+  })
 })
