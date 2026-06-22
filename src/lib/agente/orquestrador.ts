@@ -161,16 +161,36 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'listar_laudos',
-    description: 'Lista os laudos recentes do tutor (pelo telefone da conversa).',
+    description:
+      'Lista os laudos recentes do tutor (id, pet, exame, data). Use para o cliente escolher qual laudo quer receber. NÃO há link — o laudo é enviado como PDF.',
     input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'enviar_laudo',
+    description:
+      'Envia o PDF do laudo escolhido direto no WhatsApp do cliente. Use o id retornado por listar_laudos. Os laudos só são entregues como arquivo (os links exigem login).',
+    input_schema: {
+      type: 'object',
+      properties: { laudo_id: { type: 'number' } },
+      required: ['laudo_id'],
+    },
   },
   {
     name: 'transferir_humano',
     description:
-      'Transfere o atendimento para um humano quando não conseguir resolver ou o cliente pedir. O bot deixa de responder por um período.',
+      'Aciona um atendente humano e PAUSA o bot por um período. Use quando: não entender o pedido, receber uma pergunta estranha/fora do escopo (ex.: dúvida clínica, reclamação, algo técnico), ocorrer um erro, ou o cliente pedir uma pessoa. As admins são avisadas com o resumo.',
     input_schema: {
       type: 'object',
-      properties: { motivo: { type: 'string' } },
+      properties: {
+        motivo: {
+          type: 'string',
+          description:
+            "Categoria: 'pergunta_laudo' (dúvida sobre resultado/laudo), 'pergunta_tecnica' (dúvida clínica/técnica), 'erro_tecnico' (algo falhou) ou 'ia_travou' (não entendeu / fora do escopo).",
+          enum: ['pergunta_laudo', 'pergunta_tecnica', 'erro_tecnico', 'ia_travou'],
+        },
+        resumo: { type: 'string', description: 'Resumo curto do que o cliente pediu/disse.' },
+      },
+      required: ['motivo'],
     },
   },
 ]
@@ -232,34 +252,63 @@ async function executarTool(
       )
     case 'listar_laudos':
       return chamarApi(`/api/agente/laudo?telefone=${tel}`, 'GET')
+    case 'enviar_laudo':
+      return chamarApi('/api/agente/laudo/enviar', 'POST', {
+        telefone,
+        laudo_id: Number(input.laudo_id),
+      })
     case 'transferir_humano':
-      return transferirHumano(telefone)
+      return transferirHumano(telefone, input.motivo, input.resumo)
     default:
       return { erro: true, mensagem: `tool desconhecida: ${nome}` }
   }
 }
 
-/** Marca o tutor em atendimento humano por `tempo_retorno_ia_horas` (config). */
-async function transferirHumano(telefone: string): Promise<unknown> {
+/**
+ * Aciona atendimento humano por erro técnico (uso fora do tool calling — ex.:
+ * exceção no webhook). Avisa as admins e bloqueia a IA.
+ */
+export async function acionarHumanoPorErro(telefone: string, resumo?: string): Promise<void> {
+  try {
+    await transferirHumano(telefone, 'erro_tecnico', resumo)
+  } catch (e) {
+    console.error('[agente] falha ao acionar humano por erro:', e)
+  }
+}
+
+/**
+ * Aciona atendimento humano: roteia pelo /api/agente/notificar, que (para esses
+ * motivos) avisa as admins por WhatsApp, registra no submenu /admin/notificacoes
+ * e bloqueia a IA por `tempo_retorno_ia_horas` (config do agente). Busca o nome
+ * do tutor para a notificação ficar legível.
+ */
+async function transferirHumano(
+  telefone: string,
+  motivo?: string,
+  resumo?: string,
+): Promise<unknown> {
   const telNorm = normalizarTelefone(telefone)
   const digits = telefone.replace(/\D/g, '')
 
-  const { data: cfg } = await supabase
-    .from('configuracoes_agente')
-    .select('tempo_retorno_ia_horas')
-    .order('id')
-    .limit(1)
-    .maybeSingle()
-  const horas = Number(cfg?.tempo_retorno_ia_horas ?? 2)
-  const ate = new Date(Date.now() + horas * 3_600_000).toISOString()
-
-  const { error } = await supabase
+  const { data: tutor } = await supabase
     .from('tutores')
-    .update({ atendimento_humano: true, atendimento_humano_ate: ate })
+    .select('nome')
     .or(`telefone.eq.${telNorm},telefone.eq.${digits}`)
+    .maybeSingle()
 
-  if (error) return { erro: true, mensagem: error.message }
-  return { sucesso: true, retorno_em_horas: horas }
+  const tipo = ['pergunta_laudo', 'pergunta_tecnica', 'erro_tecnico', 'ia_travou'].includes(motivo ?? '')
+    ? motivo
+    : 'ia_travou'
+
+  const out = await chamarApi('/api/agente/notificar', 'POST', {
+    telefone: telNorm,
+    nome_tutor: tutor?.nome ?? null,
+    motivo: tipo,
+    tipo_evento: tipo,
+    mensagem_cliente: resumo ?? null,
+  })
+
+  return { sucesso: !(out as { erro?: boolean })?.erro, ...((out as object) ?? {}) }
 }
 
 // ---------------------------------------------------------------------------
@@ -308,8 +357,9 @@ function systemPrompt(telefone: string, primeira: boolean): string {
     '- O data_hora do agendamento é horário local no formato YYYY-MM-DDTHH:MM:00.',
     '- O agendamento entra como PENDENTE: avise que a clínica vai confirmar; não prometa confirmação imediata.',
     '- NUNCA ofereça ou marque exame gratuito (gratuidade é exclusiva da clínica/admin).',
-    '- NÃO dê orientação clínica/veterinária. Apenas agendamento e informações operacionais.',
-    '- Se não entender ou o cliente pedir atendente, use transferir_humano e avise que alguém da equipe vai responder.',
+    '- LAUDO: para enviar um laudo, use listar_laudos, confirme com o cliente qual ele quer (pet/exame/data) e use enviar_laudo com o id. O laudo vai como PDF — NUNCA mande link (os links exigem login).',
+    '- NÃO dê orientação clínica/veterinária nem interprete resultados. Se o cliente perguntar sobre o resultado/diagnóstico, sobre algo técnico, fizer uma reclamação, algo fora do escopo (agendamento/laudo/preço), ou se você simplesmente não entender, use transferir_humano (escolhendo o motivo) e avise gentilmente que um atendente da equipe vai responder em breve.',
+    '- Em caso de erro ao executar uma ação, não invente — informe que houve um problema e use transferir_humano (motivo erro_tecnico).',
     '',
     'ESTILO: cordial, acolhedora, clara e breve, em português do Brasil. Emojis com moderação. Faça uma pergunta por vez.',
     'FORMATAÇÃO WhatsApp: negrito com UM asterisco (*assim*), itálico com _assim_. NUNCA use ** (markdown), títulos com # nem tabelas.',

@@ -7,7 +7,7 @@ import {
   emAtendimentoHumano,
 } from '@/lib/agente/conversa'
 import { enfileirarMensagem } from '@/lib/agente/debounce'
-import { responder } from '@/lib/agente/orquestrador'
+import { responder, acionarHumanoPorErro } from '@/lib/agente/orquestrador'
 import { sendWhatsAppText } from '@/lib/evolution'
 
 /**
@@ -58,9 +58,11 @@ export async function POST(request: NextRequest) {
       await sendWhatsAppText(telefone, resposta)
     } catch (err) {
       console.error('[agente/webhook] erro ao processar:', err)
+      // Avisa as admins e pausa a IA — não deixa o cliente no vácuo.
+      await acionarHumanoPorErro(telefone, texto)
       await sendWhatsAppText(
         telefone,
-        'Tive um probleminha técnico agora. Pode tentar de novo em instantes? 🙏',
+        'Tive um probleminha técnico aqui 🙏 Já avisei a equipe e em breve alguém vai te responder.',
       ).catch(() => {})
     }
   })

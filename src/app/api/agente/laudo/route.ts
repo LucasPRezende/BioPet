@@ -29,23 +29,25 @@ export async function GET(request: NextRequest) {
 
   const { data: laudos, error } = await supabase
     .from('laudos')
-    .select('token, tipo_exame, criado_em, pets(nome)')
+    .select('id, tipo_exame, criado_em, filename, pets(nome)')
     .eq('tutor_id', tutor.id)
     .order('criado_em', { ascending: false })
-    .limit(3)
+    .limit(5)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? ''
-
+  // NÃO retorna link: os links de laudo exigem login (fechados por segurança).
+  // O agente deve ENVIAR o PDF (ver /api/agente/laudo/enviar). Aqui só listamos
+  // para o cliente escolher qual laudo quer receber.
   const resultado = (laudos ?? []).map((l: Record<string, unknown>) => {
     const pets = l.pets as { nome: string }[] | null
     const pet  = Array.isArray(pets) ? pets[0]?.nome ?? null : (pets as { nome: string } | null)?.nome ?? null
     return {
+      id:         l.id as number,
       pet,
       tipo_exame: l.tipo_exame as string | null,
       data:       new Date(l.criado_em as string).toLocaleDateString('pt-BR'),
-      link:       `${baseUrl}/laudo/${l.token as string}`,
+      tem_arquivo: !!l.filename,
     }
   })
 
