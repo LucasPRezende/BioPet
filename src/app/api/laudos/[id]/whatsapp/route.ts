@@ -46,24 +46,31 @@ export async function POST(
   const fileName    = laudo.original_name ?? `laudo_${laudo.nome_pet}.pdf`
   const vetWhatsapp = (laudo.veterinarios as unknown as { whatsapp: string | null } | null)?.whatsapp
 
+  let okTutor = true
+  let okVet   = true
+
   if (destino === 'tutor' || destino === 'ambos') {
-    const ok = await sendWhatsAppDocument(
+    okTutor = await sendWhatsAppDocument(
       laudo.telefone,
       pdfBase64,
       fileName,
       `Olá! O laudo do *${laudo.nome_pet}* está pronto. Segue o PDF.`,
     )
-    if (!ok) return NextResponse.json({ error: 'Falha ao enviar para o tutor' }, { status: 502 })
   }
 
   if ((destino === 'vet' || destino === 'ambos') && vetWhatsapp) {
     if (destino === 'ambos') await randomDelay()
-    await sendWhatsAppDocument(
+    okVet = await sendWhatsAppDocument(
       vetWhatsapp,
       pdfBase64,
       fileName,
       `Segue o PDF do laudo do *${laudo.nome_pet}* (tutor: ${laudo.tutor}).`,
     )
+  }
+
+  if (!okTutor || !okVet) {
+    const falhou = [!okTutor && 'tutor', !okVet && 'veterinário'].filter(Boolean).join(' e ')
+    return NextResponse.json({ error: `Falha ao enviar para: ${falhou}` }, { status: 502 })
   }
 
   return NextResponse.json({ ok: true })
