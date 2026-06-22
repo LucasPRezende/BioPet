@@ -27,6 +27,21 @@ export async function GET() {
   return NextResponse.json({ ok: true, endpoint: 'agente/webhook' })
 }
 
+/**
+ * Monta o texto que vai ao orquestrador quando o cliente envia um encaminhamento
+ * (PDF/imagem). Deixa explícito que é um PEDIDO DE AGENDAMENTO — os termos
+ * clínicos do encaminhamento são a indicação do exame, NÃO uma emergência do
+ * cliente (senão o bot aciona atendente à toa).
+ */
+function montarTextoEncaminhamento(tipo: 'PDF' | 'imagem', desc: string, legenda?: string): string {
+  return (
+    `[O cliente enviou um encaminhamento veterinário por ${tipo} para AGENDAR o(s) exame(s) descrito(s). ` +
+    `Termos clínicos abaixo são a indicação do exame, NÃO um sintoma relatado pelo cliente — prossiga com o agendamento normalmente. ` +
+    `Conteúdo extraído pelo sistema:]\n${desc}` +
+    (legenda ? `\n\n[Arquivo/legenda do cliente: ${legenda}]` : '')
+  )
+}
+
 /** Processa o texto (já resolvido) com guard-rails + orquestrador + envio. */
 async function processar(
   telefone: string,
@@ -82,14 +97,10 @@ async function processarMidia(msg: MensagemRecebida) {
         return
       }
       const desc = await lerImagemEncaminhamento(media.base64, media.mimetype, msg.legenda)
-      texto =
-        `[O cliente enviou um PDF (provável encaminhamento). Conteúdo extraído pelo sistema:]\n${desc}` +
-        (msg.legenda ? `\n\n[Arquivo/legenda: ${msg.legenda}]` : '')
+      texto = montarTextoEncaminhamento('PDF', desc, msg.legenda)
     } else {
       const desc = await lerImagemEncaminhamento(media.base64, media.mimetype, msg.legenda)
-      texto =
-        `[O cliente enviou uma imagem (provável encaminhamento). Conteúdo extraído pelo sistema:]\n${desc}` +
-        (msg.legenda ? `\n\n[Legenda do cliente: ${msg.legenda}]` : '')
+      texto = montarTextoEncaminhamento('imagem', desc, msg.legenda)
     }
 
     if (!texto || /^\(sem fala\)$/i.test(texto.trim())) {

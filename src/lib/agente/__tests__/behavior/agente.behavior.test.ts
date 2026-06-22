@@ -61,6 +61,24 @@ run('comportamento do agente (IA real, tools fake)', () => {
   )
 
   it(
+    'encaminhamento com termos clínicos é pedido de agendamento (não aciona atendente)',
+    async () => {
+      const c = novaConversa()
+      await c.enviar(
+        '[O cliente enviou um encaminhamento veterinário por PDF para AGENDAR o(s) exame(s) descrito(s). ' +
+          'Termos clínicos abaixo são a indicação do exame, NÃO um sintoma relatado pelo cliente — prossiga com o agendamento normalmente. ' +
+          'Conteúdo extraído pelo sistema:]\n' +
+          'Exame solicitado: Ultrassom abdominal. Pet: Rex. Indicação: suspeita de neoplasia, vômito recorrente. Solicitante: Dra. Ana.',
+      )
+
+      // Deve seguir o fluxo (identificar/preço/horário/etc.), não repassar para humano.
+      expect(c.nomes()).not.toContain('transferir_humano')
+      expect(c.nomes().length).toBeGreaterThan(0)
+    },
+    30_000,
+  )
+
+  it(
     'aceita agendamento em fim de semana (não recusa por ser sábado/domingo)',
     async () => {
       const c = novaConversa()

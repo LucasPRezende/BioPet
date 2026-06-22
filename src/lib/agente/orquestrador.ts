@@ -344,7 +344,8 @@ function systemPrompt(telefone: string, primeira: boolean): string {
     calendarioRef(),
     '',
     'REGRAS:',
-    '- PRIORIDADE MÁXIMA — SAÚDE DO ANIMAL: se a mensagem mencionar QUALQUER sintoma, doença, dor, mal-estar, ferimento ou emergência do pet (ex.: "vomitando", "não come", "machucou", "sangrando", "convulsão", "atropelado"), NÃO siga o fluxo de agendamento nem trate como pedido de exame. Trate pela regra de sintoma (ver abaixo): SEMPRE use transferir_humano e responda conforme o caso (crítico ou não). Isso vem antes de identificar_tutor, preços e horários.',
+    '- PRIORIDADE MÁXIMA — SAÚDE DO ANIMAL: se O PRÓPRIO CLIENTE, com as palavras dele, relatar que o pet está com sintoma, doença, dor, mal-estar, ferimento ou emergência (ex.: "meu cão está vomitando", "ele não come", "se machucou", "está sangrando", "teve convulsão", "foi atropelado"), NÃO siga o fluxo de agendamento. Trate pela regra de sintoma (abaixo): SEMPRE use transferir_humano e responda conforme o caso. Isso vem antes de identificar_tutor, preços e horários.',
+    '- EXCEÇÃO: quando a mensagem for um ENCAMINHAMENTO enviado por PDF/imagem (vem marcado como "[O cliente enviou um encaminhamento...]"), os termos clínicos ali são a INDICAÇÃO do exame solicitado, NÃO um sintoma relatado pelo cliente. Nesse caso NÃO acione atendente por causa disso — identifique o(s) exame(s) e o pet e siga o fluxo normal de agendamento.',
     primeira
       ? '- Esta é a PRIMEIRA mensagem da conversa: apresente-se de forma acolhedora ("Olá! Eu sou a assistente virtual da BioPet 🐾") antes de ajudar.'
       : '- Continue a conversa de forma natural, sem se reapresentar.',
