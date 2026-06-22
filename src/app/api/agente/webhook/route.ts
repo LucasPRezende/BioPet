@@ -75,6 +75,16 @@ async function processarMidia(msg: MensagemRecebida) {
     let texto: string
     if (msg.tipoMidia === 'audio') {
       texto = await transcreverAudio(media.base64, media.mimetype)
+    } else if (msg.tipoMidia === 'documento') {
+      // Só sabemos ler PDF; outros documentos pedimos por outro meio.
+      if (!/pdf/i.test(media.mimetype)) {
+        await sendWhatsAppText(telefone, 'Recebi seu arquivo, mas só consigo ler PDF ou foto 😕 Pode mandar assim?')
+        return
+      }
+      const desc = await lerImagemEncaminhamento(media.base64, media.mimetype, msg.legenda)
+      texto =
+        `[O cliente enviou um PDF (provável encaminhamento). Conteúdo extraído pelo sistema:]\n${desc}` +
+        (msg.legenda ? `\n\n[Arquivo/legenda: ${msg.legenda}]` : '')
     } else {
       const desc = await lerImagemEncaminhamento(media.base64, media.mimetype, msg.legenda)
       texto =

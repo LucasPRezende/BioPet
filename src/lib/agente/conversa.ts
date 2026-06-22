@@ -27,8 +27,8 @@ export interface MensagemRecebida {
   msgId?: string
   /** Nome do contato no WhatsApp (útil para cadastrar tutor novo). */
   pushName?: string
-  /** Tipo de mídia, quando a mensagem é áudio/imagem (em vez de texto). */
-  tipoMidia?: 'audio' | 'imagem'
+  /** Tipo de mídia, quando a mensagem é áudio/imagem/documento (em vez de texto). */
+  tipoMidia?: 'audio' | 'imagem' | 'documento'
   /** Legenda da mídia (caption da imagem), quando houver. */
   legenda?: string
   /** `key` crua da mensagem — necessária para buscar o base64 na Evolution. */
@@ -86,6 +86,16 @@ export function parseEvolutionWebhook(body: any): MensagemRecebida {
   if (msg.imageMessage) {
     const legenda = typeof msg.imageMessage.caption === 'string' ? msg.imageMessage.caption.trim() : undefined
     return { processavel: true, tipoMidia: 'imagem', legenda, ...base }
+  }
+  // Documento (PDF de encaminhamento/laudo). WhatsApp às vezes embrulha em
+  // documentWithCaptionMessage.
+  const doc = msg.documentMessage ?? msg.documentWithCaptionMessage?.message?.documentMessage
+  if (doc) {
+    const legenda =
+      (typeof doc.caption === 'string' && doc.caption.trim()) ||
+      (typeof doc.fileName === 'string' && doc.fileName.trim()) ||
+      undefined
+    return { processavel: true, tipoMidia: 'documento', legenda, ...base }
   }
 
   const texto = extrairTexto(msg)

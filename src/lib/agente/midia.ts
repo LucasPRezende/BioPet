@@ -61,7 +61,7 @@ export async function lerImagemEncaminhamento(
   const model = genAI.getGenerativeModel({ model: MODELO_IMAGEM })
 
   const instrucao =
-    'Esta imagem foi enviada por um tutor pelo WhatsApp e provavelmente é um ENCAMINHAMENTO ' +
+    'Este arquivo (imagem ou PDF) foi enviado por um tutor pelo WhatsApp e provavelmente é um ENCAMINHAMENTO ' +
     'veterinário (pode ser manuscrito). Extraia, em português e de forma objetiva: ' +
     '1) exame(s)/procedimento(s) solicitado(s); 2) nome do pet, se houver; ' +
     '3) espécie, se houver; 4) veterinário solicitante, se houver; 5) qualquer observação relevante. ' +

@@ -102,6 +102,33 @@ describe('parseEvolutionWebhook', () => {
     expect(r.legenda).toBe('encaminhamento do Rex')
   })
 
+  it('detecta documento (PDF) direto', () => {
+    const r = parseEvolutionWebhook(
+      payload({
+        message: { conversation: undefined, documentMessage: { mimetype: 'application/pdf', fileName: 'encaminhamento.pdf' } },
+      }),
+    )
+    expect(r.processavel).toBe(true)
+    expect(r.tipoMidia).toBe('documento')
+    expect(r.legenda).toBe('encaminhamento.pdf')
+  })
+
+  it('detecta documento embrulhado (documentWithCaptionMessage)', () => {
+    const r = parseEvolutionWebhook(
+      payload({
+        message: {
+          conversation: undefined,
+          documentWithCaptionMessage: {
+            message: { documentMessage: { mimetype: 'application/pdf', caption: 'laudo do Rex', fileName: 'x.pdf' } },
+          },
+        },
+      }),
+    )
+    expect(r.processavel).toBe(true)
+    expect(r.tipoMidia).toBe('documento')
+    expect(r.legenda).toBe('laudo do Rex')
+  })
+
   it('ignora mídia de mensagem própria (fromMe) também', () => {
     const r = parseEvolutionWebhook(
       payload({ key: { fromMe: true }, message: { conversation: undefined, audioMessage: {} } }),
