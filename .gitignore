@@ -17,3 +17,7 @@ context-pdfs/.gemini-cache.json
 .vercel
 scripts/atualizar-env-vps.sh
 storage/laudos/
+
+# Artefatos do experimento de comparação de modelos
+comparacao-modelos.txt
+transcricao-modelos.txt

@@ -73,6 +73,8 @@ export interface Conversa {
   textos: () => string
   /** Custo acumulado em USD (quando o responder reporta uso; default 0). */
   custoUSD: () => number
+  /** Diálogo turno a turno (cliente / bot + tools chamadas naquele turno). */
+  dialogo: () => { de: 'cliente' | 'bot'; texto: string; tools?: string[] }[]
 }
 
 /**
@@ -91,6 +93,7 @@ export type ResponderFn = (
 export function novaConversa(responderFn: ResponderFn = responder): Conversa {
   const calls: ToolCall[] = []
   const respostas: string[] = []
+  const dialogo: { de: 'cliente' | 'bot'; texto: string; tools?: string[] }[] = []
   let historico: any[] = []
   let custo = 0
 
@@ -104,11 +107,15 @@ export function novaConversa(responderFn: ResponderFn = responder): Conversa {
     nomes: () => calls.map((c) => c.nome),
     textos: () => respostas.join('\n').toLowerCase(),
     custoUSD: () => custo,
+    dialogo: () => dialogo,
     enviar: async (texto: string) => {
+      const antes = calls.length
+      dialogo.push({ de: 'cliente', texto })
       const r = await responderFn(TELEFONE, texto, historico, { executar })
       historico = r.historico
       respostas.push(r.resposta)
       custo += r.uso?.custoUSD ?? 0
+      dialogo.push({ de: 'bot', texto: r.resposta, tools: calls.slice(antes).map((c) => c.nome) })
       if (process.env.DEBUG_AGENTE) {
         console.log(`\n>>> USER: ${texto}\n<<< BOT: ${r.resposta}\n--- tools: ${calls.map((c) => c.nome).join(', ')}`)
       }

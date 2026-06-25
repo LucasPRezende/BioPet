@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { writeFileSync } from 'node:fs'
 import { novaConversa, type ResponderFn } from './harness'
 import { responderOpenRouter } from '@/lib/agente/orquestrador-openrouter'
 
@@ -16,7 +17,16 @@ const run = describe.skipIf(!temChave)
 
 const MODELOS = (
   process.env.OPENROUTER_MODELOS ??
-  'anthropic/claude-haiku-4.5,deepseek/deepseek-v4-flash,minimax/minimax-m3'
+  [
+    'anthropic/claude-haiku-4.5',
+    'deepseek/deepseek-v4-flash',
+    'deepseek/deepseek-v4-pro',
+    'minimax/minimax-m3',
+    'moonshotai/kimi-k2.6',
+    'qwen/qwen3.7-max',
+    'z-ai/glm-5.2',
+    'google/gemini-3.5-flash',
+  ].join(',')
 )
   .split(',')
   .map((m) => m.trim())
@@ -71,6 +81,23 @@ const CENARIOS: Cenario[] = [
       return c.nomes().includes('enviar_laudo') && !c.textos().includes('http')
     },
   },
+  {
+    // O caso difícil: encaminhamento (PDF lido pelo Gemini) de um pet NOVO. O
+    // modelo deve cadastrar o pet inferindo nome+espécie do texto, num único
+    // turno, SEM perguntar. Discrimina força de raciocínio/instrução.
+    nome: 'DIFÍCIL: encaminhamento de pet novo → cadastra inferindo, sem perguntar',
+    run: async (c) => {
+      await c.enviar(
+        '[O cliente enviou um encaminhamento veterinário por PDF para AGENDAR o exame descrito. ' +
+          'Termos clínicos abaixo são a INDICAÇÃO do exame, não um sintoma do cliente — prossiga com o agendamento. ' +
+          'Conteúdo extraído pelo sistema:]\n' +
+          'Exame solicitado: Ultrassom Abdominal. Pet: Bibi. Espécie: felino (gato). ' +
+          'Indicação: investigação de massa abdominal. Solicitante: Dra. Ana.',
+      )
+      // Single-shot: cadastrou o pet novo (sem perguntar) e não travou.
+      return c.nomes().includes('cadastrar_pet') && !c.nomes().includes('transferir_humano')
+    },
+  },
 ]
 
 run('comparação de modelos (OpenRouter)', () => {
@@ -103,9 +130,11 @@ run('comparação de modelos (OpenRouter)', () => {
             `\n→ ${passou}/${CENARIOS.length} cenários | custo total: $${custo.toFixed(5)} | ~$${(custo / CENARIOS.length).toFixed(5)}/conversa`,
         )
       }
-      console.log('\n' + linhas.join('\n'))
+      const saida = '\n' + linhas.join('\n') + '\n'
+      console.log(saida)
+      writeFileSync('comparacao-modelos.txt', saida)
       expect(linhas.length).toBe(MODELOS.length)
     },
-    600_000,
+    1_500_000,
   )
 })
