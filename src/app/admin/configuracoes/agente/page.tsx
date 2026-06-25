@@ -12,6 +12,7 @@ interface NumeroBloqueado {
 interface Config {
   tempo_retorno_ia_horas: number
   numeros_bloqueados:     NumeroBloqueado[]
+  faq:                    string
 }
 
 interface TutorBloqueado {
@@ -48,7 +49,7 @@ function formatExpiracao(isoUtc: string): string {
 
 export default function ConfiguracaoAgentePage() {
   const router = useRouter()
-  const [config,   setConfig]   = useState<Config>({ tempo_retorno_ia_horas: 2, numeros_bloqueados: [] })
+  const [config,   setConfig]   = useState<Config>({ tempo_retorno_ia_horas: 2, numeros_bloqueados: [], faq: '' })
   const [loading,  setLoading]  = useState(true)
   const [saving,        setSaving]        = useState(false)
   const [saved,         setSaved]         = useState(false)
@@ -84,12 +85,14 @@ export default function ConfiguracaoAgentePage() {
         setConfig({
           tempo_retorno_ia_horas: full.tempo_retorno_ia_horas ?? 2,
           numeros_bloqueados:     full.numeros_bloqueados ?? [],
+          faq:                    full.faq ?? '',
         })
       } else {
         // Fallback: usa o GET público sem descrições
         setConfig({
           tempo_retorno_ia_horas: d.tempo_retorno_ia_horas ?? 2,
           numeros_bloqueados:     (d.numeros_bloqueados ?? []).map((n: string) => ({ numero: n, descricao: '' })),
+          faq:                    '',
         })
       }
     }
@@ -230,6 +233,26 @@ export default function ConfiguracaoAgentePage() {
                     + Adicionar
                   </button>
                 </div>
+              </div>
+            </div>
+
+            {/* FAQ / orientações da IA */}
+            <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+              <div className="h-1 bg-gold-stripe" />
+              <div className="p-6">
+                <h2 className="font-bold text-[#19202d] mb-1">FAQ / Orientações da IA</h2>
+                <p className="text-sm text-gray-500 mb-4">
+                  Informações que a IA usa para responder dúvidas operacionais dos clientes (ex.: como pagar
+                  online, formas de pagamento, validade do link). Escreva em texto livre. Se a dúvida não
+                  estiver aqui e for fora do escopo, a IA chama um atendente.
+                </p>
+                <textarea
+                  value={config.faq}
+                  onChange={e => setConfig(c => ({ ...c, faq: e.target.value }))}
+                  rows={8}
+                  placeholder={'Ex.:\n- Pagamento: você recebe um link por aqui; dá para pagar via PIX ou cartão em até 3x.\n- O link de pagamento vale 24h; se expirar, é só pedir um novo.\n- Após o pagamento, o agendamento é confirmado pela clínica.'}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c4a35a] resize-y"
+                />
               </div>
             </div>
 

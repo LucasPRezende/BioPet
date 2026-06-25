@@ -37,7 +37,7 @@ export async function PUT(request: NextRequest) {
   const body = await request.json().catch(() => null)
   if (!body) return NextResponse.json({ error: 'Requisição inválida.' }, { status: 400 })
 
-  const { tempo_retorno_ia_horas, numeros_bloqueados } = body
+  const { tempo_retorno_ia_horas, numeros_bloqueados, faq } = body
 
   // Busca o id do registro único
   const { data: existing } = await supabase
@@ -56,6 +56,7 @@ export async function PUT(request: NextRequest) {
         id,
         tempo_retorno_ia_horas: tempo_retorno_ia_horas ?? 2,
         numeros_bloqueados:     numeros_bloqueados ?? [],
+        faq:                    typeof faq === 'string' ? faq : null,
         atualizado_em:          new Date().toISOString(),
       },
       { onConflict: 'id' },

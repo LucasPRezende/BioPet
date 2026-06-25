@@ -375,12 +375,15 @@ function systemEstavel(): string {
  * Parte VOLÁTIL do system prompt (muda por chamada) — fica DEPOIS do ponto de
  * cache, então não invalida o cache da parte estável + tools.
  */
-function systemVolatil(telefone: string, primeira: boolean, contexto?: string): string {
+function systemVolatil(telefone: string, primeira: boolean, contexto?: string, faq?: string): string {
   return [
     `O telefone do cliente nesta conversa é ${telefone}.`,
     primeira
       ? 'Esta é a PRIMEIRA mensagem da conversa: apresente-se de forma acolhedora ("Olá! Eu sou a assistente virtual da BioPet 🐾") antes de ajudar.'
       : 'Continue a conversa de forma natural, sem se reapresentar.',
+    faq
+      ? `\nFAQ / ORIENTAÇÕES DA CLÍNICA (use para responder dúvidas operacionais, ex.: como pagar online. Se a dúvida não estiver coberta aqui e for fora do seu escopo, use transferir_humano):\n${faq}`
+      : '',
     contexto
       ? `\nCONTEXTO RECENTE (mensagens que o cliente recebeu/enviou FORA de você — use para entender do que ele fala; não responda a elas diretamente):\n${contexto}`
       : '',
@@ -424,6 +427,8 @@ export interface ResponderDeps {
   executar?: ToolExecutor
   /** Contexto extra (ex.: mensagens do sistema/humano enviadas fora da IA). */
   contexto?: string
+  /** FAQ/orientações editáveis (configuracoes_agente.faq). */
+  faq?: string
 }
 
 /**
@@ -443,7 +448,7 @@ export async function responder(
   // cacheado, lido do cache nas rodadas seguintes) e volátil (depois do cache).
   const system: Anthropic.TextBlockParam[] = [
     { type: 'text', text: systemEstavel(), cache_control: { type: 'ephemeral' } },
-    { type: 'text', text: systemVolatil(telefone, historico.length === 0, deps.contexto) },
+    { type: 'text', text: systemVolatil(telefone, historico.length === 0, deps.contexto, deps.faq) },
   ]
 
   const messages: Anthropic.MessageParam[] = [

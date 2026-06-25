@@ -178,6 +178,21 @@ export function normalizarTelefone(telefone: string): string {
   return digits.startsWith('55') ? digits : `55${digits}`
 }
 
+/** FAQ/orientações editáveis da IA (configuracoes_agente.faq). '' se vazio/erro. */
+export async function getFaqAgente(): Promise<string> {
+  try {
+    const { data } = await supabase
+      .from('configuracoes_agente')
+      .select('faq')
+      .order('id')
+      .limit(1)
+      .maybeSingle()
+    return (data?.faq as string | null)?.trim() ?? ''
+  } catch {
+    return ''
+  }
+}
+
 /** True se o número está na lista de bloqueados (configuracoes_agente). */
 export async function telefoneBloqueado(telefone: string): Promise<boolean> {
   const { data } = await supabase
