@@ -48,21 +48,27 @@ export async function PUT(request: NextRequest) {
     .single()
 
   const id = existing?.id ?? 1
+  const base = {
+    id,
+    tempo_retorno_ia_horas: tempo_retorno_ia_horas ?? 2,
+    numeros_bloqueados:     numeros_bloqueados ?? [],
+    atualizado_em:          new Date().toISOString(),
+  }
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('configuracoes_agente')
-    .upsert(
-      {
-        id,
-        tempo_retorno_ia_horas: tempo_retorno_ia_horas ?? 2,
-        numeros_bloqueados:     numeros_bloqueados ?? [],
-        faq:                    typeof faq === 'string' ? faq : null,
-        atualizado_em:          new Date().toISOString(),
-      },
-      { onConflict: 'id' },
-    )
+    .upsert({ ...base, faq: typeof faq === 'string' ? faq : null }, { onConflict: 'id' })
     .select()
     .single()
+
+  // Tolera a coluna `faq` ainda não existir (migration não aplicada): salva o resto.
+  if (error && /faq/i.test(error.message)) {
+    ;({ data, error } = await supabase
+      .from('configuracoes_agente')
+      .upsert(base, { onConflict: 'id' })
+      .select()
+      .single())
+  }
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)
