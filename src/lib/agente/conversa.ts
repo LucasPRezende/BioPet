@@ -178,18 +178,24 @@ export function normalizarTelefone(telefone: string): string {
   return digits.startsWith('55') ? digits : `55${digits}`
 }
 
-/** FAQ/orientações editáveis da IA (configuracoes_agente.faq). '' se vazio/erro. */
-export async function getFaqAgente(): Promise<string> {
+/**
+ * Config do agente usada no prompt: FAQ e exames que a IA NÃO pode agendar.
+ * Degradação segura: campos vazios se a coluna/tabela não existir.
+ */
+export async function getConfigPromptAgente(): Promise<{ faq: string; examesNaoAgendaveis: string[] }> {
   try {
     const { data } = await supabase
       .from('configuracoes_agente')
-      .select('faq')
+      .select('faq, exames_nao_agendaveis')
       .order('id')
       .limit(1)
       .maybeSingle()
-    return (data?.faq as string | null)?.trim() ?? ''
+    return {
+      faq: (data?.faq as string | null)?.trim() ?? '',
+      examesNaoAgendaveis: (data?.exames_nao_agendaveis as string[] | null)?.filter(Boolean) ?? [],
+    }
   } catch {
-    return ''
+    return { faq: '', examesNaoAgendaveis: [] }
   }
 }
 

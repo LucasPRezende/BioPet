@@ -136,7 +136,8 @@ const TOOLS: Anthropic.Tool[] = [
         tipo_exame: { type: 'string', description: 'Alternativa a "exames" para um único exame simples.' },
         data_hora: { type: 'string', description: 'YYYY-MM-DDTHH:MM:00 (horário local)' },
         forma_pagamento: { type: 'string', description: "'pix' ou 'cartao'" },
-        veterinario_id: { type: 'number', description: 'Opcional — id do veterinário responsável (de listar_veterinarios)' },
+        veterinario_id: { type: 'number', description: 'Id do veterinário responsável (de listar_veterinarios)' },
+        observacoes: { type: 'string', description: 'Observações/características relevantes do agendamento (pedido especial, detalhe do encaminhamento, sedação, etc.)' },
       },
       required: ['tutor_id', 'data_hora'],
     },
@@ -362,11 +363,12 @@ function systemEstavel(): string {
     '- DÚVIDAS INFORMATIVAS primeiro, SEM cadastrar: se o cliente perguntar se a BioPet faz determinado exame ("vocês fazem tomografia?"), ou sobre preços/horários, consulte consultar_precos e responda DIRETO. Se o exame perguntado NÃO está na lista de consultar_precos, a BioPet NÃO realiza esse exame — apenas informe educadamente que não fazem (e, se quiser, ofereça os que fazem). NESSE CASO a conversa está resolvida: NÃO prometa que alguém entrará em contato e NÃO precisa acionar atendente. NUNCA chame identificar_tutor/cadastrar_tutor/cadastrar_pet só para responder uma dúvida.',
     '- Só inicie identificação/cadastro quando o cliente REALMENTE for AGENDAR um exame que a BioPet faz. Aí use identificar_tutor (se já cadastrado, chame-o pelo nome).',
     '- Se for agendar e o tutor não existir, peça o nome e use cadastrar_tutor. É preciso um pet — se não houver, pergunte nome e espécie e use cadastrar_pet. Espécie deve ser uma de: Canina, Felina, Lagomorfo, Aves, Equina, Bovina, Ovina, Caprina (ex.: gato = Felina, cachorro/cão = Canina).',
-    '- Você pode perguntar (opcional) se o cliente sabe qual veterinário vai acompanhar o exame. Se ele disser um nome, use listar_veterinarios e passe o veterinario_id correspondente ao agendar. Se não souber, siga sem veterinário — é opcional, não insista.',
+    '- VETERINÁRIO RESPONSÁVEL: ao agendar, se o cliente ainda não informou o veterinário, PERGUNTE quem é o veterinário responsável (quem pediu ou vai acompanhar o exame). Se ele disser um nome, use listar_veterinarios e passe o veterinario_id correspondente. Se ele realmente não souber, pode seguir sem.',
     '- Para valores, use consultar_precos. NUNCA invente preços.',
     '- Para horários, use horarios_livres com a data desejada (YYYY-MM-DD). Só ofereça horários retornados por ela.',
     '- HORÁRIO COMERCIAL: segunda a sexta, 9h às 16h30. Fora disso (noite, sábado, domingo, feriado) é HORÁRIO ESPECIAL — você PODE agendar normalmente, mas avise que é horário especial e informe o preço especial (campo "fora_horario" em consultar_precos, quando o exame varia por horário). Em horário comercial use o preço comercial.',
-    '- RAIO-X COM VÁRIAS POSIÇÕES: a primeira posição é o "Raio-X" normal; CADA posição adicional custa um acréscimo (na lista de consultar_precos aparece como algo tipo "Raio-X Acréscimo por Estudo Adicional"). Pergunte quais/quantas posições o cliente quer (ex.: tórax LL, abdome VD) e some no preço. Ao agendar, passe o parâmetro "exames": um item "Raio-X" + um item do acréscimo para CADA posição adicional, com descricao = a posição. NÃO calcule o preço de cabeça: some os itens conforme consultar_precos (o sistema confere e recalcula).',
+    '- RAIO-X COM VÁRIAS POSIÇÕES: a primeira posição é o "Raio-X" normal; CADA posição adicional custa um acréscimo (na lista de consultar_precos aparece como algo tipo "Raio-X Acréscimo por Estudo Adicional"). Pergunte quais/quantas posições o cliente quer (ex.: tórax LL, abdome VD) e some no preço. Se a(s) posição(ões)/projeção(ões) vierem no encaminhamento (PDF/imagem), use-as. Ao agendar, passe o parâmetro "exames": um item "Raio-X" + um item do acréscimo para CADA posição adicional, com descricao = a posição. NÃO calcule o preço de cabeça: some os itens conforme consultar_precos (o sistema confere e recalcula).',
+    '- OBSERVAÇÕES: qualquer característica ou detalhe relevante que você perceber (pedido especial do cliente, informação extra do encaminhamento, sedação, jejum, comportamento do pet) inclua no parâmetro observacoes ao agendar.',
     '- VALOR: o sistema calcula o preço final no backend a partir dos exames; você informa o valor ao cliente com base em consultar_precos, mas não precisa enviar valor ao agendar.',
     '- NOME DO EXAME: ao agendar, use o tipo_exame EXATAMENTE como aparece em consultar_precos (mesma grafia). Se usar um nome diferente, o sistema não encontra o preço e fica zerado.',
     '- Antes de agendar, mostre um resumo (pet, exame, data/hora, valor) e peça confirmação explícita. Só chame agendar após o cliente confirmar.',
@@ -391,12 +393,22 @@ function systemEstavel(): string {
  * Parte VOLÁTIL do system prompt (muda por chamada) — fica DEPOIS do ponto de
  * cache, então não invalida o cache da parte estável + tools.
  */
-function systemVolatil(telefone: string, primeira: boolean, contexto?: string, faq?: string): string {
+function systemVolatil(
+  telefone: string,
+  primeira: boolean,
+  contexto?: string,
+  faq?: string,
+  examesNaoAgendaveis?: string[],
+): string {
+  const naoAgendaveis = (examesNaoAgendaveis ?? []).filter(Boolean)
   return [
     `O telefone do cliente nesta conversa é ${telefone}.`,
     primeira
       ? 'Esta é a PRIMEIRA mensagem da conversa: apresente-se de forma acolhedora ("Olá! Eu sou a assistente virtual da BioPet 🐾") antes de ajudar.'
       : 'Continue a conversa de forma natural, sem se reapresentar.',
+    naoAgendaveis.length > 0
+      ? `\nEXAMES QUE VOCÊ NÃO PODE AGENDAR (a BioPet REALIZA estes exames, mas o agendamento deles é só com atendente): ${naoAgendaveis.join('; ')}. Se o cliente pedir um desses, confirme que a BioPet FAZ o exame, mas explique que para concluir o agendamento dele você vai chamar um atendente — e use transferir_humano (motivo pergunta_tecnica). NÃO tente agendá-lo você mesma.`
+      : '',
     faq
       ? `\nFAQ / ORIENTAÇÕES DA CLÍNICA (use para responder dúvidas operacionais, ex.: como pagar online. Se a dúvida não estiver coberta aqui e for fora do seu escopo, use transferir_humano):\n${faq}`
       : '',
@@ -445,6 +457,8 @@ export interface ResponderDeps {
   contexto?: string
   /** FAQ/orientações editáveis (configuracoes_agente.faq). */
   faq?: string
+  /** Exames que a BioPet faz mas a IA NÃO pode agendar (só atendente). */
+  examesNaoAgendaveis?: string[]
 }
 
 /**
@@ -464,7 +478,10 @@ export async function responder(
   // cacheado, lido do cache nas rodadas seguintes) e volátil (depois do cache).
   const system: Anthropic.TextBlockParam[] = [
     { type: 'text', text: systemEstavel(), cache_control: { type: 'ephemeral' } },
-    { type: 'text', text: systemVolatil(telefone, historico.length === 0, deps.contexto, deps.faq) },
+    {
+      type: 'text',
+      text: systemVolatil(telefone, historico.length === 0, deps.contexto, deps.faq, deps.examesNaoAgendaveis),
+    },
   ]
 
   const messages: Anthropic.MessageParam[] = [

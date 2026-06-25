@@ -6,7 +6,7 @@ import {
   telefoneBloqueado,
   emAtendimentoHumano,
   marcarAtendimentoHumano,
-  getFaqAgente,
+  getConfigPromptAgente,
   type MensagemRecebida,
 } from '@/lib/agente/conversa'
 import { enfileirarMensagem } from '@/lib/agente/debounce'
@@ -68,9 +68,13 @@ async function processar(
     console.log(`[agente/webhook] de ${pushName ?? '?'} (${telefone}): "${texto.slice(0, 80)}"`)
 
     // Contexto de mensagens enviadas FORA da IA (sistema/humano) na mesma thread.
-    const [contexto, faq] = await Promise.all([contextoPendente(telefone), getFaqAgente()])
+    const [contexto, cfg] = await Promise.all([contextoPendente(telefone), getConfigPromptAgente()])
 
-    const { resposta, historico } = await responder(telefone, texto, estado.historico, { contexto, faq })
+    const { resposta, historico } = await responder(telefone, texto, estado.historico, {
+      contexto,
+      faq: cfg.faq,
+      examesNaoAgendaveis: cfg.examesNaoAgendaveis,
+    })
     await salvarConversa(telefone, historico, msgId)
     await sendWhatsAppText(telefone, resposta, 'ia')
   } catch (err) {

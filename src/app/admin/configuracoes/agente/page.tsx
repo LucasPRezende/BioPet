@@ -13,6 +13,7 @@ interface Config {
   tempo_retorno_ia_horas: number
   numeros_bloqueados:     NumeroBloqueado[]
   faq:                    string
+  exames_nao_agendaveis:  string[]
 }
 
 interface TutorBloqueado {
@@ -49,7 +50,8 @@ function formatExpiracao(isoUtc: string): string {
 
 export default function ConfiguracaoAgentePage() {
   const router = useRouter()
-  const [config,   setConfig]   = useState<Config>({ tempo_retorno_ia_horas: 2, numeros_bloqueados: [], faq: '' })
+  const [config,   setConfig]   = useState<Config>({ tempo_retorno_ia_horas: 2, numeros_bloqueados: [], faq: '', exames_nao_agendaveis: [] })
+  const [examesDisponiveis, setExamesDisponiveis] = useState<string[]>([])
   const [loading,  setLoading]  = useState(true)
   const [saving,        setSaving]        = useState(false)
   const [saved,         setSaved]         = useState(false)
@@ -86,6 +88,7 @@ export default function ConfiguracaoAgentePage() {
           tempo_retorno_ia_horas: full.tempo_retorno_ia_horas ?? 2,
           numeros_bloqueados:     full.numeros_bloqueados ?? [],
           faq:                    full.faq ?? '',
+          exames_nao_agendaveis:  full.exames_nao_agendaveis ?? [],
         })
       } else {
         // Fallback: usa o GET público sem descrições
@@ -93,6 +96,7 @@ export default function ConfiguracaoAgentePage() {
           tempo_retorno_ia_horas: d.tempo_retorno_ia_horas ?? 2,
           numeros_bloqueados:     (d.numeros_bloqueados ?? []).map((n: string) => ({ numero: n, descricao: '' })),
           faq:                    '',
+          exames_nao_agendaveis:  [],
         })
       }
     }
@@ -100,6 +104,29 @@ export default function ConfiguracaoAgentePage() {
   }, [router])
 
   useEffect(() => { fetchConfig(); fetchTutoresBloqueados() }, [fetchConfig, fetchTutoresBloqueados])
+
+  // Lista de exames (para escolher quais a IA pode agendar) — rota pública de preços.
+  useEffect(() => {
+    fetch('/api/agente/precos')
+      .then(r => r.ok ? r.json() : { exames: [] })
+      .then(d => {
+        const nomes = (d.exames ?? []).map((e: { tipo: string }) => e.tipo).filter(Boolean)
+        setExamesDisponiveis(Array.from(new Set(nomes)).sort() as string[])
+      })
+      .catch(() => {})
+  }, [])
+
+  function toggleAgendavel(tipo: string) {
+    setConfig(c => {
+      const bloqueado = c.exames_nao_agendaveis.includes(tipo)
+      return {
+        ...c,
+        exames_nao_agendaveis: bloqueado
+          ? c.exames_nao_agendaveis.filter(t => t !== tipo)
+          : [...c.exames_nao_agendaveis, tipo],
+      }
+    })
+  }
 
   async function salvar() {
     setSaving(true)
@@ -253,6 +280,44 @@ export default function ConfiguracaoAgentePage() {
                   placeholder={'Ex.:\n- Pagamento: você recebe um link por aqui; dá para pagar via PIX ou cartão em até 3x.\n- O link de pagamento vale 24h; se expirar, é só pedir um novo.\n- Após o pagamento, o agendamento é confirmado pela clínica.'}
                   className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c4a35a] resize-y"
                 />
+              </div>
+            </div>
+
+            {/* Exames que a IA pode agendar */}
+            <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+              <div className="h-1 bg-gold-stripe" />
+              <div className="p-6">
+                <h2 className="font-bold text-[#19202d] mb-1">Exames que a IA pode agendar</h2>
+                <p className="text-sm text-gray-500 mb-4">
+                  Desmarque os exames que a IA <strong>não</strong> deve agendar sozinha. Para esses, ela
+                  confirma que a BioPet faz o exame, mas chama um atendente para concluir o agendamento.
+                </p>
+                {examesDisponiveis.length === 0 ? (
+                  <p className="text-sm text-gray-400">Carregando exames...</p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {examesDisponiveis.map(tipo => {
+                      const podeAgendar = !config.exames_nao_agendaveis.includes(tipo)
+                      return (
+                        <label
+                          key={tipo}
+                          className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm cursor-pointer border transition ${
+                            podeAgendar ? 'bg-gray-50 border-gray-200' : 'bg-orange-50 border-orange-200'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={podeAgendar}
+                            onChange={() => toggleAgendavel(tipo)}
+                            className="accent-[#c4a35a]"
+                          />
+                          <span className={podeAgendar ? 'text-[#19202d]' : 'text-orange-700'}>{tipo}</span>
+                          {!podeAgendar && <span className="text-xs text-orange-500 ml-auto">só atendente</span>}
+                        </label>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             </div>
 

@@ -37,7 +37,7 @@ export async function PUT(request: NextRequest) {
   const body = await request.json().catch(() => null)
   if (!body) return NextResponse.json({ error: 'Requisição inválida.' }, { status: 400 })
 
-  const { tempo_retorno_ia_horas, numeros_bloqueados, faq } = body
+  const { tempo_retorno_ia_horas, numeros_bloqueados, faq, exames_nao_agendaveis } = body
 
   // Busca o id do registro único
   const { data: existing } = await supabase
@@ -54,15 +54,20 @@ export async function PUT(request: NextRequest) {
     numeros_bloqueados:     numeros_bloqueados ?? [],
     atualizado_em:          new Date().toISOString(),
   }
+  const opcionais = {
+    faq:                   typeof faq === 'string' ? faq : null,
+    exames_nao_agendaveis: Array.isArray(exames_nao_agendaveis) ? exames_nao_agendaveis : [],
+  }
 
   let { data, error } = await supabase
     .from('configuracoes_agente')
-    .upsert({ ...base, faq: typeof faq === 'string' ? faq : null }, { onConflict: 'id' })
+    .upsert({ ...base, ...opcionais }, { onConflict: 'id' })
     .select()
     .single()
 
-  // Tolera a coluna `faq` ainda não existir (migration não aplicada): salva o resto.
-  if (error && /faq/i.test(error.message)) {
+  // Tolera colunas opcionais (faq / exames_nao_agendaveis) ainda não existirem
+  // (migration não aplicada): salva o resto.
+  if (error && /(faq|exames_nao_agendaveis|column)/i.test(error.message)) {
     ;({ data, error } = await supabase
       .from('configuracoes_agente')
       .upsert(base, { onConflict: 'id' })
