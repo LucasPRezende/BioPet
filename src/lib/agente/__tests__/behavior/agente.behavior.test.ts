@@ -79,6 +79,18 @@ run('comportamento do agente (IA real, tools fake)', () => {
   )
 
   it(
+    'mencionar "Dra Luciana" ao agendar NÃO transfere para humano (segue agendando)',
+    async () => {
+      const c = novaConversa()
+      await c.enviar('oi, queria agendar uma ultra com a Dra Luciana para o Rex')
+
+      expect(c.nomes()).not.toContain('transferir_humano')
+      expect(c.nomes().length).toBeGreaterThan(0) // seguiu o fluxo (identificar/etc.)
+    },
+    30_000,
+  )
+
+  it(
     'aceita agendamento em fim de semana (não recusa por ser sábado/domingo)',
     async () => {
       const c = novaConversa()

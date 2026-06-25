@@ -335,23 +335,18 @@ function calendarioRef(): string {
   return linhas.join('\n')
 }
 
-function systemPrompt(telefone: string, primeira: boolean, contexto?: string): string {
+/**
+ * Parte ESTÁVEL do system prompt (constante entre chamadas) — vai com
+ * cache_control para ser lida do cache do Claude nas rodadas seguintes.
+ * NÃO inclua aqui nada que varie por chamada (telefone, calendário, contexto).
+ */
+function systemEstavel(): string {
   return [
     'Você é a assistente virtual da BioPet, um laboratório/clínica veterinária. Atende tutores pelo WhatsApp para MARCAR EXAMES, informar valores, ver laudos e gerenciar agendamentos.',
-    `O telefone do cliente nesta conversa é ${telefone}.`,
-    contexto
-      ? `\nCONTEXTO RECENTE (mensagens que o cliente recebeu/enviou FORA de você — use para entender do que ele fala; não responda a elas diretamente):\n${contexto}\n`
-      : '',
-    '',
-    'CALENDÁRIO (use para converter dias da semana, "hoje" e "amanhã" em datas YYYY-MM-DD — NUNCA calcule a data de cabeça):',
-    calendarioRef(),
     '',
     'REGRAS:',
     '- PRIORIDADE MÁXIMA — SAÚDE DO ANIMAL: se O PRÓPRIO CLIENTE, com as palavras dele, relatar que o pet está com sintoma, doença, dor, mal-estar, ferimento ou emergência (ex.: "meu cão está vomitando", "ele não come", "se machucou", "está sangrando", "teve convulsão", "foi atropelado"), NÃO siga o fluxo de agendamento. Trate pela regra de sintoma (abaixo): SEMPRE use transferir_humano e responda conforme o caso. Isso vem antes de identificar_tutor, preços e horários.',
     '- EXCEÇÃO: quando a mensagem for um ENCAMINHAMENTO enviado por PDF/imagem (vem marcado como "[O cliente enviou um encaminhamento...]"), os termos clínicos ali são a INDICAÇÃO do exame solicitado, NÃO um sintoma relatado pelo cliente. Nesse caso NÃO acione atendente por causa disso — identifique o(s) exame(s) e o pet e siga o fluxo normal de agendamento.',
-    primeira
-      ? '- Esta é a PRIMEIRA mensagem da conversa: apresente-se de forma acolhedora ("Olá! Eu sou a assistente virtual da BioPet 🐾") antes de ajudar.'
-      : '- Continue a conversa de forma natural, sem se reapresentar.',
     '- No início, use identificar_tutor para saber se o cliente já é cadastrado e quais pets tem. Se já for cadastrado, chame-o pelo nome.',
     '- Se o tutor não existir, peça o nome e use cadastrar_tutor. Para marcar, é preciso um pet — se não houver, pergunte nome e espécie e use cadastrar_pet. Espécie deve ser uma de: Canina, Felina, Lagomorfo, Aves, Equina, Bovina, Ovina, Caprina (ex.: gato = Felina, cachorro/cão = Canina).',
     '- Você pode perguntar (opcional) se o cliente sabe qual veterinário vai acompanhar o exame. Se ele disser um nome, use listar_veterinarios e passe o veterinario_id correspondente ao agendar. Se não souber, siga sem veterinário — é opcional, não insista.',
@@ -368,10 +363,30 @@ function systemPrompt(telefone: string, primeira: boolean, contexto?: string): s
       (process.env.AGENTE_CONTATO_EMERGENCIA ?? 'a clínica e/ou o veterinário responsável pelo pet') +
       '. A resposta DEVE conter essa orientação de buscar atendimento urgente (não responda apenas "vou acionar a equipe"). Seja breve e acolhedor; deixe claro que é urgente.',
     '- OUTROS sintomas/doença não-críticos, perguntas sobre resultado/diagnóstico, dúvidas técnicas, reclamações, ou qualquer coisa fora do escopo (ou que você não entenda): NÃO oriente clinicamente — use transferir_humano (motivo apropriado) e avise gentilmente que um atendente da equipe vai responder em breve.',
+    '- PEDIR PARA FALAR COM UMA PESSOA: só use transferir_humano se o cliente CONFIRMAR que quer falar com um atendente/pessoa. Apenas MENCIONAR um nome (ex.: "Dra Luciana", "Luciana") NÃO é pedido de transferência — "Luciana" é o nome da responsável e muitos clientes usam como referência. "Quero agendar uma ultra com a Dra Luciana" é um pedido de AGENDAMENTO (a Luciana pode ser a veterinária): siga o fluxo normal e, se fizer sentido, trate o nome como veterinário (listar_veterinarios). Só em algo ambíguo como "falar com a Luciana", confirme antes: pergunte se a pessoa quer mesmo falar com um atendente; só transfira se ela disser que sim.',
     '- Em caso de erro ao executar uma ação, não invente — informe que houve um problema e use transferir_humano (motivo erro_tecnico).',
     '',
     'ESTILO: cordial, acolhedora, clara e breve, em português do Brasil. Emojis com moderação. Faça uma pergunta por vez.',
     'FORMATAÇÃO WhatsApp: negrito com UM asterisco (*assim*), itálico com _assim_. NUNCA use ** (markdown), títulos com # nem tabelas.',
+  ].join('\n')
+}
+
+/**
+ * Parte VOLÁTIL do system prompt (muda por chamada) — fica DEPOIS do ponto de
+ * cache, então não invalida o cache da parte estável + tools.
+ */
+function systemVolatil(telefone: string, primeira: boolean, contexto?: string): string {
+  return [
+    `O telefone do cliente nesta conversa é ${telefone}.`,
+    primeira
+      ? 'Esta é a PRIMEIRA mensagem da conversa: apresente-se de forma acolhedora ("Olá! Eu sou a assistente virtual da BioPet 🐾") antes de ajudar.'
+      : 'Continue a conversa de forma natural, sem se reapresentar.',
+    contexto
+      ? `\nCONTEXTO RECENTE (mensagens que o cliente recebeu/enviou FORA de você — use para entender do que ele fala; não responda a elas diretamente):\n${contexto}`
+      : '',
+    '',
+    'CALENDÁRIO (use para converter dias da semana, "hoje" e "amanhã" em datas YYYY-MM-DD — NUNCA calcule a data de cabeça):',
+    calendarioRef(),
   ].join('\n')
 }
 
@@ -423,12 +438,20 @@ export async function responder(
 ): Promise<RespostaOrquestrador> {
   const client = getAnthropic()
   const executar = deps.executar ?? executarTool
-  const system = systemPrompt(telefone, historico.length === 0, deps.contexto)
+
+  // system em 2 blocos: estável (com cache_control → tools+estável viram prefixo
+  // cacheado, lido do cache nas rodadas seguintes) e volátil (depois do cache).
+  const system: Anthropic.TextBlockParam[] = [
+    { type: 'text', text: systemEstavel(), cache_control: { type: 'ephemeral' } },
+    { type: 'text', text: systemVolatil(telefone, historico.length === 0, deps.contexto) },
+  ]
 
   const messages: Anthropic.MessageParam[] = [
     ...(historico as Anthropic.MessageParam[]),
     { role: 'user', content: textoUsuario },
   ]
+
+  const uso = { input: 0, output: 0, cacheCriado: 0, cacheLido: 0 }
 
   for (let rodada = 0; rodada < MAX_RODADAS_TOOL; rodada++) {
     const resp = await client.messages.create({
@@ -438,6 +461,12 @@ export async function responder(
       tools: TOOLS,
       messages,
     })
+
+    const u = resp.usage as any
+    uso.input += u?.input_tokens ?? 0
+    uso.output += u?.output_tokens ?? 0
+    uso.cacheCriado += u?.cache_creation_input_tokens ?? 0
+    uso.cacheLido += u?.cache_read_input_tokens ?? 0
 
     messages.push({ role: 'assistant', content: resp.content })
 
@@ -463,6 +492,7 @@ export async function responder(
       .join('\n')
       .trim()
 
+    logUso(uso, rodada + 1)
     return {
       resposta: paraWhatsApp(texto) || 'Desculpe, não consegui responder agora.',
       historico: messages,
@@ -470,8 +500,20 @@ export async function responder(
   }
 
   // Excedeu as rodadas de tool — encerra com fallback.
+  logUso(uso, MAX_RODADAS_TOOL)
   return {
     resposta: 'Desculpe, tive uma dificuldade aqui. Vou pedir para um atendente te responder. 🙏',
     historico: messages,
   }
+}
+
+/** Loga o consumo de tokens de uma resposta (input/output/cache) para medição. */
+function logUso(
+  uso: { input: number; output: number; cacheCriado: number; cacheLido: number },
+  rodadas: number,
+): void {
+  console.log(
+    `[agente/uso] rodadas=${rodadas} input=${uso.input} output=${uso.output} ` +
+      `cache_criado=${uso.cacheCriado} cache_lido=${uso.cacheLido}`,
+  )
 }
