@@ -9,21 +9,9 @@ import {
   type ExameInput,
 } from '@/lib/agendamento-helpers'
 import type { FormaPagamento } from '@/lib/pricing'
-import { aplicarTravaRaioX, ehRaioXBase, ehRaioXAcrescimo, type ItemRaioX } from '@/lib/agente/raiox'
+import { raioXPrecisaAtendente, type ItemRaioX } from '@/lib/agente/raiox'
 
 type ExameAgente = ItemRaioX
-
-/** Resolve o nome do exame de acréscimo e aplica a trava de Raio-X (1 base só). */
-async function normalizarRaioX(lista: ExameAgente[]): Promise<ExameAgente[]> {
-  if (lista.filter(e => ehRaioXBase(e.tipo_exame)).length <= 1) return lista
-
-  let nomeAcrescimo = lista.find(e => ehRaioXAcrescimo(e.tipo_exame))?.tipo_exame
-  if (!nomeAcrescimo) {
-    const { data } = await supabase.from('comissoes_exame').select('tipo_exame')
-    nomeAcrescimo = (data ?? []).map(r => r.tipo_exame).find(ehRaioXAcrescimo)
-  }
-  return aplicarTravaRaioX(lista, nomeAcrescimo)
-}
 
 /**
  * Resolve a duração de cada tipo de exame pela tabela comissoes_exame (não confia
@@ -115,18 +103,27 @@ export async function POST(request: NextRequest) {
 
   // Lista de exames: usa `exames` (multi, com posição/descrição) se vier; senão
   // cai no `tipo_exame` único (compatibilidade).
-  const listaBruta: ExameAgente[] = Array.isArray(exames) && exames.length > 0
+  const listaExames: ExameAgente[] = Array.isArray(exames) && exames.length > 0
     ? exames
     : tipo_exame
       ? [{ tipo_exame, duracao_minutos, descricao: null }]
       : []
-  // Trava: só 1 "Raio-X" base; posições extras viram acréscimo.
-  const listaExames = await normalizarRaioX(listaBruta)
 
   if (!tutor_id || listaExames.length === 0 || !data_hora) {
     return NextResponse.json(
       { error: 'Campos "tutor_id", "tipo_exame" (ou "exames") e "data_hora" são obrigatórios.' },
       { status: 400 },
+    )
+  }
+
+  // Raio-X de mais de um estudo é julgamento clínico — não agendar pela IA.
+  if (raioXPrecisaAtendente(listaExames)) {
+    return NextResponse.json(
+      {
+        error: 'precisa_atendente',
+        mensagem: 'Raio-X de mais de uma região/estudo deve ser finalizado por um atendente (definição de estudos e preço). Use transferir_humano.',
+      },
+      { status: 422 },
     )
   }
 

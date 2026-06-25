@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { aplicarTravaRaioX, ehRaioXBase, ehRaioXAcrescimo } from '@/lib/agente/raiox'
+import {
+  contarItensRaioX,
+  raioXPrecisaAtendente,
+  ehRaioXBase,
+  ehRaioXAcrescimo,
+} from '@/lib/agente/raiox'
 
 const ACR = 'Raio-X Acréscimo por Estudo Adicional'
 
@@ -14,39 +19,34 @@ describe('classificação de Raio-X', () => {
   })
 })
 
-describe('aplicarTravaRaioX', () => {
-  it('converte bases excedentes em acréscimo, preservando a posição (descricao)', () => {
-    const lista = [
-      { tipo_exame: 'Raio-X', descricao: 'tórax LL' },
-      { tipo_exame: 'Raio-X', descricao: 'abdome VD' },
-      { tipo_exame: 'Raio-X', descricao: 'pelve' },
-    ]
-    const r = aplicarTravaRaioX(lista, ACR)
-    expect(r.map(e => e.tipo_exame)).toEqual(['Raio-X', ACR, ACR])
-    // mantém as posições
-    expect(r.map(e => e.descricao)).toEqual(['tórax LL', 'abdome VD', 'pelve'])
+describe('raioXPrecisaAtendente', () => {
+  it('UM Raio-X (um estudo, mesmo com projeções na descrição) NÃO precisa atendente', () => {
+    const lista = [{ tipo_exame: 'Raio-X', descricao: 'tórax VD e LL' }]
+    expect(contarItensRaioX(lista)).toBe(1)
+    expect(raioXPrecisaAtendente(lista)).toBe(false)
   })
 
-  it('não altera quando há só um Raio-X base', () => {
+  it('mais de um item de Raio-X (vários estudos) PRECISA atendente', () => {
+    const lista = [
+      { tipo_exame: 'Raio-X', descricao: 'tórax' },
+      { tipo_exame: 'Raio-X', descricao: 'abdome' },
+    ]
+    expect(raioXPrecisaAtendente(lista)).toBe(true)
+  })
+
+  it('Raio-X base + acréscimo também conta como múltiplo (precisa atendente)', () => {
     const lista = [
       { tipo_exame: 'Raio-X', descricao: 'tórax' },
       { tipo_exame: ACR, descricao: 'abdome' },
     ]
-    expect(aplicarTravaRaioX(lista, ACR)).toEqual(lista)
+    expect(raioXPrecisaAtendente(lista)).toBe(true)
   })
 
-  it('não altera sem nome de acréscimo', () => {
-    const lista = [{ tipo_exame: 'Raio-X' }, { tipo_exame: 'Raio-X' }]
-    expect(aplicarTravaRaioX(lista, undefined)).toEqual(lista)
-  })
-
-  it('não mexe em exames que não são Raio-X', () => {
+  it('exames não-Raio-X não disparam a regra', () => {
     const lista = [
-      { tipo_exame: 'Raio-X', descricao: 'tórax' },
       { tipo_exame: 'Ultrassom Abdominal' },
-      { tipo_exame: 'Raio-X', descricao: 'abdome' },
+      { tipo_exame: 'Raio-X', descricao: 'tórax' },
     ]
-    const r = aplicarTravaRaioX(lista, ACR)
-    expect(r.map(e => e.tipo_exame)).toEqual(['Raio-X', 'Ultrassom Abdominal', ACR])
+    expect(raioXPrecisaAtendente(lista)).toBe(false)
   })
 })

@@ -1,8 +1,11 @@
 /**
- * Trava de preço do Raio-X: cobra-se apenas UM "Raio-X" base; TODA posição além
- * da primeira é acréscimo. A IA às vezes monta vários bases (quando o
- * encaminhamento lista as posições separadas) — aqui convertemos os bases
- * excedentes no exame de acréscimo, preservando a descrição (posição).
+ * Regras de Raio-X para o agente.
+ *
+ * Definir "uma posição = um estudo" vs "estudo adicional" é julgamento clínico
+ * que a clínica não consegue formalizar em regras. Decisão: a IA só agenda
+ * Raio-X de UM estudo (um item "Raio-X", mesmo que com várias projeções na
+ * descrição). Se houver MAIS DE UM item de Raio-X (vários estudos), o backend
+ * recusa e a IA encaminha para um atendente definir estudos e preço.
  */
 
 export interface ItemRaioX {
@@ -17,21 +20,17 @@ export const ehRaioXBase = (t: string) =>
 export const ehRaioXAcrescimo = (t: string) =>
   /raio.?-?x/i.test(t) && /(acr[ée]scimo|adicional)/i.test(t)
 
-/**
- * Mantém o primeiro "Raio-X" base e converte os bases excedentes em
- * `nomeAcrescimo`. Não altera nada se houver 0 ou 1 base, ou se `nomeAcrescimo`
- * estiver ausente.
- */
-export function aplicarTravaRaioX<T extends ItemRaioX>(lista: T[], nomeAcrescimo?: string): T[] {
-  const bases = lista.filter(e => ehRaioXBase(e.tipo_exame))
-  if (bases.length <= 1 || !nomeAcrescimo) return lista
+const ehRaioX = (t: string) => ehRaioXBase(t) || ehRaioXAcrescimo(t)
 
-  let primeiro = true
-  return lista.map(e => {
-    if (ehRaioXBase(e.tipo_exame)) {
-      if (primeiro) { primeiro = false; return e }
-      return { ...e, tipo_exame: nomeAcrescimo }
-    }
-    return e
-  })
+/** Quantos itens relacionados a Raio-X há na lista (base + acréscimos). */
+export function contarItensRaioX(lista: ItemRaioX[]): number {
+  return lista.filter(e => ehRaioX(e.tipo_exame)).length
+}
+
+/**
+ * True quando o agendamento envolve mais de um estudo de Raio-X — caso que a IA
+ * NÃO deve precificar/agendar (vai para atendente).
+ */
+export function raioXPrecisaAtendente(lista: ItemRaioX[]): boolean {
+  return contarItensRaioX(lista) > 1
 }
