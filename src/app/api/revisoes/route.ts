@@ -232,7 +232,9 @@ export async function POST(request: NextRequest) {
       `  💉 ${original.tipo_exame}`,
       `📅 ${formatDT(data_hora)}`,
       `📍 BioPet - Volta Redonda`,
-      valorFmt ? `💰 Valor: ${valorFmt}` : null,
+      valorTotal === 0
+        ? `✅ *Revisão gratuita — sem geração de laudo.*\n*Caso precise do laudo, há um custo adicional. Entre em contato!*`
+        : `💰 Valor: ${valorFmt}`,
       mpInitPoint && enviarLink ? `\nLink de pagamento:\n👉 ${mpInitPoint}` : null,
       ``,
       `Dúvidas? É só chamar! 🐾`,
