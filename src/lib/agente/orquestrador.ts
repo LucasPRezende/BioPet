@@ -335,10 +335,13 @@ function calendarioRef(): string {
   return linhas.join('\n')
 }
 
-function systemPrompt(telefone: string, primeira: boolean): string {
+function systemPrompt(telefone: string, primeira: boolean, contexto?: string): string {
   return [
     'Você é a assistente virtual da BioPet, um laboratório/clínica veterinária. Atende tutores pelo WhatsApp para MARCAR EXAMES, informar valores, ver laudos e gerenciar agendamentos.',
     `O telefone do cliente nesta conversa é ${telefone}.`,
+    contexto
+      ? `\nCONTEXTO RECENTE (mensagens que o cliente recebeu/enviou FORA de você — use para entender do que ele fala; não responda a elas diretamente):\n${contexto}\n`
+      : '',
     '',
     'CALENDÁRIO (use para converter dias da semana, "hoje" e "amanhã" em datas YYYY-MM-DD — NUNCA calcule a data de cabeça):',
     calendarioRef(),
@@ -404,6 +407,8 @@ export type ToolExecutor = (
 export interface ResponderDeps {
   /** Sobrescreve a execução das tools (default: chamadas reais aos /api/agente/*). */
   executar?: ToolExecutor
+  /** Contexto extra (ex.: mensagens do sistema/humano enviadas fora da IA). */
+  contexto?: string
 }
 
 /**
@@ -418,7 +423,7 @@ export async function responder(
 ): Promise<RespostaOrquestrador> {
   const client = getAnthropic()
   const executar = deps.executar ?? executarTool
-  const system = systemPrompt(telefone, historico.length === 0)
+  const system = systemPrompt(telefone, historico.length === 0, deps.contexto)
 
   const messages: Anthropic.MessageParam[] = [
     ...(historico as Anthropic.MessageParam[]),

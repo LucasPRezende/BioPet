@@ -1,12 +1,19 @@
 /**
  * Integração com Evolution API para envio de mensagens WhatsApp.
  */
+import { registrarMensagemEnviada, type OrigemEnvio } from '@/lib/agente/outbound'
+
+/** Extrai o id da mensagem da resposta de envio da Evolution. */
+function idDaResposta(data: any): string | null {
+  return data?.key?.id ?? data?.messageId ?? null
+}
 
 export async function sendWhatsAppDocument(
   whatsapp: string,
   media: string, // URL pública OU conteúdo base64 do arquivo
   fileName: string,
   caption: string,
+  origem: OrigemEnvio = 'sistema',
 ): Promise<boolean> {
   const apiUrl   = process.env.EVOLUTION_API_URL
   const apiKey   = process.env.EVOLUTION_API_KEY
@@ -37,6 +44,8 @@ export async function sendWhatsAppDocument(
       console.error(`[Evolution API] sendMedia erro ${res.status}:`, await res.text())
       return false
     }
+    const data = await res.json().catch(() => null)
+    await registrarMensagemEnviada(number, idDaResposta(data), origem, null)
     return true
   } catch (err) {
     console.error('[Evolution API] Falha na requisição sendMedia:', err)
@@ -84,7 +93,11 @@ export async function getBase64FromMedia(
   }
 }
 
-export async function sendWhatsAppText(whatsapp: string, text: string): Promise<boolean> {
+export async function sendWhatsAppText(
+  whatsapp: string,
+  text: string,
+  origem: OrigemEnvio = 'sistema',
+): Promise<boolean> {
   const apiUrl   = process.env.EVOLUTION_API_URL
   const apiKey   = process.env.EVOLUTION_API_KEY
   const instance = process.env.EVOLUTION_INSTANCE
@@ -109,6 +122,11 @@ export async function sendWhatsAppText(whatsapp: string, text: string): Promise<
       console.error(`[Evolution API] Erro ${res.status}:`, await res.text())
       return false
     }
+    // Registra a saída: 'ia' já está no histórico (texto null); 'sistema' guarda
+    // o texto para virar contexto da IA. Serve também para o webhook distinguir
+    // mensagens nossas de uma resposta humana (fromMe).
+    const data = await res.json().catch(() => null)
+    await registrarMensagemEnviada(number, idDaResposta(data), origem, origem === 'sistema' ? text : null)
     return true
   } catch (err) {
     console.error('[Evolution API] Falha na requisição:', err)

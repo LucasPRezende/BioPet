@@ -5,12 +5,14 @@ import {
   salvarConversa,
   telefoneBloqueado,
   emAtendimentoHumano,
+  marcarAtendimentoHumano,
   type MensagemRecebida,
 } from '@/lib/agente/conversa'
 import { enfileirarMensagem } from '@/lib/agente/debounce'
 import { responder, acionarHumanoPorErro } from '@/lib/agente/orquestrador'
 import { sendWhatsAppText, getBase64FromMedia } from '@/lib/evolution'
 import { transcreverAudio, lerImagemEncaminhamento } from '@/lib/agente/midia'
+import { classificarFromMe, registrarHumano, contextoPendente } from '@/lib/agente/outbound'
 
 /**
  * Webhook de recepção do WhatsApp (Evolution API) — agente com IA.
@@ -64,15 +66,19 @@ async function processar(
 
     console.log(`[agente/webhook] de ${pushName ?? '?'} (${telefone}): "${texto.slice(0, 80)}"`)
 
-    const { resposta, historico } = await responder(telefone, texto, estado.historico)
+    // Contexto de mensagens enviadas FORA da IA (sistema/humano) na mesma thread.
+    const contexto = await contextoPendente(telefone)
+
+    const { resposta, historico } = await responder(telefone, texto, estado.historico, { contexto })
     await salvarConversa(telefone, historico, msgId)
-    await sendWhatsAppText(telefone, resposta)
+    await sendWhatsAppText(telefone, resposta, 'ia')
   } catch (err) {
     console.error('[agente/webhook] erro ao processar:', err)
     await acionarHumanoPorErro(telefone, texto)
     await sendWhatsAppText(
       telefone,
       'Tive um probleminha técnico aqui 🙏 Já avisei a equipe e em breve alguém vai te responder.',
+      'ia',
     ).catch(() => {})
   }
 }
@@ -83,7 +89,7 @@ async function processarMidia(msg: MensagemRecebida) {
   try {
     const media = await getBase64FromMedia(msg.rawKey!)
     if (!media) {
-      await sendWhatsAppText(telefone, 'Não consegui abrir seu arquivo 😕 Pode me mandar por texto?')
+      await sendWhatsAppText(telefone, 'Não consegui abrir seu arquivo 😕 Pode me mandar por texto?', 'ia')
       return
     }
 
@@ -93,7 +99,7 @@ async function processarMidia(msg: MensagemRecebida) {
     } else if (msg.tipoMidia === 'documento') {
       // Só sabemos ler PDF; outros documentos pedimos por outro meio.
       if (!/pdf/i.test(media.mimetype)) {
-        await sendWhatsAppText(telefone, 'Recebi seu arquivo, mas só consigo ler PDF ou foto 😕 Pode mandar assim?')
+        await sendWhatsAppText(telefone, 'Recebi seu arquivo, mas só consigo ler PDF ou foto 😕 Pode mandar assim?', 'ia')
         return
       }
       const desc = await lerImagemEncaminhamento(media.base64, media.mimetype, msg.legenda)
@@ -104,7 +110,7 @@ async function processarMidia(msg: MensagemRecebida) {
     }
 
     if (!texto || /^\(sem fala\)$/i.test(texto.trim())) {
-      await sendWhatsAppText(telefone, 'Não consegui entender o áudio 😕 Pode repetir ou me mandar por texto?')
+      await sendWhatsAppText(telefone, 'Não consegui entender o áudio 😕 Pode repetir ou me mandar por texto?', 'ia')
       return
     }
 
@@ -116,13 +122,43 @@ async function processarMidia(msg: MensagemRecebida) {
     await sendWhatsAppText(
       telefone,
       'Tive dificuldade para abrir seu arquivo 🙏 Pode me mandar as informações por texto?',
+      'ia',
     ).catch(() => {})
   }
+}
+
+/**
+ * Trata uma mensagem SAÍDA (fromMe): se foi nossa (IA/sistema) já está registrada;
+ * se o id é desconhecido, foi um HUMANO digitando — registra e pausa a IA.
+ */
+async function tratarEnviada(msg: MensagemRecebida) {
+  if (!msg.telefone || !msg.msgId) return
+  let origem = await classificarFromMe(msg.msgId)
+
+  // Anti-corrida: o eco de uma mensagem NOSSA pode chegar antes do registro
+  // commitar. Antes de concluir "humano", espera um pouco e reconfirma uma vez.
+  if (origem === 'humano') {
+    await new Promise((r) => setTimeout(r, 1500))
+    origem = await classificarFromMe(msg.msgId)
+  }
+
+  if (origem === 'humano') {
+    console.log(`[agente/webhook] humano respondeu → IA recua: ${msg.telefone}`)
+    await registrarHumano(msg.telefone, msg.msgId, msg.texto)
+    await marcarAtendimentoHumano(msg.telefone)
+  }
+  // 'ia' / 'sistema' / 'erro' → nada a fazer (já registrado no envio / degradação segura)
 }
 
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null)
   const msg = parseEvolutionWebhook(body)
+
+  // Mensagem SAÍDA (fromMe): trata fora do fluxo de resposta (contexto/humano).
+  if (msg.enviada) {
+    void tratarEnviada(msg)
+    return NextResponse.json({ ok: true, enviada: true })
+  }
 
   if (!msg.processavel) {
     return NextResponse.json({ ok: true, ignorado: msg.motivo })

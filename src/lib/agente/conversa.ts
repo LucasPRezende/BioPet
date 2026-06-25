@@ -33,6 +33,8 @@ export interface MensagemRecebida {
   legenda?: string
   /** `key` crua da mensagem — necessária para buscar o base64 na Evolution. */
   rawKey?: Record<string, any>
+  /** Mensagem SAÍDA (fromMe) — IA, sistema ou humano. Não é para responder. */
+  enviada?: boolean
 }
 
 /** Extrai o texto de mensagens de texto simples ou estendidas. */
@@ -68,12 +70,23 @@ export function parseEvolutionWebhook(body: any): MensagemRecebida {
   const key = data?.key
   if (!key) return { processavel: false, motivo: 'sem data.key' }
 
-  if (key.fromMe === true) return { processavel: false, motivo: 'fromMe' }
-
   const remoteJid: string = key.remoteJid ?? ''
   if (remoteJid.endsWith('@g.us')) return { processavel: false, motivo: 'grupo' }
 
   const telefone = resolverTelefone(key)
+
+  // Mensagem SAÍDA (fromMe): não é para a IA responder, mas precisamos dela para
+  // (a) distinguir nossas mensagens de uma resposta humana e (b) contexto.
+  if (key.fromMe === true) {
+    return {
+      processavel: false,
+      enviada: true,
+      telefone: telefone ?? undefined,
+      msgId: key.id,
+      texto: extrairTexto(data.message) ?? undefined,
+    }
+  }
+
   if (!telefone) return { processavel: false, motivo: 'sem telefone (apenas @lid)' }
 
   const msg = data.message ?? {}
@@ -202,4 +215,27 @@ export async function emAtendimentoHumano(telefone: string): Promise<boolean> {
     return false
   }
   return true
+}
+
+/**
+ * Marca o tutor em atendimento humano por `tempo_retorno_ia_horas` (config) — a
+ * IA recua. Usado quando um humano responde pelo WhatsApp (fromMe desconhecido).
+ */
+export async function marcarAtendimentoHumano(telefone: string): Promise<void> {
+  const telNorm = normalizarTelefone(telefone)
+  const digits = telefone.replace(/\D/g, '')
+
+  const { data: cfg } = await supabase
+    .from('configuracoes_agente')
+    .select('tempo_retorno_ia_horas')
+    .order('id')
+    .limit(1)
+    .maybeSingle()
+  const horas = Number(cfg?.tempo_retorno_ia_horas ?? 2)
+  const ate = new Date(Date.now() + horas * 3_600_000).toISOString()
+
+  await supabase
+    .from('tutores')
+    .update({ atendimento_humano: true, atendimento_humano_ate: ate })
+    .or(`telefone.eq.${telNorm},telefone.eq.${digits}`)
 }

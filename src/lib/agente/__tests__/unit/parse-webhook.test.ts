@@ -31,10 +31,13 @@ describe('parseEvolutionWebhook', () => {
     expect(r.pushName).toBe('Lucas Rezende')
   })
 
-  it('ignora mensagens próprias (fromMe)', () => {
+  it('mensagem própria (fromMe) não é processável, mas é marcada como enviada com dados', () => {
     const r = parseEvolutionWebhook(payload({ key: { fromMe: true } }))
     expect(r.processavel).toBe(false)
-    expect(r.motivo).toBe('fromMe')
+    expect(r.enviada).toBe(true)
+    expect(r.telefone).toBe('5524981367482')
+    expect(r.msgId).toBe('ABC123')
+    expect(r.texto).toBe('Olá')
   })
 
   it('ignora mensagens de grupo (@g.us)', () => {
@@ -129,11 +132,11 @@ describe('parseEvolutionWebhook', () => {
     expect(r.legenda).toBe('laudo do Rex')
   })
 
-  it('ignora mídia de mensagem própria (fromMe) também', () => {
+  it('mídia própria (fromMe) também não é processável (marcada como enviada)', () => {
     const r = parseEvolutionWebhook(
       payload({ key: { fromMe: true }, message: { conversation: undefined, audioMessage: {} } }),
     )
     expect(r.processavel).toBe(false)
-    expect(r.motivo).toBe('fromMe')
+    expect(r.enviada).toBe(true)
   })
 })
