@@ -10,6 +10,7 @@ import {
 } from '@/lib/agendamento-helpers'
 import type { FormaPagamento } from '@/lib/pricing'
 import { raioXPrecisaAtendente, type ItemRaioX } from '@/lib/agente/raiox'
+import { exameBloqueado } from '@/lib/agente/exames-guard'
 
 type ExameAgente = ItemRaioX
 
@@ -122,6 +123,25 @@ export async function POST(request: NextRequest) {
       {
         error: 'precisa_atendente',
         mensagem: 'Raio-X de mais de uma região/estudo deve ser finalizado por um atendente (definição de estudos e preço). Use transferir_humano.',
+      },
+      { status: 422 },
+    )
+  }
+
+  // Só agenda exames que existem na tabela de preços E não estão bloqueados.
+  // Pega sub-exames de bioquímica (TGP, TGO...), nomes inventados e desativados.
+  const [{ data: comissoesRows }, { data: cfgRow }] = await Promise.all([
+    supabase.from('comissoes_exame').select('tipo_exame'),
+    supabase.from('configuracoes_agente').select('exames_nao_agendaveis').order('id').limit(1).maybeSingle(),
+  ])
+  const validos = (comissoesRows ?? []).map(r => r.tipo_exame as string)
+  const naoAgendaveis = (cfgRow?.exames_nao_agendaveis as string[] | null) ?? []
+  const bloqueado = exameBloqueado(listaExames.map(e => e.tipo_exame), validos, naoAgendaveis)
+  if (bloqueado) {
+    return NextResponse.json(
+      {
+        error: 'precisa_atendente',
+        mensagem: `O exame "${bloqueado}" não pode ser agendado automaticamente — deve ser feito por um atendente. Use transferir_humano.`,
       },
       { status: 422 },
     )
