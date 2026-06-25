@@ -56,7 +56,7 @@ async function chamarApi(
 // Definição das tools expostas ao modelo
 // ---------------------------------------------------------------------------
 
-const TOOLS: Anthropic.Tool[] = [
+export const TOOLS: Anthropic.Tool[] = [
   {
     name: 'identificar_tutor',
     description:
@@ -353,7 +353,7 @@ function calendarioRef(): string {
  * cache_control para ser lida do cache do Claude nas rodadas seguintes.
  * NÃO inclua aqui nada que varie por chamada (telefone, calendário, contexto).
  */
-function systemEstavel(): string {
+export function systemEstavel(): string {
   return [
     'Você é a assistente virtual da BioPet, um laboratório/clínica veterinária. Atende tutores pelo WhatsApp para MARCAR EXAMES, informar valores, ver laudos e gerenciar agendamentos.',
     '',
@@ -395,7 +395,7 @@ function systemEstavel(): string {
  * Parte VOLÁTIL do system prompt (muda por chamada) — fica DEPOIS do ponto de
  * cache, então não invalida o cache da parte estável + tools.
  */
-function systemVolatil(
+export function systemVolatil(
   telefone: string,
   primeira: boolean,
   contexto?: string,

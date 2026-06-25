@@ -71,13 +71,28 @@ export interface Conversa {
   nomes: () => string[]
   /** Todo o texto que o bot respondeu, concatenado (minúsculo). */
   textos: () => string
+  /** Custo acumulado em USD (quando o responder reporta uso; default 0). */
+  custoUSD: () => number
 }
 
+/**
+ * Responder injetável: por padrão usa o orquestrador de produção (Claude). Pode
+ * receber um responder alternativo (ex.: OpenRouter) que opcionalmente devolve
+ * `uso.custoUSD` para a comparação de custo.
+ */
+export type ResponderFn = (
+  telefone: string,
+  texto: string,
+  historico: any[],
+  deps: { executar: ToolExecutor },
+) => Promise<{ resposta: string; historico: any[]; uso?: { custoUSD?: number } }>
+
 /** Cria uma conversa stateful com tools fake que registram as chamadas. */
-export function novaConversa(): Conversa {
+export function novaConversa(responderFn: ResponderFn = responder): Conversa {
   const calls: ToolCall[] = []
   const respostas: string[] = []
   let historico: any[] = []
+  let custo = 0
 
   const executar: ToolExecutor = async (nome, input) => {
     calls.push({ nome, input })
@@ -88,10 +103,12 @@ export function novaConversa(): Conversa {
     calls,
     nomes: () => calls.map((c) => c.nome),
     textos: () => respostas.join('\n').toLowerCase(),
+    custoUSD: () => custo,
     enviar: async (texto: string) => {
-      const r = await responder(TELEFONE, texto, historico, { executar })
+      const r = await responderFn(TELEFONE, texto, historico, { executar })
       historico = r.historico
       respostas.push(r.resposta)
+      custo += r.uso?.custoUSD ?? 0
       if (process.env.DEBUG_AGENTE) {
         console.log(`\n>>> USER: ${texto}\n<<< BOT: ${r.resposta}\n--- tools: ${calls.map((c) => c.nome).join(', ')}`)
       }

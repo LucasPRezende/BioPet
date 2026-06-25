@@ -8,7 +8,8 @@
     "start": "next start",
     "test": "vitest run src/lib/agente/__tests__/unit",
     "test:watch": "vitest src/lib/agente/__tests__/unit",
-    "test:agent": "vitest run src/lib/agente/__tests__/behavior"
+    "test:agent": "vitest run src/lib/agente/__tests__/behavior/agente.behavior.test.ts",
+    "test:compare": "vitest run src/lib/agente/__tests__/behavior/comparar-modelos.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.105.0",
