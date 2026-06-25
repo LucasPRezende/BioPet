@@ -46,6 +46,13 @@ export async function GET(request: NextRequest) {
   const expedienteFim = new Date(`${data}T00:00:00`)
   expedienteFim.setHours(hFim, mFim, 0, 0)
 
+  // Para HOJE, não oferecer horários que já passaram (hora de Brasília).
+  const tz = 'America/Sao_Paulo'
+  const agora = new Date()
+  const hojeSP = agora.toLocaleDateString('en-CA', { timeZone: tz })           // YYYY-MM-DD
+  const horaSP = agora.toLocaleTimeString('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit' }) // HH:MM
+  const ehHoje = data === hojeSP
+
   const horarios_livres: string[] = []
   const cursor = new Date(expedienteInicio)
 
@@ -55,9 +62,10 @@ export async function GET(request: NextRequest) {
     // Slot não pode ultrapassar o fim do expediente
     if (slotFim <= expedienteFim) {
       const conflito = ocupados.some(oc => cursor < oc.fim && slotFim > oc.inicio)
-      if (!conflito) {
-        const hh = String(cursor.getHours()).padStart(2, '0')
-        const mm = String(cursor.getMinutes()).padStart(2, '0')
+      const hh = String(cursor.getHours()).padStart(2, '0')
+      const mm = String(cursor.getMinutes()).padStart(2, '0')
+      const passou = ehHoje && `${hh}:${mm}` <= horaSP
+      if (!conflito && !passou) {
         horarios_livres.push(`${hh}:${mm}`)
       }
     }

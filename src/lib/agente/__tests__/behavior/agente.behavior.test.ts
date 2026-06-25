@@ -87,6 +87,18 @@ run('comportamento do agente (IA real, tools fake)', () => {
     expect(c.nomes().length).toBeGreaterThan(0) // seguiu o fluxo (identificar/etc.)
   })
 
+  it('sub-exame de bioquímica (TGO) encaminha cedo, sem pedir data/hora nem agendar', OPTS, async () => {
+    const c = novaConversa()
+    await c.enviar('oi, quero agendar TGO (AST) para a Cacau')
+    // Se não encaminhou de cara, dá uma 2ª chance (variação do modelo).
+    if (!c.nomes().includes('transferir_humano')) await c.enviar('é a Cacau mesmo')
+
+    expect(c.nomes()).toContain('transferir_humano')
+    expect(c.nomes()).not.toContain('agendar')
+    // Não deve ter ido atrás de horário antes de encaminhar.
+    expect(c.nomes()).not.toContain('horarios_livres')
+  })
+
   it('aceita agendamento em fim de semana (não recusa por ser sábado/domingo)', OPTS, async () => {
     const c = novaConversa()
     await c.enviar('queria marcar um ultrassom abdominal pro Rex no próximo sábado de manhã')

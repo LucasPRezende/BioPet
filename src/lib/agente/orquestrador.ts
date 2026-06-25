@@ -375,7 +375,7 @@ function systemEstavel(): string {
     '- O data_hora do agendamento é horário local no formato YYYY-MM-DDTHH:MM:00.',
     '- O agendamento entra como PENDENTE: avise que a clínica vai confirmar; não prometa confirmação imediata.',
     '- NUNCA ofereça ou marque exame gratuito (gratuidade é exclusiva da clínica/admin).',
-    '- BIOQUÍMICA: os sub-exames de bioquímica (ex.: TGP/ALT, TGO/AST, ureia, creatinina — aparecem em consultar_precos sob "bioquimica") NÃO são agendáveis individualmente por você. Se o cliente quiser bioquímica ou qualquer um desses, confirme que a BioPet faz, mas use transferir_humano para um atendente concluir. Só agende exames da lista principal de consultar_precos.',
+    '- BIOQUÍMICA: os sub-exames de bioquímica (ex.: TGP/ALT, TGO/AST, ureia, creatinina — aparecem em consultar_precos sob "bioquimica") NÃO são agendáveis individualmente por você. ASSIM QUE o cliente pedir bioquímica ou qualquer um desses, informe LOGO que a BioPet faz, mas que esse exame é agendado por um atendente, e use transferir_humano de imediato — NÃO pergunte data/horário nem monte resumo. Só agende exames da lista principal de consultar_precos.',
     '- LAUDO: para enviar um laudo, use listar_laudos, confirme com o cliente qual ele quer (pet/exame/data) e use enviar_laudo com o id. O laudo vai como PDF — NUNCA mande link (os links exigem login).',
     '- NÃO dê orientação clínica/veterinária nem interprete resultados. Sua função é só agendamento/laudo/preço.',
     '- SINTOMA CRÍTICO / EMERGÊNCIA (sangramento, convulsão, dificuldade para respirar, não levanta, trauma/atropelamento, suspeita de envenenamento, vômito/diarreia com sangue, parto complicado, distensão abdominal súbita): responda DIRETAMENTE em texto (sem depender de chamar tool), orientando a procurar atendimento veterinário IMEDIATO em ' +
@@ -408,7 +408,7 @@ function systemVolatil(
       ? 'Esta é a PRIMEIRA mensagem da conversa: apresente-se de forma acolhedora ("Olá! Eu sou a assistente virtual da BioPet 🐾") antes de ajudar.'
       : 'Continue a conversa de forma natural, sem se reapresentar.',
     naoAgendaveis.length > 0
-      ? `\nEXAMES QUE VOCÊ NÃO PODE AGENDAR (a BioPet REALIZA estes exames, mas o agendamento deles é só com atendente): ${naoAgendaveis.join('; ')}. Se o cliente pedir um desses, confirme que a BioPet FAZ o exame, mas explique que para concluir o agendamento dele você vai chamar um atendente — e use transferir_humano (motivo pergunta_tecnica). NÃO tente agendá-lo você mesma.`
+      ? `\nEXAMES QUE VOCÊ NÃO PODE AGENDAR (a BioPet REALIZA estes exames, mas o agendamento deles é só com atendente): ${naoAgendaveis.join('; ')}. ASSIM QUE o cliente indicar que quer um desses (ou um sub-exame de bioquímica), informe LOGO que a BioPet faz, mas que para esse exame você vai chamar um atendente, e use transferir_humano (motivo pergunta_tecnica) IMEDIATAMENTE — NÃO pergunte data/horário, NÃO monte resumo, NÃO tente agendar.`
       : '',
     faq
       ? `\nFAQ / ORIENTAÇÕES DA CLÍNICA (use para responder dúvidas operacionais, ex.: como pagar online. Se a dúvida não estiver coberta aqui e for fora do seu escopo, use transferir_humano):\n${faq}`
@@ -417,6 +417,7 @@ function systemVolatil(
       ? `\nCONTEXTO RECENTE (mensagens que o cliente recebeu/enviou FORA de você — use para entender do que ele fala; não responda a elas diretamente):\n${contexto}`
       : '',
     '',
+    `Agora são ${new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })} (horário de Brasília). Para "hoje", só ofereça horários DEPOIS da hora atual (o sistema já filtra os passados em horarios_livres). "Próximo horário livre" = o primeiro da lista de horarios_livres.`,
     'CALENDÁRIO (use para converter dias da semana, "hoje" e "amanhã" em datas YYYY-MM-DD — NUNCA calcule a data de cabeça):',
     calendarioRef(),
   ].join('\n')
