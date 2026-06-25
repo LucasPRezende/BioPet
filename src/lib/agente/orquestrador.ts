@@ -114,20 +114,31 @@ const TOOLS: Anthropic.Tool[] = [
   {
     name: 'agendar',
     description:
-      'Cria o agendamento. Só chame APÓS confirmação explícita do cliente (pet, exame, data/hora e valor). O agendamento entra como pendente para a clínica confirmar.',
+      'Cria o agendamento. Só chame APÓS confirmação explícita do cliente (pet, exame(s), data/hora e valor). O preço é calculado pelo sistema — você não precisa passar valor. O agendamento entra como pendente para a clínica confirmar.',
     input_schema: {
       type: 'object',
       properties: {
         tutor_id: { type: 'number' },
         pet_id: { type: 'number' },
-        tipo_exame: { type: 'string' },
+        exames: {
+          type: 'array',
+          description:
+            'Exames a agendar. Para 1 exame simples, lista com 1 item. RAIO-X com mais de uma posição: inclua um item "Raio-X" e, para CADA posição adicional, um item com o tipo do acréscimo (o nome exato vem de consultar_precos, ex.: "Raio-X Acréscimo por Estudo Adicional") e descricao = a posição (ex.: "tórax LL", "abdome VD").',
+          items: {
+            type: 'object',
+            properties: {
+              tipo_exame: { type: 'string' },
+              descricao: { type: 'string', description: 'Posição/projeção ou detalhe deste item (opcional)' },
+            },
+            required: ['tipo_exame'],
+          },
+        },
+        tipo_exame: { type: 'string', description: 'Alternativa a "exames" para um único exame simples.' },
         data_hora: { type: 'string', description: 'YYYY-MM-DDTHH:MM:00 (horário local)' },
-        valor: { type: 'number' },
-        duracao_minutos: { type: 'number' },
         forma_pagamento: { type: 'string', description: "'pix' ou 'cartao'" },
         veterinario_id: { type: 'number', description: 'Opcional — id do veterinário responsável (de listar_veterinarios)' },
       },
-      required: ['tutor_id', 'tipo_exame', 'data_hora'],
+      required: ['tutor_id', 'data_hora'],
     },
   },
   {
@@ -236,6 +247,7 @@ async function executarTool(
         status: 'pendente',
         origem: 'agente',
       })
+    // (input.exames já vai no spread acima quando presente)
     case 'meus_agendamentos':
       return chamarApi(`/api/agente/meus-agendamentos?telefone=${tel}`, 'GET')
     case 'cancelar_agendamento':
@@ -354,6 +366,8 @@ function systemEstavel(): string {
     '- Para valores, use consultar_precos. NUNCA invente preços.',
     '- Para horários, use horarios_livres com a data desejada (YYYY-MM-DD). Só ofereça horários retornados por ela.',
     '- HORÁRIO COMERCIAL: segunda a sexta, 9h às 16h30. Fora disso (noite, sábado, domingo, feriado) é HORÁRIO ESPECIAL — você PODE agendar normalmente, mas avise que é horário especial e informe o preço especial (campo "fora_horario" em consultar_precos, quando o exame varia por horário). Em horário comercial use o preço comercial.',
+    '- RAIO-X COM VÁRIAS POSIÇÕES: a primeira posição é o "Raio-X" normal; CADA posição adicional custa um acréscimo (na lista de consultar_precos aparece como algo tipo "Raio-X Acréscimo por Estudo Adicional"). Pergunte quais/quantas posições o cliente quer (ex.: tórax LL, abdome VD) e some no preço. Ao agendar, passe o parâmetro "exames": um item "Raio-X" + um item do acréscimo para CADA posição adicional, com descricao = a posição. NÃO calcule o preço de cabeça: some os itens conforme consultar_precos (o sistema confere e recalcula).',
+    '- VALOR: o sistema calcula o preço final no backend a partir dos exames; você informa o valor ao cliente com base em consultar_precos, mas não precisa enviar valor ao agendar.',
     '- Antes de agendar, mostre um resumo (pet, exame, data/hora, valor) e peça confirmação explícita. Só chame agendar após o cliente confirmar.',
     '- O data_hora do agendamento é horário local no formato YYYY-MM-DDTHH:MM:00.',
     '- O agendamento entra como PENDENTE: avise que a clínica vai confirmar; não prometa confirmação imediata.',

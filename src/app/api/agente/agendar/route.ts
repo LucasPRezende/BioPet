@@ -1,7 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { verifyAgentKey } from '@/lib/agent-auth'
-import { verificarConflito } from '@/lib/agendamento-helpers'
+import {
+  verificarConflito,
+  precificarExames,
+  insertExames,
+  recalcularTotal,
+  type ExameInput,
+} from '@/lib/agendamento-helpers'
+import type { FormaPagamento } from '@/lib/pricing'
+
+interface ExameAgente {
+  tipo_exame: string
+  duracao_minutos?: number
+  descricao?: string | null
+}
+
+/**
+ * Resolve a duração de cada tipo de exame pela tabela comissoes_exame (não confia
+ * na duração que a IA mandar). Default 30 min se não houver cadastro.
+ */
+async function resolverDuracoes(tipos: string[]): Promise<Map<string, number>> {
+  const m = new Map<string, number>()
+  if (tipos.length === 0) return m
+  const { data } = await supabase
+    .from('comissoes_exame')
+    .select('tipo_exame, duracao_minutos')
+    .in('tipo_exame', Array.from(new Set(tipos)))
+  for (const r of data ?? []) m.set(r.tipo_exame, r.duracao_minutos ?? 30)
+  return m
+}
 
 const DIAS = [
   'domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado',
@@ -71,19 +99,44 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null)
   const {
     tutor_id, pet_id, tipo_exame, data_hora,
-    duracao_minutos, valor, forma_pagamento,
+    duracao_minutos, forma_pagamento,
     google_calendar_id, observacoes, status, origem, veterinario_id,
+    exames,
   } = body ?? {}
 
-  if (!tutor_id || !tipo_exame || !data_hora) {
+  // Lista de exames: usa `exames` (multi, com posição/descrição) se vier; senão
+  // cai no `tipo_exame` único (compatibilidade).
+  const listaExames: ExameAgente[] = Array.isArray(exames) && exames.length > 0
+    ? exames
+    : tipo_exame
+      ? [{ tipo_exame, duracao_minutos, descricao: null }]
+      : []
+
+  if (!tutor_id || listaExames.length === 0 || !data_hora) {
     return NextResponse.json(
-      { error: 'Campos "tutor_id", "tipo_exame" e "data_hora" são obrigatórios.' },
+      { error: 'Campos "tutor_id", "tipo_exame" (ou "exames") e "data_hora" são obrigatórios.' },
       { status: 400 },
     )
   }
 
+  // Backend é a fonte de verdade do preço e da duração.
+  const forma: FormaPagamento = String(forma_pagamento ?? '').toLowerCase().includes('cartao') ? 'cartao' : 'pix'
+  const duracoes = await resolverDuracoes(listaExames.map(e => e.tipo_exame))
+  const entrada: ExameInput[] = listaExames.map(e => ({
+    tipo_exame:      e.tipo_exame,
+    duracao_minutos: e.duracao_minutos ?? duracoes.get(e.tipo_exame) ?? 30,
+    valor:           0, // recalculado por precificarExames
+    descricao:       e.descricao ?? null,
+  }))
+
+  const precificados = await precificarExames(entrada, {
+    forma, gratuito: false, bio: [], dataHora: data_hora, encaixe: false,
+  })
+  const totalDuracao = entrada.reduce((s, e) => s + (e.duracao_minutos ?? 0), 0)
+  const tipoExameStr = listaExames.map(e => e.tipo_exame).join(', ')
+
   // Verifica conflito de horário
-  const conflito = await verificarConflito(data_hora, duracao_minutos ?? 30)
+  const conflito = await verificarConflito(data_hora, totalDuracao)
   if (conflito) {
     return NextResponse.json(
       { error: 'Já existe um agendamento neste horário.', conflito_id: conflito },
@@ -96,10 +149,10 @@ export async function POST(request: NextRequest) {
     .insert({
       tutor_id:           Number(tutor_id),
       pet_id:             pet_id ? Number(pet_id) : null,
-      tipo_exame,
+      tipo_exame:         tipoExameStr,
       data_hora,
-      duracao_minutos:    duracao_minutos ?? null,
-      valor:              valor ?? null,
+      duracao_minutos:    totalDuracao,
+      valor:              null, // definido por recalcularTotal abaixo
       veterinario_id:     veterinario_id ? Number(veterinario_id) : null,
       forma_pagamento:    forma_pagamento ?? 'a confirmar',
       google_calendar_id: google_calendar_id ?? null,
@@ -113,16 +166,20 @@ export async function POST(request: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  // Grava cada exame (com a posição em `descricao`) e fecha o total pela soma.
+  await insertExames(data.id, precificados)
+  const total = await recalcularTotal(data.id)
+
   // Notifica o submenu /admin/notificacoes (agendamentos do agente/clínica).
   await registrarNotificacaoAgendamento(
     data.id,
     Number(tutor_id),
     pet_id ? Number(pet_id) : null,
-    tipo_exame,
+    tipoExameStr,
     data_hora,
-    valor ?? null,
+    total,
     origem === 'agente' ? 'assistente (WhatsApp)' : (origem ?? 'sistema'),
   )
 
-  return NextResponse.json({ agendamento_id: data.id }, { status: 201 })
+  return NextResponse.json({ agendamento_id: data.id, valor_total: total }, { status: 201 })
 }
