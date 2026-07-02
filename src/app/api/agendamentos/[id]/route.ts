@@ -56,6 +56,7 @@ export async function PATCH(
     sedacao_necessaria, pet_internado, veterinario_id,
     status_pagamento, agendamento_exames_update,
     exames_remover, exames_adicionar, laudo_dispensado,
+    notificar,
   } = body ?? {}
 
   const STATUSES = ['pendente', 'agendado', 'em atendimento', 'concluído', 'cancelado']
@@ -179,8 +180,8 @@ export async function PATCH(
     if (mudouPagamento) await reconciliarLinkPagamento(Number(params.id), a, d)
   }
 
-  // Notifica tutor quando data/hora foi alterada
-  if (data_hora !== undefined) {
+  // Notifica tutor quando data/hora foi alterada — a menos que o admin peça para salvar em silêncio
+  if (data_hora !== undefined && notificar !== false) {
     const { data: ag } = await supabase
       .from('agendamentos')
       .select('tipo_exame, data_hora, valor, tutores(nome, telefone), pets(nome)')

@@ -239,6 +239,7 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
   const [vetId,        setVetId]        = useState(String(ag.veterinario_id ?? ''))
   const [obs,              setObs]              = useState(ag.observacoes ?? '')
   const [laudoDispensado,  setLaudoDispensado]  = useState(ag.laudo_dispensado ?? false)
+  const [notificar,        setNotificar]        = useState(true)
   const [examesAtivos,       setExamesAtivos]       = useState<AgExame[]>(ag.agendamento_exames ?? [])
   const [exameParaAdicionar, setExameParaAdicionar] = useState('')
   const [vets,      setVets]      = useState<{ id: number; nome: string }[]>([])
@@ -417,6 +418,7 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
       ...(examesRemovidosTipos.length > 0 && { exames_remover: examesRemovidosTipos }),
       ...(examesAdicionarPayload.length > 0 && { exames_adicionar: examesAdicionarPayload }),
       laudo_dispensado: laudoDispensado,
+      notificar,
     }
     const res = await fetch(`/api/agendamentos/${ag.id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
@@ -743,6 +745,11 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
               <input type="checkbox" checked={laudoDispensado} onChange={e => setLaudoDispensado(e.target.checked)}
                 className="w-4 h-4 rounded border-gray-300 text-[#8a6e36] focus:ring-[#8a6e36]" />
               <span className="text-sm text-gray-600">Laudo dispensado <span className="text-gray-400 text-xs">(gratuito ou emissão não solicitada)</span></span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input type="checkbox" checked={notificar} onChange={e => setNotificar(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-[#8a6e36] focus:ring-[#8a6e36]" />
+              <span className="text-sm text-gray-600">Notificar o tutor pelo WhatsApp <span className="text-gray-400 text-xs">(desmarque para salvar em silêncio)</span></span>
             </label>
             <div>
               <label className="block text-xs font-semibold text-gray-500 mb-1">Observações</label>
@@ -1146,20 +1153,21 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
                     const tipo   = exame.tipo_exame
                     const desc   = exame.descricao?.trim() || null
                     const isBio  = tipo.toLowerCase().includes('bioqu')
+                    const isHemo = tipo.toLowerCase().includes('hemo')
                     const params = new URLSearchParams({ agendamento_id: String(ag.id), tipo_exame: tipo })
                     if (desc) params.set('descricao', desc)
-                    const href   = isBio
-                      ? `/admin/novo-bioquimica?agendamento_id=${ag.id}`
-                      : `/admin/novo?${params.toString()}`
+                    const href   = isBio  ? `/admin/novo-bioquimica?agendamento_id=${ag.id}`
+                                 : isHemo ? `/admin/novo-hemogasometria?agendamento_id=${ag.id}`
+                                 : `/admin/novo?${params.toString()}`
                     return (
                       <Link key={i} href={href}
                         className={`flex items-center justify-between w-full font-bold text-sm px-4 py-3 rounded-xl transition ${
-                          isBio
-                            ? 'bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700'
-                            : 'bg-[#c4a35a]/10 hover:bg-[#c4a35a]/20 border border-[#c4a35a]/40 text-[#8a6e36]'
+                          isBio  ? 'bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700'
+                        : isHemo ? 'bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700'
+                                 : 'bg-[#c4a35a]/10 hover:bg-[#c4a35a]/20 border border-[#c4a35a]/40 text-[#8a6e36]'
                         }`}
                         onClick={onClose}>
-                        <span>{isBio ? '🧪' : '📋'} Emitir laudo — {tipo}{desc ? ` — ${desc}` : ''}</span>
+                        <span>{isBio ? '🧪' : isHemo ? '🫁' : '📋'} Emitir laudo — {tipo}{desc ? ` — ${desc}` : ''}</span>
                         <span>→</span>
                       </Link>
                     )

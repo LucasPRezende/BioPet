@@ -12,6 +12,7 @@ export interface BioquimicaExame {
   status:    'N' | 'H' | 'L' | ''
   valor_min: number | null
   valor_max: number | null
+  grupo?:    string
 }
 
 export interface BioquimicaPDFData {
@@ -28,6 +29,8 @@ export interface BioquimicaPDFData {
   clinica:    string
   material:   string
   data_laudo: string
+  titulo?:    string
+  compact?:   boolean
   resultados: BioquimicaExame[]
 }
 
@@ -132,7 +135,34 @@ export async function generateBioquimicaPDF(data: BioquimicaPDFData): Promise<Bu
   html = html.replace('</head>', `<style>
     .num, .range-labels { font-family: 'Courier New', Courier, monospace !important; }
     * { -webkit-font-smoothing: antialiased; }
+    .group-header td {
+      background: var(--teal-soft);
+      color: var(--ink);
+      font-weight: 700;
+      font-size: 7.8pt;
+      text-transform: uppercase;
+      letter-spacing: 0.9px;
+      padding: 1.5mm 4mm;
+      border-top: 1.5px solid var(--teal);
+      border-bottom: 1px solid var(--teal);
+    }
+    .group-header:first-child td { border-top: none; }
+    ${data.compact ? `
+    body { font-size: 8pt; }
+    table.exams { font-size: 7.5pt; }
+    table.exams tbody td { padding: 0.7mm 2mm; }
+    table.exams thead th { padding: 1.2mm 2mm; font-size: 6.5pt; }
+    .group-header td { padding: 1mm 4mm; font-size: 7pt; }
+    .info-card { padding: 2.5mm 3mm; }
+    .dates-bar { padding: 2mm 6mm; }
+    .range { min-width: 24mm; }
+    .range-track { height: 3px; }
+    ` : ''}
   </style></head>`)
+
+  if (data.titulo) {
+    html = html.replace('<h2>Perfil bioquímico</h2>', `<h2>${esc(data.titulo)}</h2>`)
+  }
 
   // ── Build card values ──────────────────────────────────────────────────────
   const telefoneFormatado = formatPhone(data.telefone)
@@ -186,10 +216,16 @@ export async function generateBioquimicaPDF(data: BioquimicaPDFData): Promise<Bu
   )
 
   // ── Exam rows ──────────────────────────────────────────────────────────────
-  const examRows = data.resultados
-    .filter(r => r.valor.trim() !== '')
-    .map(buildExamRow)
-    .join('\n')
+  let lastGrupo = ''
+  const examRowParts: string[] = []
+  for (const r of data.resultados.filter(r => r.valor.trim() !== '')) {
+    if (r.grupo && r.grupo !== lastGrupo) {
+      examRowParts.push(`<tr class="group-header"><td colspan="7">${esc(r.grupo)}</td></tr>`)
+      lastGrupo = r.grupo
+    }
+    examRowParts.push(buildExamRow(r))
+  }
+  const examRows = examRowParts.join('\n')
 
   html = html.replace(/<tbody>[\s\S]*?<\/tbody>/, `<tbody>${examRows}</tbody>`)
 
