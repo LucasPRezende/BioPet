@@ -107,7 +107,10 @@ export async function POST(request: NextRequest) {
     .select('*')
     .in('tipo_exame', tiposNoAgendamento)
     .eq('permite_revisao', true)
-  const config = (configs ?? [])[0] ?? null
+  // Primeiro tipo na ordem do agendamento — mesma regra do buscar-original e do front
+  const config = tiposNoAgendamento
+    .map((t: string) => (configs ?? []).find(c => c.tipo_exame === t))
+    .find(Boolean) ?? null
 
   if (!config) {
     return NextResponse.json({ error: `O exame "${original.tipo_exame}" não permite revisão.` }, { status: 422 })

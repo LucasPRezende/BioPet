@@ -23,6 +23,7 @@ interface AgendamentoOriginal {
 
 interface RevisaoConfig {
   tipo_exame: string
+  permite_revisao: boolean
   prazo_dias: number
   valor_horario_comercial: number
   valor_fora_comercial: number
@@ -130,7 +131,14 @@ export default function NovaRevisaoPage() {
     const res = await fetch('/api/revisoes/config')
     if (res.ok) {
       const configs: RevisaoConfig[] = await res.json()
-      setConfig(configs.find(c => c.tipo_exame === ag.tipo_exame) ?? null)
+      // Suporta tipo_exame combinado (ex: "Raio-X, Ultrassom Abdominal Total"):
+      // usa o primeiro tipo do agendamento que permite revisão (mesma regra da API)
+      const tipos = ag.tipo_exame.split(',').map(t => t.trim())
+      setConfig(
+        tipos
+          .map(t => configs.find(c => c.tipo_exame === t && c.permite_revisao))
+          .find(Boolean) ?? null
+      )
     }
   }
 
@@ -269,6 +277,18 @@ export default function NovaRevisaoPage() {
           <button onClick={() => router.push('/admin/revisoes')}
             className="w-full bg-[#19202d] hover:bg-[#232d3f] text-white font-bold py-3 rounded-lg transition text-sm">
             Ver revisões
+          </button>
+        </div>
+      )}
+
+      {original && !config && !linkPagamento && (
+        <div className="bg-white rounded-xl border shadow-sm p-6 text-center space-y-3">
+          <p className="text-sm text-gray-600">
+            Não foi encontrada configuração de revisão para o exame <strong>{original.tipo_exame}</strong>.
+          </p>
+          <button onClick={() => { setOriginal(null); setConfig(null) }}
+            className="text-sm font-semibold text-[#8a6e36] hover:underline">
+            ← Voltar para a busca
           </button>
         </div>
       )}
