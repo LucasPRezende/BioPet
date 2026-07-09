@@ -8,6 +8,7 @@ import LaudoSucesso from '@/components/LaudoSucesso'
 
 const RichTextEditor = dynamic(() => import('@/components/RichTextEditor'), { ssr: false })
 import TutorBusca from '@/components/TutorBusca'
+import TelefoneInput from '@/components/TelefoneInput'
 
 const SEXOS    = ['Macho', 'Fêmea', 'Não informado']
 
@@ -817,8 +818,9 @@ export default function NovoLaudoPage() {
                         placeholder="Nome completo" required className={INPUT} />
                     </Field>
                     <Field label="Telefone" required>
-                      <input type="tel" name="telefone" value={form.telefone} onChange={handleChange}
-                        placeholder="(11) 99999-9999" required className={INPUT} />
+                      <TelefoneInput value={form.telefone}
+                        onChange={v => setForm(p => ({ ...p, telefone: v }))}
+                        required inputClass={INPUT} />
                     </Field>
                   </>
                 )}

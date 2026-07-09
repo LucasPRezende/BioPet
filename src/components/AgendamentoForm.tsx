@@ -6,6 +6,7 @@ import { ESPECIES } from '@/lib/especies'
 import { isHorarioEspecial as isHorarioEspecialLib, motivoHorarioEspecial } from '@/lib/feriados'
 import { precoExame } from '@/lib/pricing'
 import { normalizeTelefone } from '@/lib/telefone'
+import TelefoneInput from '@/components/TelefoneInput'
 
 // ─── Interfaces ────────────────────────────────────────────────────────────────
 
@@ -618,13 +619,11 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
             <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
               Telefone <span className="text-red-400">*</span>
             </label>
-            <input
-              type="tel"
+            <TelefoneInput
               value={telefone}
-              onChange={e => setTelefone(e.target.value)}
+              onChange={setTelefone}
               readOnly={!!tutorInfo}
-              placeholder="(24) 99999-9999"
-              className={INPUT + (tutorInfo ? ' bg-gray-50 text-gray-500' : '')}
+              inputClass={INPUT + (tutorInfo ? ' bg-gray-50 text-gray-500' : '')}
             />
           </div>
         )}

@@ -34,7 +34,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Telefone inválido.' }, { status: 400 })
   }
 
-  const telNorm = normalizeTelefone(telefone)
+  // Normaliza a partir do valor cru — o "+" indica DDI explícito (ex.: +54).
+  const telNorm = normalizeTelefone(body.telefone)
 
   const { data, error } = await supabase
     .from('tutores')

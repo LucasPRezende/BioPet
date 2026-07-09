@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { ESPECIES, especieIcon } from '@/lib/especies'
+import TelefoneInput from '@/components/TelefoneInput'
 
 interface Pet  {
   id: number; nome: string; especie: string | null; raca: string | null; sexo: string | null
@@ -321,9 +322,9 @@ export default function TutoresPage() {
                 <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
                   Telefone (WhatsApp) <span className="text-red-400">*</span>
                 </label>
-                <input type="tel" value={novoTutorForm.telefone}
-                  onChange={e => setNovoTutorForm(p => ({ ...p, telefone: e.target.value }))}
-                  placeholder="(24) 99999-9999" required className={INPUT} />
+                <TelefoneInput value={novoTutorForm.telefone}
+                  onChange={v => setNovoTutorForm(p => ({ ...p, telefone: v }))}
+                  required inputClass={INPUT} />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Nome</label>
@@ -370,9 +371,9 @@ export default function TutoresPage() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Telefone</label>
-                <input type="tel" value={editTutorForm.telefone}
-                  onChange={e => setEditTutorForm(p => ({ ...p, telefone: e.target.value }))}
-                  placeholder="(24) 99999-9999" className={INPUT} />
+                <TelefoneInput value={editTutorForm.telefone}
+                  onChange={v => setEditTutorForm(p => ({ ...p, telefone: v }))}
+                  inputClass={INPUT} />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">CPF <span className="text-gray-300 font-normal">(opcional)</span></label>

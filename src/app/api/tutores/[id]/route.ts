@@ -27,8 +27,8 @@ export async function PATCH(
   if (body.nome !== undefined)     updates.nome     = body.nome?.trim() || null
   if (body.cpf  !== undefined)     updates.cpf      = body.cpf?.replace(/\D/g, '') || null
   if (body.telefone !== undefined) {
-    const digits = body.telefone.replace(/\D/g, '')
-    updates.telefone = normalizeTelefone(digits)
+    // Normaliza a partir do valor cru — o "+" indica DDI explícito (ex.: +54).
+    updates.telefone = normalizeTelefone(body.telefone)
   }
 
   if (Object.keys(updates).length === 0) {

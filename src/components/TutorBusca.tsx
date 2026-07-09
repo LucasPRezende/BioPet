@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { ESPECIES } from '@/lib/especies'
 import { normalizeTelefone } from '@/lib/telefone'
+import TelefoneInput from '@/components/TelefoneInput'
 
 const SEXOS = ['Macho', 'Fêmea', 'Não informado']
 
@@ -252,12 +253,11 @@ export default function TutorBusca({ selectedPetNome, onTutorChange, onPetSelect
               autoFocus
               className={SM + ' w-full'}
             />
-            <input
-              type="tel"
+            <TelefoneInput
               value={novoTel}
-              onChange={e => setNovoTel(e.target.value)}
+              onChange={setNovoTel}
               placeholder="Telefone * Ex: (24) 99999-9999"
-              className={SM + ' w-full'}
+              inputClass={SM + ' w-full'}
             />
             <input
               type="text"
