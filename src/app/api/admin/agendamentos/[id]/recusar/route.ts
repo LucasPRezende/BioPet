@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
 import { sendWhatsAppText } from '@/lib/evolution'
+import { normalizeTelefone } from '@/lib/telefone'
 
 const DIAS_PT = ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado']
 
@@ -58,7 +59,7 @@ export async function POST(
   const clinicaObj = Array.isArray(ag.clinicas) ? ag.clinicas[0] : ag.clinicas as { nome: string; telefone: string | null } | null
   if (clinicaObj?.telefone) {
     const digits  = clinicaObj.telefone.replace(/\D/g, '')
-    const telClin = digits.startsWith('55') ? digits : `55${digits}`
+    const telClin = normalizeTelefone(digits)
     const msg = [
       `❌ Agendamento recusado`,
       `Exame: ${ag.tipo_exame}`,
@@ -73,7 +74,7 @@ export async function POST(
   const petObj   = Array.isArray(ag.pets)    ? ag.pets[0]    : ag.pets    as { nome: string } | null
   if (tutorObj?.telefone) {
     const digits   = tutorObj.telefone.replace(/\D/g, '')
-    const telTutor = digits.startsWith('55') ? digits : `55${digits}`
+    const telTutor = normalizeTelefone(digits)
     const dataFmt  = ag.data_hora ? formatDataHora(ag.data_hora) : null
     const msg = [
       `❌ Infelizmente seu agendamento para *${petObj?.nome ?? 'seu pet'}* (${ag.tipo_exame})`,

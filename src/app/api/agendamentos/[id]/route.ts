@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
 import { sendWhatsAppText } from '@/lib/evolution'
 import { recalcularTotal, reconciliarLinkPagamento, type EstadoPagamento } from '@/lib/agendamento-helpers'
+import { normalizeTelefone } from '@/lib/telefone'
 
 const DIAS_PT = ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado']
 function formatDT(isoStr: string): string {
@@ -196,7 +197,7 @@ export async function PATCH(
 
     if (tutor?.telefone) {
       const digits = tutor.telefone.replace(/\D/g, '')
-      const tel    = digits.startsWith('55') ? digits : `55${digits}`
+      const tel    = normalizeTelefone(digits)
       await sendWhatsAppText(tel, [
         `📅 *Seu agendamento foi remarcado!*`,
         ``,

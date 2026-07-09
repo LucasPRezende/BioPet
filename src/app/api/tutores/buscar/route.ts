@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
 import { sanitizeOrTerm } from '@/lib/search-utils'
+import { normalizeTelefone } from '@/lib/telefone'
 
 export async function GET(request: NextRequest) {
   const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value
@@ -14,7 +15,7 @@ export async function GET(request: NextRequest) {
 
   // Normaliza possível telefone digitado
   const digits = q.replace(/\D/g, '')
-  const telNorm = digits.length >= 8 ? (digits.startsWith('55') ? digits : `55${digits}`) : null
+  const telNorm = digits.length >= 8 ? (normalizeTelefone(digits)) : null
 
   let query = supabase
     .from('tutores')

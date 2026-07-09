@@ -4,6 +4,7 @@ import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
 import { sendWhatsAppText } from '@/lib/evolution'
 import { gerarPreferenciaMp } from '@/lib/mp-preference'
 import { gerarPixToken } from '@/lib/pix-token'
+import { normalizeTelefone } from '@/lib/telefone'
 
 const DIAS_PT = ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado']
 
@@ -137,7 +138,7 @@ export async function POST(
 
     if (tutor?.telefone) {
       const digits  = tutor.telefone.replace(/\D/g, '')
-      const tel     = digits.startsWith('55') ? digits : `55${digits}`
+      const tel     = normalizeTelefone(digits)
       await sendWhatsAppText(tel, [
         `✅ Seu agendamento foi confirmado!`,
         ``,
@@ -162,7 +163,7 @@ export async function POST(
 
     if (tutor?.telefone) {
       const digits  = tutor.telefone.replace(/\D/g, '')
-      const tel     = digits.startsWith('55') ? digits : `55${digits}`
+      const tel     = normalizeTelefone(digits)
       const msgTutor = [
         `✅ Seu agendamento foi confirmado!`,
         ``,
@@ -179,7 +180,7 @@ export async function POST(
 
     if (clinicaObj?.telefone) {
       const digits  = clinicaObj.telefone.replace(/\D/g, '')
-      const telClin = digits.startsWith('55') ? digits : `55${digits}`
+      const telClin = normalizeTelefone(digits)
       await sendWhatsAppText(telClin, [
         `✅ Agendamento confirmado!`,
         `Pet: ${pet?.nome ?? '—'} — ${ag.tipo_exame}`,
@@ -198,7 +199,7 @@ export async function POST(
 
     if (tutor?.telefone) {
       const digits  = tutor.telefone.replace(/\D/g, '')
-      const tel     = digits.startsWith('55') ? digits : `55${digits}`
+      const tel     = normalizeTelefone(digits)
       const msgTutor = [
         `✅ Seu agendamento foi confirmado!`,
         ``,
@@ -217,7 +218,7 @@ export async function POST(
 
     if (clinicaObj?.telefone) {
       const digits  = clinicaObj.telefone.replace(/\D/g, '')
-      const telClin = digits.startsWith('55') ? digits : `55${digits}`
+      const telClin = normalizeTelefone(digits)
       await sendWhatsAppText(telClin, [
         `✅ Agendamento confirmado!`,
         `Pet: ${pet?.nome ?? '—'} — ${ag.tipo_exame}`,
@@ -255,7 +256,7 @@ export async function POST(
 
     if (tutor?.telefone) {
       const digits  = tutor.telefone.replace(/\D/g, '')
-      const tel     = digits.startsWith('55') ? digits : `55${digits}`
+      const tel     = normalizeTelefone(digits)
       const msgTutor = [
         `✅ Seu agendamento foi confirmado!`,
         ``,
@@ -274,7 +275,7 @@ export async function POST(
 
     if (clinicaObj?.telefone) {
       const digits  = clinicaObj.telefone.replace(/\D/g, '')
-      const telClin = digits.startsWith('55') ? digits : `55${digits}`
+      const telClin = normalizeTelefone(digits)
       await sendWhatsAppText(telClin, [
         `✅ Agendamento confirmado!`,
         `Pet: ${pet?.nome ?? '—'} — ${ag.tipo_exame}`,

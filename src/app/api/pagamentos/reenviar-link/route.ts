@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
 import { sendWhatsAppText } from '@/lib/evolution'
+import { normalizeTelefone } from '@/lib/telefone'
 
 function formatDataHora(isoStr: string): string {
   const [datePart, timePart = '00:00'] = isoStr.split('T')
@@ -53,7 +54,7 @@ export async function POST(request: NextRequest) {
   }
 
   const digits  = tutor.telefone.replace(/\D/g, '')
-  const tel     = digits.startsWith('55') ? digits : `55${digits}`
+  const tel     = normalizeTelefone(digits)
   const dataFmt = formatDataHora(ag.data_hora)
   const valor   = ag.valor != null ? Number(ag.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '—'
 

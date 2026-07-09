@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
+import { normalizeTelefone } from '@/lib/telefone'
 
 async function requireSession(request: NextRequest) {
   const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value
@@ -27,7 +28,7 @@ export async function PATCH(
   if (body.cpf  !== undefined)     updates.cpf      = body.cpf?.replace(/\D/g, '') || null
   if (body.telefone !== undefined) {
     const digits = body.telefone.replace(/\D/g, '')
-    updates.telefone = digits.startsWith('55') ? digits : `55${digits}`
+    updates.telefone = normalizeTelefone(digits)
   }
 
   if (Object.keys(updates).length === 0) {

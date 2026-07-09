@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { ESPECIES } from '@/lib/especies'
 import { isHorarioEspecial as isHorarioEspecialLib, motivoHorarioEspecial } from '@/lib/feriados'
 import { precoExame } from '@/lib/pricing'
+import { normalizeTelefone } from '@/lib/telefone'
 
 // ─── Interfaces ────────────────────────────────────────────────────────────────
 
@@ -378,7 +379,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
     if (!buscaQuery.trim()) return
     const q      = buscaQuery.trim()
     const digits = q.replace(/\D/g, '')
-    const tel    = digits.startsWith('55') ? digits : `55${digits}`
+    const tel    = normalizeTelefone(q)
     setBuscando(true); setTutorInfo(null); setPetsDisponiveis([]); setPetSelecionado(null); setTutorNovo(false)
 
     if (modo === 'clinica') {

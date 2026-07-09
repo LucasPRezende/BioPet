@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { normalizeTelefone } from '@/lib/telefone'
 
 interface Vet {
   id: number
@@ -70,7 +71,7 @@ export default function VeterinariosPage() {
     e.preventDefault()
     setSaving(true); setFormError('')
     const digits = form.whatsapp.replace(/\D/g, '')
-    const wa = digits ? (digits.startsWith('55') ? digits : `55${digits}`) : undefined
+    const wa = digits ? normalizeTelefone(form.whatsapp) : undefined
     const res = await fetch('/api/veterinarios', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

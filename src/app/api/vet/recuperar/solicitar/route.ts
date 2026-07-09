@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { supabase } from '@/lib/supabase'
 import { sendVetInvite } from '@/lib/evolution'
+import { normalizeTelefone } from '@/lib/telefone'
 
 export async function POST(request: NextRequest) {
   const { whatsapp } = await request.json()
@@ -11,7 +12,7 @@ export async function POST(request: NextRequest) {
   }
 
   const digits = String(whatsapp).replace(/\D/g, '')
-  const number = digits.startsWith('55') ? digits : `55${digits}`
+  const number = normalizeTelefone(digits)
 
   const { data: vet } = await supabase
     .from('veterinarios')

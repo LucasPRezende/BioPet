@@ -10,6 +10,7 @@
  * Por isso priorizamos `remoteJidAlt` ao resolver o telefone.
  */
 import { supabase } from '@/lib/supabase'
+import { normalizeTelefone } from '@/lib/telefone'
 
 /** Minutos de inatividade até a conversa expirar (reinicia o histórico). */
 const TTL_MINUTOS = 60
@@ -55,7 +56,7 @@ function resolverTelefone(key: Record<string, any>): string | null {
   for (const jid of candidatos) {
     if (jid.endsWith('@s.whatsapp.net')) {
       const digits = jid.split('@')[0].replace(/\D/g, '')
-      if (digits) return digits.startsWith('55') ? digits : `55${digits}`
+      if (digits) return normalizeTelefone(digits)
     }
   }
   return null // só sobrou @lid/@g.us — sem telefone utilizável
@@ -172,10 +173,9 @@ export async function salvarConversa(
 // Guard-rails de recepção
 // ---------------------------------------------------------------------------
 
-/** Normaliza um telefone para dígitos com DDI 55. */
+/** Normaliza um telefone para dígitos com DDI (55 para números BR locais). */
 export function normalizarTelefone(telefone: string): string {
-  const digits = telefone.replace(/\D/g, '')
-  return digits.startsWith('55') ? digits : `55${digits}`
+  return normalizeTelefone(telefone)
 }
 
 /**

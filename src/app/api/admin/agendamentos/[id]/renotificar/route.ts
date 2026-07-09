@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
 import { sendWhatsAppText } from '@/lib/evolution'
+import { normalizeTelefone } from '@/lib/telefone'
 
 const DIAS_PT = ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado']
 
@@ -42,7 +43,7 @@ export async function POST(
   if (!tutor?.telefone) return NextResponse.json({ error: 'Tutor sem telefone cadastrado.' }, { status: 422 })
 
   const digits  = tutor.telefone.replace(/\D/g, '')
-  const tel     = digits.startsWith('55') ? digits : `55${digits}`
+  const tel     = normalizeTelefone(digits)
   const valorFmt = ag.valor != null
     ? Number(ag.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
     : null

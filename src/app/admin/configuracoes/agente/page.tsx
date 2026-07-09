@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { normalizeTelefone } from '@/lib/telefone'
 
 
 interface NumeroBloqueado {
@@ -24,8 +25,7 @@ interface TutorBloqueado {
 }
 
 function normalizeNumero(n: string) {
-  const digits = n.replace(/\D/g, '')
-  return digits.startsWith('55') ? digits : `55${digits}`
+  return normalizeTelefone(n)
 }
 
 function formatTelefone(tel: string) {

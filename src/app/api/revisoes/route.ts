@@ -5,6 +5,7 @@ import { sendWhatsAppText } from '@/lib/evolution'
 import { gerarFeriadosPorAno } from '@/lib/feriados'
 import { gerarPreferenciaMp } from '@/lib/mp-preference'
 import { gerarPixToken } from '@/lib/pix-token'
+import { normalizeTelefone } from '@/lib/telefone'
 
 const DIAS_PT = ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado']
 function formatDT(isoStr: string): string {
@@ -224,7 +225,7 @@ export async function POST(request: NextRequest) {
   const pet   = Array.isArray(original.pets)    ? (original.pets    as { nome: string }[])[0]                          : original.pets    as { nome: string } | null
   if (tutor?.telefone) {
     const digits  = tutor.telefone.replace(/\D/g, '')
-    const tel     = digits.startsWith('55') ? digits : `55${digits}`
+    const tel     = normalizeTelefone(digits)
     const valorFmt = valorTotal > 0
       ? Number(valorTotal).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
       : null

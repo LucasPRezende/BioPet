@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
+import { normalizeTelefone } from '@/lib/telefone'
 
 export async function PATCH(
   request: NextRequest,
@@ -32,7 +33,7 @@ export async function PATCH(
   // Reseta atendimento_humano do tutor se solicitado
   if (resetar_atendimento && notif?.telefone) {
     const digits  = notif.telefone.replace(/\D/g, '')
-    const telNorm = digits.startsWith('55') ? digits : `55${digits}`
+    const telNorm = normalizeTelefone(digits)
     await supabase
       .from('tutores')
       .update({ atendimento_humano: false, atendimento_humano_ate: null })

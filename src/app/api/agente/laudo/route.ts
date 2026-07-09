@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { verifyAgentKey } from '@/lib/agent-auth'
+import { normalizeTelefone } from '@/lib/telefone'
 
 export async function GET(request: NextRequest) {
   if (!verifyAgentKey(request)) {
@@ -14,7 +15,7 @@ export async function GET(request: NextRequest) {
 
   // Normaliza: remove não-dígitos, garante prefixo 55
   const digits = telefone.replace(/\D/g, '')
-  const telNorm = digits.startsWith('55') ? digits : `55${digits}`
+  const telNorm = normalizeTelefone(digits)
 
   // Busca tutor pelo telefone (aceita com ou sem 55)
   const { data: tutor } = await supabase

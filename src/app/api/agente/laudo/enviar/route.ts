@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { verifyAgentKey } from '@/lib/agent-auth'
 import { sendWhatsAppDocument } from '@/lib/evolution'
 import { readPdf } from '@/lib/pdf-storage'
+import { normalizeTelefone } from '@/lib/telefone'
 
 /**
  * Envia o PDF de um laudo direto no WhatsApp do tutor (base64), como faz o
@@ -25,7 +26,7 @@ export async function POST(request: NextRequest) {
   }
 
   const digits  = telefone.replace(/\D/g, '')
-  const telNorm = digits.startsWith('55') ? digits : `55${digits}`
+  const telNorm = normalizeTelefone(digits)
 
   const { data: tutor } = await supabase
     .from('tutores')

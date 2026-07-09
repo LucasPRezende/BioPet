@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { supabase } from '@/lib/supabase'
 import { parseClinicaSession, CLINICA_COOKIE_NAME } from '@/lib/clinica-auth'
 import { sanitizeOrTerm } from '@/lib/search-utils'
+import { normalizeTelefone } from '@/lib/telefone'
 
 export async function GET(request: NextRequest) {
   const token = (await cookies()).get(CLINICA_COOKIE_NAME)?.value
@@ -18,7 +19,7 @@ export async function GET(request: NextRequest) {
   if (!termo) return NextResponse.json([])
 
   const digits  = termo.replace(/\D/g, '')
-  const telNorm = digits.startsWith('55') ? digits : `55${digits}`
+  const telNorm = normalizeTelefone(digits)
   const isPhone = digits.length >= 8
 
   // Busca dinâmica — retorna lista

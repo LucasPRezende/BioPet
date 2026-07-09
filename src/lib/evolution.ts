@@ -2,6 +2,7 @@
  * Integração com Evolution API para envio de mensagens WhatsApp.
  */
 import { registrarMensagemEnviada, type OrigemEnvio } from '@/lib/agente/outbound'
+import { normalizeTelefone } from '@/lib/telefone'
 
 /** Extrai o id da mensagem da resposta de envio da Evolution. */
 function idDaResposta(data: any): string | null {
@@ -24,8 +25,7 @@ export async function sendWhatsAppDocument(
     return false
   }
 
-  const digits = whatsapp.replace(/\D/g, '')
-  const number = digits.startsWith('55') ? digits : `55${digits}`
+  const number = normalizeTelefone(whatsapp)
 
   try {
     const res = await fetch(`${apiUrl}/message/sendMedia/${instance}`, {
@@ -109,8 +109,7 @@ export async function sendWhatsAppText(
     return false
   }
 
-  const digits = whatsapp.replace(/\D/g, '')
-  const number = digits.startsWith('55') ? digits : `55${digits}`
+  const number = normalizeTelefone(whatsapp)
 
   try {
     const res = await fetch(`${apiUrl}/message/sendText/${instance}`, {
@@ -174,8 +173,7 @@ export async function sendVetInvite(
     return false
   }
 
-  const digits = whatsapp.replace(/\D/g, '')
-  const number = digits.startsWith('55') ? digits : `55${digits}`
+  const number = normalizeTelefone(whatsapp)
 
   try {
     const res = await fetch(`${apiUrl}/message/sendText/${instance}`, {

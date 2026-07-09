@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
+import { normalizeTelefone } from '@/lib/telefone'
 
 export async function GET(request: NextRequest) {
   const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value
@@ -33,7 +34,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Telefone inválido.' }, { status: 400 })
   }
 
-  const telNorm = telefone.startsWith('55') ? telefone : `55${telefone}`
+  const telNorm = normalizeTelefone(telefone)
 
   const { data, error } = await supabase
     .from('tutores')

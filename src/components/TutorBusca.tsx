@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { ESPECIES } from '@/lib/especies'
+import { normalizeTelefone } from '@/lib/telefone'
 
 const SEXOS = ['Macho', 'Fêmea', 'Não informado']
 
@@ -14,8 +15,7 @@ function formatCPF(v: string): string {
 }
 
 function normPhone(raw: string) {
-  const d = raw.replace(/\D/g, '')
-  return d.startsWith('55') ? d : `55${d}`
+  return normalizeTelefone(raw)
 }
 
 function looksLikePhone(q: string) {

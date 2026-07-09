@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
+import { normalizeTelefone } from '@/lib/telefone'
 
 export async function PATCH(
   request: NextRequest,
@@ -21,7 +22,7 @@ export async function PATCH(
   if (body.nome !== undefined)     updates.nome     = body.nome?.trim() || null
   if (body.whatsapp !== undefined) {
     const digits = String(body.whatsapp ?? '').replace(/\D/g, '')
-    updates.whatsapp = digits ? (digits.startsWith('55') ? digits : `55${digits}`) : null
+    updates.whatsapp = digits ? (normalizeTelefone(digits)) : null
   }
 
   if (Object.keys(updates).length === 0) {

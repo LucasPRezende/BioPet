@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { verifyAgentKey } from '@/lib/agent-auth'
 import { sendWhatsAppText } from '@/lib/evolution'
+import { normalizeTelefone } from '@/lib/telefone'
 
 const TIPOS_QUE_ENVIAM_WHATSAPP = new Set([
   'ia_travou', 'pergunta_laudo', 'pergunta_tecnica', 'erro_tecnico',
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest) {
   // Bloqueia IA (atendimento_humano) apenas para tipos de atenção
   if (TIPOS_QUE_BLOQUEIAM_IA.has(tipoEfetivo)) {
     const digits  = telefone.replace(/\D/g, '')
-    const telNorm = digits.startsWith('55') ? digits : `55${digits}`
+    const telNorm = normalizeTelefone(digits)
 
     const { data: cfg } = await supabase
       .from('configuracoes_agente')

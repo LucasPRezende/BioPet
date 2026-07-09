@@ -25,10 +25,7 @@ export interface BioquimicaInput {
   valor_cartao: number
 }
 
-export function normalizeTelefone(telefone: string): string {
-  const digits = String(telefone).replace(/\D/g, '')
-  return digits.startsWith('55') ? digits : `55${digits}`
-}
+export { normalizeTelefone } from './telefone'
 
 // Retorna o id do agendamento conflitante, ou null se não houver conflito.
 export async function verificarConflito(

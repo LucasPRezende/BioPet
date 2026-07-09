@@ -10,12 +10,12 @@
  * fica ativo de fato quando a tabela `agente_mensagens_enviadas` existe.
  */
 import { supabase } from '@/lib/supabase'
+import { normalizeTelefone } from '@/lib/telefone'
 
 export type OrigemEnvio = 'ia' | 'sistema' | 'humano'
 
 function normalizar(telefone: string): string {
-  const d = telefone.replace(/\D/g, '')
-  return d.startsWith('55') ? d : `55${d}`
+  return normalizeTelefone(telefone)
 }
 
 /** Grava uma mensagem que NÓS enviamos. Best-effort (nunca lança). */

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { verifyPassword, createVetSession } from '@/lib/vet-auth'
 import { clearCookieResponse } from '@/lib/session-helpers'
+import { normalizeTelefone } from '@/lib/telefone'
 
 export async function POST(request: NextRequest) {
   const { whatsapp, password } = await request.json()
@@ -11,7 +12,7 @@ export async function POST(request: NextRequest) {
   }
 
   const digits  = String(whatsapp).replace(/\D/g, '')
-  const telNorm = digits.startsWith('55') ? digits : `55${digits}`
+  const telNorm = normalizeTelefone(digits)
 
   const { data: vet, error } = await supabase
     .from('veterinarios')

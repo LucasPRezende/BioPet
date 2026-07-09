@@ -7,6 +7,7 @@ import { EXAM_CODES, type MindrayResult } from '@/lib/mindray-types'
 import TutorBusca from '@/components/TutorBusca'
 import { ESPECIES, ESPECIE_PARA_REF } from '@/lib/especies'
 import { calcFaixaEtaria, type FaixaConfig } from '@/lib/faixas-etarias'
+import { normalizeTelefone } from '@/lib/telefone'
 
 interface Referencia {
   id:           number
@@ -158,7 +159,7 @@ function NovoVetModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
     e.preventDefault()
     setLoading(true); setError('')
     const digits = form.whatsapp.replace(/\D/g, '')
-    const wa     = digits ? (digits.startsWith('55') ? digits : `55${digits}`) : undefined
+    const wa     = digits ? normalizeTelefone(form.whatsapp) : undefined
     const res = await fetch('/api/veterinarios', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

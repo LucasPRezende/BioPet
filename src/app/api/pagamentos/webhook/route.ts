@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { MercadoPagoConfig, Payment } from 'mercadopago'
 import { supabase } from '@/lib/supabase'
 import { sendWhatsAppText } from '@/lib/evolution'
+import { normalizeTelefone } from '@/lib/telefone'
 
 const client = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN! })
 
@@ -137,7 +138,7 @@ export async function POST(request: NextRequest) {
 
         if (tutor?.telefone) {
           const digits = tutor.telefone.replace(/\D/g, '')
-          const tel    = digits.startsWith('55') ? digits : `55${digits}`
+          const tel    = normalizeTelefone(digits)
           const msg = [
             `✅ Pagamento PIX confirmado!`,
             ``,
