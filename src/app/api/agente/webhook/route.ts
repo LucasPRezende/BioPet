@@ -138,6 +138,12 @@ async function processarMidia(msg: MensagemRecebida) {
  */
 async function tratarEnviada(msg: MensagemRecebida) {
   if (!msg.telefone || !msg.msgId) return
+
+  // Sem texto, não dá pra confirmar que foi alguém digitando de verdade — pode
+  // ser evento de protocolo do WhatsApp (recibo, sync) que também chega como
+  // fromMe. Pausar a IA por isso seria falso positivo, então ignora.
+  if (!msg.texto) return
+
   let origem = await classificarFromMe(msg.msgId)
 
   // Anti-corrida: o eco de uma mensagem NOSSA pode chegar antes do registro
