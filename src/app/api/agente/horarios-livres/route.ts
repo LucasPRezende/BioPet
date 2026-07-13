@@ -2,6 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { verifyAgentKey } from '@/lib/agent-auth'
 
+const DIAS_SEMANA = [
+  'domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado',
+]
+
+/** Dia da semana de uma data YYYY-MM-DD, calculado dos componentes (evita bug de fuso do Date.parse). */
+function diaDaSemana(dataISO: string): string {
+  const [year, month, day] = dataISO.split('-').map(Number)
+  return DIAS_SEMANA[new Date(year, month - 1, day).getDay()]
+}
+
 export async function GET(request: NextRequest) {
   if (!verifyAgentKey(request)) {
     return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 })
@@ -75,6 +85,7 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     data,
+    dia_semana: diaDaSemana(data),
     duracao_minutos: duracao,
     expediente: { inicio, fim },
     total_livres: horarios_livres.length,
