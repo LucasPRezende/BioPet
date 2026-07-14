@@ -26,6 +26,7 @@ interface BioquimicaExame {
   codigo:       string | null
   preco_pix:    number
   preco_cartao: number
+  comissao?:    number
 }
 
 interface TesteRapidoExame {
@@ -278,15 +279,24 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
     const t = testeRapidoExames.find(x => x.id === id)
     return s + (t?.preco_pix ?? 0)
   }, 0)
+  // Comissão da clínica coletora (abate o repasse quando o pagamento é pela clínica)
+  const totalComissaoTeste = testeRapidoSelecionados.reduce((s, id) => {
+    const t = testeRapidoExames.find(x => x.id === id)
+    return s + (t?.comissao ?? 0)
+  }, 0)
+  const totalComissaoBio = bioquimicaSelecionados.reduce((s, id) => {
+    const b = bioquimicaExames.find(x => x.id === id)
+    return s + (b?.comissao ?? 0)
+  }, 0)
   const valorUnitarioAcrescimo = acrescimoExame
     ? calcularValorExame(acrescimoExame, pagamentoResp === 'clinica' ? 'pix' : formaPagamento, especial)
     : 0
   const valorAcrescimo = estudosAdicionaisDesc.length * valorUnitarioAcrescimo
   // valor bruto (sem desconto) de um exame selecionado
   const valorBrutoExame = (e: ExameInfo) => e.tipo_exame === 'Bioquímica'
-    ? (pagamentoResp === 'clinica' ? totalBioquimicaPix : totalBioquimica)
+    ? (pagamentoResp === 'clinica' ? Math.max(0, totalBioquimicaPix - totalComissaoBio) : totalBioquimica)
     : e.tipo_exame === 'Teste Rápido'
-    ? (pagamentoResp === 'clinica' ? totalTesteRapidoPix : totalTesteRapido)
+    ? (pagamentoResp === 'clinica' ? Math.max(0, totalTesteRapidoPix - totalComissaoTeste) : totalTesteRapido)
     : calcularValorExame(e, pagamentoResp === 'clinica' ? 'pix' : formaPagamento, especial)
   const podeDescontar = modo === 'admin' && isAdmin && !gratuito
   const descontoTotal = podeDescontar
@@ -512,7 +522,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
     }
     const bioquimicaPayload = bioquimicaSelecionados.map(id => {
       const b = bioquimicaExames.find(x => x.id === id)!
-      return { bioquimica_exame_id: id, valor_pix: b.preco_pix, valor_cartao: b.preco_cartao }
+      return { bioquimica_exame_id: id, valor_pix: b.preco_pix, valor_cartao: b.preco_cartao, comissao: b.comissao ?? 0 }
     })
     const testesRapidosPayload = testeRapidoSelecionados.map(id => {
       const t = testeRapidoExames.find(x => x.id === id)!

@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from('agendamentos')
-    .select('*, tutores(id, nome, telefone), pets(id, nome, especie, raca), system_users(nome), laudos(id, token, tipo_exame), clinicas(nome), agendamento_exames(tipo_exame, valor, desconto, duracao_minutos, descricao), agendamento_bioquimica(id, valor_pix, valor_cartao, bioquimica_exames(nome, codigo)), agendamento_testes_rapidos(id, valor_pix, valor_cartao, testes_rapidos(nome, descricao))')
+    .select('*, tutores(id, nome, telefone), pets(id, nome, especie, raca), system_users(nome), laudos(id, token, tipo_exame), clinicas(nome), agendamento_exames(tipo_exame, valor, desconto, duracao_minutos, descricao), agendamento_bioquimica(id, valor_pix, valor_cartao, comissao, bioquimica_exames(nome, codigo)), agendamento_testes_rapidos(id, valor_pix, valor_cartao, comissao, testes_rapidos(nome, descricao))')
     .gte('data_hora', start)
     .lte('data_hora', end)
     .order('data_hora')

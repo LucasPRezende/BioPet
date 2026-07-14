@@ -78,6 +78,7 @@ function NovoTesteRapidoInner() {
 
   const [tutorId, setTutorId] = useState<number | null>(null)
   const [petId,   setPetId]   = useState<number | null>(null)
+  const [initialTutor, setInitialTutor] = useState<{ id: number; nome: string; telefone: string; pets?: { id: number; nome: string; especie: string | null; raca: string | null; sexo: string | null; data_nascimento: string | null }[] } | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [petDataNascimento, setPetDataNascimento] = useState<string | null>(null)
@@ -111,6 +112,7 @@ function NovoTesteRapidoInner() {
       if (tutor?.id) setTutorId(tutor.id)
       if (pet?.id)   setPetId(pet.id)
       if (pet?.data_nascimento) setPetDataNascimento(pet.data_nascimento)
+      if (tutor?.id) setInitialTutor({ id: tutor.id, nome: tutor.nome ?? '', telefone: tutor.telefone ?? '', pets: pet?.id ? [pet] : [] })
 
       // Pré-seleciona os testes marcados no agendamento
       const ids = (ag.agendamento_testes_rapidos ?? [])
@@ -273,6 +275,7 @@ function NovoTesteRapidoInner() {
 
               <TutorBusca
                 selectedPetNome={form.nome_pet}
+                initialTutor={initialTutor}
                 onTutorChange={t => {
                   setForm(p => ({ ...p, tutor: t.nome, telefone: t.telefone }))
                   setTutorId(t.id)

@@ -158,12 +158,13 @@ export async function POST(request: NextRequest) {
   const bioPayload     = Array.isArray(bioquimica_selecionados) ? bioquimica_selecionados as BioquimicaInput[] : []
   const testePayload   = Array.isArray(testes_rapidos_selecionados) ? testes_rapidos_selecionados as TesteRapidoInput[] : []
   const examesPrecificados = await precificarExames(examesArr, {
-    forma:         formaEfetiva(pagamento_responsavel, forma_pagamento),
-    gratuito:      (forma_pagamento ?? '').toLowerCase() === 'gratuito',
-    bio:           bioPayload,
-    testesRapidos: testePayload,
-    dataHora:      data_hora,
-    encaixe:       false,
+    forma:           formaEfetiva(pagamento_responsavel, forma_pagamento),
+    gratuito:        (forma_pagamento ?? '').toLowerCase() === 'gratuito',
+    bio:             bioPayload,
+    testesRapidos:   testePayload,
+    dataHora:        data_hora,
+    encaixe:         false,
+    pagamentoClinica: pagamento_responsavel === 'clinica',
   })
   const tipoExameLabel = examesPrecificados.map(e => e.tipo_exame).join(', ')
   const valorTotal     = examesPrecificados.reduce((sum, e) => sum + (e.valor ?? 0), 0)

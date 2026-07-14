@@ -268,6 +268,7 @@ function NovoBioquimicaInner() {
   const [showRaw,    setShowRaw]    = useState(false)
   const [tutorId,           setTutorId]           = useState<number | null>(null)
   const [petId,             setPetId]             = useState<number | null>(null)
+  const [initialTutor,      setInitialTutor]      = useState<{ id: number; nome: string; telefone: string; pets?: { id: number; nome: string; especie: string | null; raca: string | null; sexo: string | null; data_nascimento: string | null }[] } | null>(null)
   const [petDataNascimento, setPetDataNascimento] = useState<string | null>(null)
   const [faixaConfigs,      setFaixaConfigs]      = useState<FaixaConfig[]>([])
   const [vetId,      setVetId]      = useState<number | null>(null)
@@ -293,6 +294,7 @@ function NovoBioquimicaInner() {
       if (tutor?.id) setTutorId(tutor.id)
       if (pet?.id)   setPetId(pet.id)
       if (pet?.data_nascimento) setPetDataNascimento(pet.data_nascimento)
+      if (tutor?.id) setInitialTutor({ id: tutor.id, nome: tutor.nome ?? '', telefone: tutor.telefone ?? '', pets: pet?.id ? [pet] : [] })
       if (ag.veterinario_id) setVetId(Number(ag.veterinario_id))
       faixaManualRef.current = false
       setForm(prev => ({
@@ -611,6 +613,7 @@ function NovoBioquimicaInner() {
               {/* Busca de proprietário */}
               <TutorBusca
                 selectedPetNome={form.nome_pet}
+                initialTutor={initialTutor}
                 onTutorChange={t => {
                   setForm(p => ({ ...p, tutor: t.nome, telefone: t.telefone }))
                   setTutorId(t.id)

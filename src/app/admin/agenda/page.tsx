@@ -14,6 +14,7 @@ interface BioquimicaSubExame {
   id:                number
   valor_pix:         number
   valor_cartao:      number
+  comissao?:         number
   bioquimica_exames: { nome: string; codigo: string | null } | null
 }
 
@@ -21,6 +22,7 @@ interface TesteRapidoSub {
   id:              number
   valor_pix:       number
   valor_cartao:    number
+  comissao?:       number
   testes_rapidos:  { nome: string; descricao: string | null } | null
 }
 
@@ -326,14 +328,17 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
     const especial     = ag.encaixe ? false : isEspecial(hora, duracaoAtiva, data, feriadoDatas, horarioFim, horarioInicio)
     const bioRows   = ag.agendamento_bioquimica ?? []
     const testeRows = ag.agendamento_testes_rapidos ?? []
+    const clinica   = pagResp === 'clinica'
+    const comBio    = clinica ? bioRows.reduce((s, b) => s + Number(b.comissao ?? 0), 0) : 0
+    const comTeste  = clinica ? testeRows.reduce((s, t) => s + Number(t.comissao ?? 0), 0) : 0
 
     const forma: FormaPagamento = isPix ? 'pix' : 'cartao'
     const calc = exames.reduce((sum, ex) => {
       if (ex.tipo_exame === 'Bioquímica') {
-        return sum + precoBioquimica(bioRows, forma)
+        return sum + Math.max(0, precoBioquimica(bioRows, forma) - comBio)
       }
       if (ex.tipo_exame === 'Teste Rápido') {
-        return sum + precoBioquimica(testeRows, forma)
+        return sum + Math.max(0, precoBioquimica(testeRows, forma) - comTeste)
       }
       const info = comMap.get(ex.tipo_exame)
       if (!info) return sum
@@ -390,14 +395,17 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
       const esp          = ag.encaixe ? false : isEspecial(hora, duracaoAtiva, data, feriadoDatas, horarioFim, horarioInicio)
       const bios   = ag.agendamento_bioquimica ?? []
       const testes = ag.agendamento_testes_rapidos ?? []
+      const clinicaS = pagResp === 'clinica'
+      const comBioS   = clinicaS ? bios.reduce((s, b) => s + Number(b.comissao ?? 0), 0) : 0
+      const comTesteS = clinicaS ? testes.reduce((s, t) => s + Number(t.comissao ?? 0), 0) : 0
       const forma: FormaPagamento = isPix ? 'pix' : 'cartao'
       const examesCalc: AgExame[] = exsAg.map(ex => {
         const desc = Number(ex.desconto ?? 0)
         if (ex.tipo_exame === 'Bioquímica') {
-          return { ...ex, valor: valorLiquido(precoBioquimica(bios, forma), desc), desconto: desc }
+          return { ...ex, valor: valorLiquido(Math.max(0, precoBioquimica(bios, forma) - comBioS), desc), desconto: desc }
         }
         if (ex.tipo_exame === 'Teste Rápido') {
-          return { ...ex, valor: valorLiquido(precoBioquimica(testes, forma), desc), desconto: desc }
+          return { ...ex, valor: valorLiquido(Math.max(0, precoBioquimica(testes, forma) - comTesteS), desc), desconto: desc }
         }
         const info = cMap.get(ex.tipo_exame)
         if (!info) return ex
@@ -871,12 +879,15 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
       )
     )
 
+  // Repasse pela clínica = preço − comissão da clínica coletora
+  const comBio   = isClinica ? bioRows.reduce((s, b) => s + Number(b.comissao ?? 0), 0) : 0
+  const comTeste = isClinica ? testeRows.reduce((s, t) => s + Number(t.comissao ?? 0), 0) : 0
   let totalExames = 0
   const examesComVal = exames.map(ex => {
     const isBio   = ex.tipo_exame === 'Bioquímica' && bioRows.length > 0
     const isTeste = ex.tipo_exame === 'Teste Rápido' && testeRows.length > 0
-    const val   = isBio   ? bioRows.reduce((s, b) => s + Number(isPix ? b.valor_pix : b.valor_cartao), 0)
-                : isTeste ? testeRows.reduce((s, t) => s + Number(isPix ? t.valor_pix : t.valor_cartao), 0)
+    const val   = isBio   ? Math.max(0, bioRows.reduce((s, b) => s + Number(isPix ? b.valor_pix : b.valor_cartao), 0) - comBio)
+                : isTeste ? Math.max(0, testeRows.reduce((s, t) => s + Number(isPix ? t.valor_pix : t.valor_cartao), 0) - comTeste)
                 : (ex.valor ?? 0)
     totalExames += val
     return { ...ex, val, isBio, isTeste }

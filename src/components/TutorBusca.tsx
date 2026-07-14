@@ -54,9 +54,11 @@ interface Props {
   onTutorChange:    (tutor: TutorSelecionado) => void
   onPetSelect:      (pet: PetSelecionado) => void
   inputClass:       string
+  /** Tutor pré-selecionado (ex.: ao abrir um laudo a partir de um agendamento). */
+  initialTutor?:    { id: number; nome: string; telefone: string; pets?: Pet[] } | null
 }
 
-export default function TutorBusca({ selectedPetNome, onTutorChange, onPetSelect, inputClass }: Props) {
+export default function TutorBusca({ selectedPetNome, onTutorChange, onPetSelect, inputClass, initialTutor }: Props) {
   const [query,     setQuery]     = useState('')
   const [results,   setResults]   = useState<Tutor[]>([])
   const [searching, setSearching] = useState(false)
@@ -86,6 +88,7 @@ export default function TutorBusca({ selectedPetNome, onTutorChange, onPetSelect
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const wrapRef     = useRef<HTMLDivElement>(null)
+  const seededRef   = useRef<number | null>(null)
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -94,6 +97,16 @@ export default function TutorBusca({ selectedPetNome, onTutorChange, onPetSelect
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
+
+  // Pré-seleciona o tutor quando a página envia um initialTutor (ex.: laudo aberto
+  // a partir de um agendamento). Só semeia uma vez por id, para não sobrescrever o
+  // que o usuário fizer depois (inclusive limpar com o ×).
+  useEffect(() => {
+    if (!initialTutor) return
+    if (seededRef.current === initialTutor.id) return
+    seededRef.current = initialTutor.id
+    setTutor({ id: initialTutor.id, nome: initialTutor.nome, telefone: initialTutor.telefone, pets: initialTutor.pets ?? [] })
+  }, [initialTutor])
 
   useEffect(() => {
     if (tutor || tutorNovoMode) return

@@ -150,12 +150,13 @@ export async function POST(request: NextRequest) {
   const bioPayload      = Array.isArray(bioquimica_selecionados) ? bioquimica_selecionados as BioquimicaInput[] : []
   const testePayload    = Array.isArray(testes_rapidos_selecionados) ? testes_rapidos_selecionados as TesteRapidoInput[] : []
   const examesPrecificados = await precificarExames(examesArr, {
-    forma:         formaEfetiva(pagResp, forma_pagamento),
-    gratuito:      pagarGratuito,
-    bio:           bioPayload,
-    testesRapidos: testePayload,
-    dataHora:      data_hora,
-    encaixe:       encaixe ?? false,
+    forma:           formaEfetiva(pagResp, forma_pagamento),
+    gratuito:        pagarGratuito,
+    bio:             bioPayload,
+    testesRapidos:   testePayload,
+    dataHora:        data_hora,
+    encaixe:         encaixe ?? false,
+    pagamentoClinica: pagResp === 'clinica',
   })
 
   const tipoExameLabel  = examesPrecificados.map(e => e.tipo_exame).join(', ')

@@ -191,6 +191,8 @@ export async function precificarExames(
   opts: {
     forma: FormaPagamento; gratuito: boolean; bio: BioquimicaInput[]
     testesRapidos?: TesteRapidoInput[]; dataHora: string; encaixe: boolean
+    /** Pagamento pela clínica: o repasse à BioPet é preço − comissão da clínica. */
+    pagamentoClinica?: boolean
   },
 ): Promise<ExameInput[]> {
   const totalDuracao = exames.reduce((s, e) => s + (e.duracao_minutos ?? 0), 0)
@@ -210,19 +212,23 @@ export async function precificarExames(
     for (const c of (data ?? []) as unknown as ComissaoRowDb[]) comMap.set(c.tipo_exame, c)
   }
 
+  // Comissão da clínica coletora: só abate o repasse quando o pagamento é pela clínica.
+  const comissaoBio   = opts.pagamentoClinica ? opts.bio.reduce((s, b) => s + Number(b.comissao ?? 0), 0) : 0
+  const comissaoTeste = opts.pagamentoClinica ? (opts.testesRapidos ?? []).reduce((s, t) => s + Number(t.comissao ?? 0), 0) : 0
+
   const brutoBio = opts.gratuito
     ? 0
-    : precoBioquimica(
+    : Math.max(0, precoBioquimica(
         opts.bio.map(b => ({ valor_pix: Number(b.valor_pix), valor_cartao: Number(b.valor_cartao) })),
         opts.forma,
-      )
+      ) - comissaoBio)
 
   const brutoTeste = opts.gratuito
     ? 0
-    : precoBioquimica(
+    : Math.max(0, precoBioquimica(
         (opts.testesRapidos ?? []).map(t => ({ valor_pix: Number(t.valor_pix), valor_cartao: Number(t.valor_cartao) })),
         opts.forma,
-      )
+      ) - comissaoTeste)
 
   return exames.map(e => {
     const desconto = opts.gratuito ? 0 : Number(e.desconto ?? 0)
