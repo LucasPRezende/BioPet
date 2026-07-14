@@ -214,33 +214,62 @@ export async function telefoneBloqueado(telefone: string): Promise<boolean> {
 }
 
 /**
- * True se o tutor está em atendimento humano ativo (o bot deve silenciar).
+ * True se o telefone está em atendimento humano ativo (o bot deve silenciar).
  * Auto-desbloqueia quando o prazo `atendimento_humano_ate` expira.
+ *
+ * Checa tanto o tutor (cadastro) quanto `conversas` — que existe para
+ * QUALQUER telefone que já trocou mensagem com o bot, mesmo sem ser tutor
+ * (ex.: parceiro/fornecedor mandando mensagem pro número da clínica). Sem
+ * isso, esses números nunca ficavam pausados de verdade: o UPDATE em
+ * `tutores` não encontrava linha nenhuma.
  */
 export async function emAtendimentoHumano(telefone: string): Promise<boolean> {
   const telNorm = normalizarTelefone(telefone)
   const digits = telefone.replace(/\D/g, '')
-  const { data: tutor } = await supabase
-    .from('tutores')
-    .select('id, atendimento_humano, atendimento_humano_ate')
-    .or(`telefone.eq.${telNorm},telefone.eq.${digits}`)
-    .maybeSingle()
 
-  if (!tutor?.atendimento_humano) return false
-
-  if (tutor.atendimento_humano_ate && new Date(tutor.atendimento_humano_ate) < new Date()) {
-    await supabase
+  const [{ data: tutor }, { data: conversa }] = await Promise.all([
+    supabase
       .from('tutores')
-      .update({ atendimento_humano: false, atendimento_humano_ate: null })
-      .eq('id', tutor.id)
-    return false
+      .select('id, atendimento_humano, atendimento_humano_ate')
+      .or(`telefone.eq.${telNorm},telefone.eq.${digits}`)
+      .maybeSingle(),
+    supabase
+      .from('conversas')
+      .select('atendimento_humano_ate')
+      .eq('telefone', telNorm)
+      .maybeSingle(),
+  ])
+
+  let pausado = false
+
+  if (tutor?.atendimento_humano) {
+    if (tutor.atendimento_humano_ate && new Date(tutor.atendimento_humano_ate) < new Date()) {
+      await supabase
+        .from('tutores')
+        .update({ atendimento_humano: false, atendimento_humano_ate: null })
+        .eq('id', tutor.id)
+    } else {
+      pausado = true
+    }
   }
-  return true
+
+  if (conversa?.atendimento_humano_ate) {
+    if (new Date(conversa.atendimento_humano_ate) < new Date()) {
+      await supabase.from('conversas').update({ atendimento_humano_ate: null }).eq('telefone', telNorm)
+    } else {
+      pausado = true
+    }
+  }
+
+  return pausado
 }
 
 /**
- * Marca o tutor em atendimento humano por `tempo_retorno_ia_horas` (config) — a
- * IA recua. Usado quando um humano responde pelo WhatsApp (fromMe desconhecido).
+ * Marca o telefone em atendimento humano por `tempo_retorno_ia_horas` (config) — a
+ * IA recua. Usado quando um humano responde pelo WhatsApp (fromMe desconhecido)
+ * ou quando a IA aciona `transferir_humano`. Grava em `conversas` (funciona
+ * para QUALQUER telefone, cadastrado ou não) e também no tutor, quando existir
+ * (mantém o painel /admin/notificacoes e o perfil do tutor coerentes).
  */
 export async function marcarAtendimentoHumano(telefone: string): Promise<void> {
   const telNorm = normalizarTelefone(telefone)
@@ -255,8 +284,13 @@ export async function marcarAtendimentoHumano(telefone: string): Promise<void> {
   const horas = Number(cfg?.tempo_retorno_ia_horas ?? 2)
   const ate = new Date(Date.now() + horas * 3_600_000).toISOString()
 
-  await supabase
-    .from('tutores')
-    .update({ atendimento_humano: true, atendimento_humano_ate: ate })
-    .or(`telefone.eq.${telNorm},telefone.eq.${digits}`)
+  await Promise.all([
+    supabase
+      .from('tutores')
+      .update({ atendimento_humano: true, atendimento_humano_ate: ate })
+      .or(`telefone.eq.${telNorm},telefone.eq.${digits}`),
+    supabase
+      .from('conversas')
+      .upsert({ telefone: telNorm, atendimento_humano_ate: ate }, { onConflict: 'telefone' }),
+  ])
 }

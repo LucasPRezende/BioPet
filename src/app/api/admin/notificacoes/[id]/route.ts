@@ -30,14 +30,20 @@ export async function PATCH(
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Reseta atendimento_humano do tutor se solicitado
+  // Reseta atendimento_humano do tutor e da conversa (telefone pode não ser tutor cadastrado)
   if (resetar_atendimento && notif?.telefone) {
     const digits  = notif.telefone.replace(/\D/g, '')
     const telNorm = normalizeTelefone(digits)
-    await supabase
-      .from('tutores')
-      .update({ atendimento_humano: false, atendimento_humano_ate: null })
-      .or(`telefone.eq.${telNorm},telefone.eq.${digits}`)
+    await Promise.all([
+      supabase
+        .from('tutores')
+        .update({ atendimento_humano: false, atendimento_humano_ate: null })
+        .or(`telefone.eq.${telNorm},telefone.eq.${digits}`),
+      supabase
+        .from('conversas')
+        .update({ atendimento_humano_ate: null })
+        .eq('telefone', telNorm),
+    ])
   }
 
   return NextResponse.json({ sucesso: true })
