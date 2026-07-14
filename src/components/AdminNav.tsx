@@ -49,6 +49,7 @@ export default function AdminNav({ titulo }: Props) {
           <Link href="/admin/comissoes"          className="bg-white/10 hover:bg-white/20 text-white font-semibold px-3 py-2 rounded-lg transition text-sm">Preços</Link>
           <Link href="/admin/configuracoes/agente" className="bg-white/10 hover:bg-white/20 text-white font-semibold px-3 py-2 rounded-lg transition text-sm">⚙️ Agente</Link>
           <Link href="/admin/novo-bioquimica"     className="bg-white/10 hover:bg-white/20 text-white font-semibold px-3 py-2 rounded-lg transition text-sm">🧪 Bioquímica</Link>
+          <Link href="/admin/novo-teste-rapido"   className="bg-white/10 hover:bg-white/20 text-white font-semibold px-3 py-2 rounded-lg transition text-sm">💉 Teste Rápido</Link>
           <Link href="/admin/novo"               className="bg-white hover:bg-gray-100 font-semibold px-3 py-2 rounded-lg transition text-sm text-[#19202d] shadow">+ Novo Laudo</Link>
         </div>
       </div>

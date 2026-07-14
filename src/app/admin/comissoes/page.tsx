@@ -25,8 +25,23 @@ interface BioquimicaExame {
   codigo:      string | null
   preco_pix:   number
   preco_cartao: number
+  comissao:    number
   ativo:       boolean
   ordem:       number
+}
+
+interface TesteRapidoExame {
+  id:                number
+  nome:              string
+  descricao:         string | null
+  material_padrao:   string | null
+  metodo_padrao:     string | null
+  observacao_padrao: string | null
+  preco_pix:         number
+  preco_cartao:      number
+  comissao:          number
+  ativo:             boolean
+  ordem:             number
 }
 
 type EditRow = {
@@ -199,7 +214,7 @@ function BioquimicaSection() {
   const [loading,   setLoading]   = useState(true)
   const [novoModal, setNovoModal] = useState(false)
   const [saving,    setSaving]    = useState<Set<number>>(new Set())
-  const [editCell,  setEditCell]  = useState<{ id: number; field: 'preco_pix' | 'preco_cartao' } | null>(null)
+  const [editCell,  setEditCell]  = useState<{ id: number; field: 'preco_pix' | 'preco_cartao' | 'comissao' } | null>(null)
   const [editVal,   setEditVal]   = useState('')
 
   const fetchExames = useCallback(async () => {
@@ -250,7 +265,7 @@ function BioquimicaSection() {
     ])
   }
 
-  function startEdit(id: number, field: 'preco_pix' | 'preco_cartao', currentVal: number) {
+  function startEdit(id: number, field: 'preco_pix' | 'preco_cartao' | 'comissao', currentVal: number) {
     setEditCell({ id, field })
     setEditVal(String(currentVal))
   }
@@ -297,6 +312,7 @@ function BioquimicaSection() {
                 <th className="text-left px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide">Nome</th>
                 <th className="text-right px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide">Pix (R$)</th>
                 <th className="text-right px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide">Cartão 3x (R$)</th>
+                <th className="text-right px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide">Comissão clínica (R$)</th>
                 <th className="text-center px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide">Ativo</th>
                 <th className="text-center px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide">Ordem</th>
                 <th className="px-4 py-3"></th>
@@ -348,6 +364,27 @@ function BioquimicaSection() {
                           title="Clique para editar"
                         >
                           {fmtBRL(ex.preco_cartao)}
+                        </button>
+                      )}
+                    </td>
+
+                    {/* Comissão da clínica */}
+                    <td className="px-4 py-3 text-right">
+                      {editCell?.id === ex.id && editCell.field === 'comissao' ? (
+                        <input
+                          type="number" step="0.01" min="0" autoFocus
+                          value={editVal} onChange={e => setEditVal(e.target.value)}
+                          onBlur={commitEdit}
+                          onKeyDown={e => e.key === 'Enter' && commitEdit()}
+                          className="w-24 border border-[#8a6e36] rounded px-2 py-1 text-right text-sm focus:outline-none"
+                        />
+                      ) : (
+                        <button
+                          onClick={() => startEdit(ex.id, 'comissao', ex.comissao)}
+                          className="text-right font-semibold text-[#19202d] hover:text-[#8a6e36] transition w-full"
+                          title="Clique para editar"
+                        >
+                          {fmtBRL(ex.comissao)}
                         </button>
                       )}
                     </td>
@@ -407,10 +444,162 @@ function BioquimicaSection() {
   )
 }
 
+// ── Seção Teste Rápido ────────────────────────────────────────────────────────
+
+function TesteRapidoSection() {
+  const [testes,   setTestes]   = useState<TesteRapidoExame[]>([])
+  const [loading,  setLoading]  = useState(true)
+  const [saving,   setSaving]   = useState<Set<number>>(new Set())
+  const [editCell, setEditCell] = useState<{ id: number; field: 'preco_pix' | 'preco_cartao' | 'comissao' } | null>(null)
+  const [editVal,  setEditVal]  = useState('')
+
+  const fetchTestes = useCallback(async () => {
+    const res = await fetch('/api/comissoes/testes-rapidos')
+    if (res.ok) setTestes(await res.json())
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { fetchTestes() }, [fetchTestes])
+
+  async function patch(id: number, updates: Partial<TesteRapidoExame>) {
+    setSaving(prev => new Set(prev).add(id))
+    const res = await fetch(`/api/comissoes/testes-rapidos/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    })
+    if (res.ok) {
+      const updated: TesteRapidoExame = await res.json()
+      setTestes(prev => prev.map(t => t.id === id ? updated : t))
+    }
+    setSaving(prev => { const s = new Set(prev); s.delete(id); return s })
+  }
+
+  async function toggleAtivo(t: TesteRapidoExame) { await patch(t.id, { ativo: !t.ativo }) }
+
+  async function moveUp(i: number) {
+    if (i === 0) return
+    const arr = [...testes]
+    await Promise.all([patch(arr[i].id, { ordem: arr[i - 1].ordem }), patch(arr[i - 1].id, { ordem: arr[i].ordem })])
+  }
+  async function moveDown(i: number) {
+    if (i === testes.length - 1) return
+    const arr = [...testes]
+    await Promise.all([patch(arr[i].id, { ordem: arr[i + 1].ordem }), patch(arr[i + 1].id, { ordem: arr[i].ordem })])
+  }
+
+  function startEdit(id: number, field: 'preco_pix' | 'preco_cartao' | 'comissao', currentVal: number) {
+    setEditCell({ id, field }); setEditVal(String(currentVal))
+  }
+  async function commitEdit() {
+    if (!editCell) return
+    const val = parseFloat(editVal)
+    if (!isNaN(val)) await patch(editCell.id, { [editCell.field]: val })
+    setEditCell(null)
+  }
+  async function softDelete(t: TesteRapidoExame) {
+    if (!confirm(`Desativar "${t.nome}"?`)) return
+    await patch(t.id, { ativo: false })
+  }
+
+  if (loading) return <div className="text-center py-16 text-gray-400">Carregando...</div>
+
+  const priceCell = (t: TesteRapidoExame, field: 'preco_pix' | 'preco_cartao' | 'comissao', val: number) => (
+    <td className="px-4 py-3 text-right">
+      {editCell?.id === t.id && editCell.field === field ? (
+        <input
+          type="number" step="0.01" min="0" autoFocus
+          value={editVal} onChange={e => setEditVal(e.target.value)}
+          onBlur={commitEdit}
+          onKeyDown={e => e.key === 'Enter' && commitEdit()}
+          className="w-24 border border-[#8a6e36] rounded px-2 py-1 text-right text-sm focus:outline-none"
+        />
+      ) : (
+        <button onClick={() => startEdit(t.id, field, val)}
+          className="text-right font-semibold text-[#19202d] hover:text-[#8a6e36] transition w-full" title="Clique para editar">
+          {fmtBRL(val)}
+        </button>
+      )}
+    </td>
+  )
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-gray-400">
+        Preços e comissão por teste — clique no valor para editar. A <strong>comissão</strong> é o quanto a clínica coletora retém do valor do exame.
+      </p>
+
+      {testes.length === 0 ? (
+        <div className="bg-white rounded-xl border shadow-sm p-10 text-center text-gray-400 text-sm">
+          Nenhum teste rápido cadastrado.
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+          <div className="h-1 bg-gold-stripe" />
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 bg-gray-50">
+                  <th className="text-left px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide">Teste</th>
+                  <th className="text-right px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide">Pix (R$)</th>
+                  <th className="text-right px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide">Cartão 3x (R$)</th>
+                  <th className="text-right px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide">Comissão clínica (R$)</th>
+                  <th className="text-center px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide">Ativo</th>
+                  <th className="text-center px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide">Ordem</th>
+                  <th className="px-4 py-3"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {testes.map((t, i) => {
+                  const isSaving = saving.has(t.id)
+                  return (
+                    <tr key={t.id} className={`transition ${!t.ativo ? 'opacity-50' : ''} ${isSaving ? 'opacity-60' : ''}`}>
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-[#19202d]">{t.nome}</div>
+                        {t.descricao && <div className="text-[11px] text-gray-400">{t.descricao}</div>}
+                      </td>
+                      {priceCell(t, 'preco_pix', t.preco_pix)}
+                      {priceCell(t, 'preco_cartao', t.preco_cartao)}
+                      {priceCell(t, 'comissao', t.comissao)}
+                      <td className="px-4 py-3 text-center">
+                        <button onClick={() => toggleAtivo(t)} disabled={isSaving}
+                          className={`w-9 h-5 rounded-full transition relative ${t.ativo ? 'bg-[#c4a35a]' : 'bg-gray-200'}`}>
+                          <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${t.ativo ? 'left-4' : 'left-0.5'}`} />
+                        </button>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-center gap-1">
+                          <button onClick={() => moveUp(i)} disabled={i === 0 || isSaving}
+                            className="text-gray-400 hover:text-[#8a6e36] disabled:opacity-20 transition text-base leading-none px-1" title="Mover para cima">↑</button>
+                          <button onClick={() => moveDown(i)} disabled={i === testes.length - 1 || isSaving}
+                            className="text-gray-400 hover:text-[#8a6e36] disabled:opacity-20 transition text-base leading-none px-1" title="Mover para baixo">↓</button>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <button onClick={() => softDelete(t)} disabled={isSaving}
+                          className="text-xs text-red-400 hover:text-red-600 transition p-1" title="Desativar">✕</button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="px-4 py-3 border-t border-gray-50 bg-gray-50">
+            <p className="text-xs text-gray-400">
+              Clique em Pix, Cartão ou Comissão para editar inline. Pressione Enter ou clique fora para salvar.
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Página principal ──────────────────────────────────────────────────────────
 
 export default function ComissoesPage() {
-  const [activeTab,  setActiveTab]  = useState<'exames' | 'bioquimica'>('exames')
+  const [activeTab,  setActiveTab]  = useState<'exames' | 'bioquimica' | 'testes'>('exames')
   const [comissoes,  setComissoes]  = useState<Comissao[]>([])
   const [editValues, setEditValues] = useState<Record<number, EditRow>>({})
   const [loading,    setLoading]    = useState(true)
@@ -518,6 +707,7 @@ export default function ComissoesPage() {
           {([
             { key: 'exames',     label: 'Exames Gerais' },
             { key: 'bioquimica', label: '🧪 Bioquímica' },
+            { key: 'testes',     label: '💉 Teste Rápido' },
           ] as const).map(tab => (
             <button key={tab.key} onClick={() => setActiveTab(tab.key)}
               className={`flex-1 py-2 rounded-lg text-sm font-semibold transition ${
@@ -643,6 +833,9 @@ export default function ComissoesPage() {
 
         {/* ── ABA BIOQUÍMICA ─────────────────────────────────────────────── */}
         {activeTab === 'bioquimica' && <BioquimicaSection />}
+
+        {/* ── ABA TESTE RÁPIDO ───────────────────────────────────────────── */}
+        {activeTab === 'testes' && <TesteRapidoSection />}
       </main>
 
       {novoModal && (

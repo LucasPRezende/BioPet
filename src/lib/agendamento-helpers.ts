@@ -23,6 +23,14 @@ export interface BioquimicaInput {
   bioquimica_exame_id: number
   valor_pix: number
   valor_cartao: number
+  comissao?: number
+}
+
+export interface TesteRapidoInput {
+  teste_rapido_id: number
+  valor_pix: number
+  valor_cartao: number
+  comissao?: number
 }
 
 export { normalizeTelefone } from './telefone'
@@ -105,6 +113,20 @@ export async function insertBioquimica(agendamentoId: number, bio: BioquimicaInp
       bioquimica_exame_id: b.bioquimica_exame_id,
       valor_pix:           b.valor_pix,
       valor_cartao:        b.valor_cartao,
+      comissao:            b.comissao ?? 0,
+    })),
+  )
+}
+
+export async function insertTestesRapidos(agendamentoId: number, testes: TesteRapidoInput[]): Promise<void> {
+  if (testes.length === 0) return
+  await supabase.from('agendamento_testes_rapidos').insert(
+    testes.map(t => ({
+      agendamento_id:  agendamentoId,
+      teste_rapido_id: t.teste_rapido_id,
+      valor_pix:       t.valor_pix,
+      valor_cartao:    t.valor_cartao,
+      comissao:        t.comissao ?? 0,
     })),
   )
 }
@@ -166,13 +188,17 @@ export async function calcularEspecial(
  */
 export async function precificarExames(
   exames: ExameInput[],
-  opts: { forma: FormaPagamento; gratuito: boolean; bio: BioquimicaInput[]; dataHora: string; encaixe: boolean },
+  opts: {
+    forma: FormaPagamento; gratuito: boolean; bio: BioquimicaInput[]
+    testesRapidos?: TesteRapidoInput[]; dataHora: string; encaixe: boolean
+  },
 ): Promise<ExameInput[]> {
   const totalDuracao = exames.reduce((s, e) => s + (e.duracao_minutos ?? 0), 0)
   const especial = await calcularEspecial(opts.dataHora, totalDuracao, opts.encaixe)
 
+  const AGRUPADORES = new Set(['Bioquímica', 'Teste Rápido'])
   const tiposTabela = Array.from(
-    new Set(exames.filter(e => e.tipo_exame !== 'Bioquímica').map(e => e.tipo_exame)),
+    new Set(exames.filter(e => !AGRUPADORES.has(e.tipo_exame)).map(e => e.tipo_exame)),
   )
 
   const comMap = new Map<string, ComissaoRowDb>()
@@ -191,12 +217,21 @@ export async function precificarExames(
         opts.forma,
       )
 
+  const brutoTeste = opts.gratuito
+    ? 0
+    : precoBioquimica(
+        (opts.testesRapidos ?? []).map(t => ({ valor_pix: Number(t.valor_pix), valor_cartao: Number(t.valor_cartao) })),
+        opts.forma,
+      )
+
   return exames.map(e => {
     const desconto = opts.gratuito ? 0 : Number(e.desconto ?? 0)
     let bruto = 0
     if (!opts.gratuito) {
       if (e.tipo_exame === 'Bioquímica') {
         bruto = brutoBio
+      } else if (e.tipo_exame === 'Teste Rápido') {
+        bruto = brutoTeste
       } else {
         const com = comMap.get(e.tipo_exame)
         bruto = com

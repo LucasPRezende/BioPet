@@ -92,6 +92,12 @@ export async function POST(
     .select('valor_pix, valor_cartao, bioquimica_exames(nome)')
     .eq('agendamento_id', agId)
 
+  // Busca testes rápidos (se houver)
+  const { data: testeRows } = await supabase
+    .from('agendamento_testes_rapidos')
+    .select('valor_pix, valor_cartao, testes_rapidos(nome)')
+    .eq('agendamento_id', agId)
+
   function brl(n: number) {
     return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
   }
@@ -113,6 +119,16 @@ export async function POST(
           return `  • ${nome} — ${brl(val)}`
         }).join('\n')
         partes.push(`Bioquímica:\n${bioLinhas}\n  Total: ${brl(bioTotal)}`)
+      } else if (e.tipo_exame === 'Teste Rápido' && testeRows && testeRows.length > 0) {
+        const testeTotal = testeRows.reduce((sum, t) => sum + Number(isPix ? t.valor_pix : t.valor_cartao), 0)
+        const testeLinhas = testeRows.map(t => {
+          const nome = Array.isArray(t.testes_rapidos)
+            ? t.testes_rapidos[0]?.nome
+            : (t.testes_rapidos as { nome: string } | null)?.nome ?? '—'
+          const val = Number(isPix ? t.valor_pix : t.valor_cartao)
+          return `  • ${nome} — ${brl(val)}`
+        }).join('\n')
+        partes.push(`Teste Rápido:\n${testeLinhas}\n  Total: ${brl(testeTotal)}`)
       } else {
         partes.push(e.tipo_exame)
       }

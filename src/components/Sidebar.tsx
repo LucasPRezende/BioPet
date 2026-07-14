@@ -40,6 +40,7 @@ const NAV: NavGroup[] = [
     items: [
       { icon: '📋', label: 'Laudos',       href: '/admin/laudos'                   },
       { icon: '🧪', label: 'Bioquímica',  href: '/admin/novo-bioquimica'          },
+      { icon: '💉', label: 'Teste Rápido', href: '/admin/novo-teste-rapido'       },
       { icon: '📊', label: 'Referências', href: '/admin/bioquimica/referencias'   },
     ],
   },

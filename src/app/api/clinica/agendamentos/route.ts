@@ -9,9 +9,11 @@ import {
   upsertTutor,
   insertExames,
   insertBioquimica,
+  insertTestesRapidos,
   precificarExames,
   type ExameInput,
   type BioquimicaInput,
+  type TesteRapidoInput,
 } from '@/lib/agendamento-helpers'
 import { formaEfetiva } from '@/lib/pricing'
 
@@ -73,6 +75,7 @@ export async function POST(request: NextRequest) {
     pagamento_responsavel, forma_pagamento, entrega_pagamento,
     valor,
     bioquimica_selecionados,    // [{ bioquimica_exame_id, valor_pix, valor_cartao }]
+    testes_rapidos_selecionados, // [{ teste_rapido_id, valor_pix, valor_cartao }]
   } = body ?? {}
 
   // Suporte a multi-exame (exames[]) e single (tipo_exame)
@@ -153,12 +156,14 @@ export async function POST(request: NextRequest) {
 
   // 4. Recalcula os preços no backend (fonte de verdade) e cria o agendamento
   const bioPayload     = Array.isArray(bioquimica_selecionados) ? bioquimica_selecionados as BioquimicaInput[] : []
+  const testePayload   = Array.isArray(testes_rapidos_selecionados) ? testes_rapidos_selecionados as TesteRapidoInput[] : []
   const examesPrecificados = await precificarExames(examesArr, {
-    forma:    formaEfetiva(pagamento_responsavel, forma_pagamento),
-    gratuito: (forma_pagamento ?? '').toLowerCase() === 'gratuito',
-    bio:      bioPayload,
-    dataHora: data_hora,
-    encaixe:  false,
+    forma:         formaEfetiva(pagamento_responsavel, forma_pagamento),
+    gratuito:      (forma_pagamento ?? '').toLowerCase() === 'gratuito',
+    bio:           bioPayload,
+    testesRapidos: testePayload,
+    dataHora:      data_hora,
+    encaixe:       false,
   })
   const tipoExameLabel = examesPrecificados.map(e => e.tipo_exame).join(', ')
   const valorTotal     = examesPrecificados.reduce((sum, e) => sum + (e.valor ?? 0), 0)
@@ -192,6 +197,7 @@ export async function POST(request: NextRequest) {
   // 5. Insere exames (já precificados pelo backend) e sub-exames de bioquímica
   await insertExames(agendamento.id, examesPrecificados)
   await insertBioquimica(agendamento.id, bioPayload)
+  await insertTestesRapidos(agendamento.id, testePayload)
 
   // 6. Nome do vet
   let vetNome = 'Não informado'

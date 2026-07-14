@@ -20,8 +20,8 @@ export async function GET(request: NextRequest) {
   }
 
   let query = supabase
-    .from('bioquimica_exames')
-    .select('id, nome, codigo, preco_pix, preco_cartao, comissao, ativo, ordem')
+    .from('testes_rapidos')
+    .select('id, nome, descricao, material_padrao, metodo_padrao, observacao_padrao, preco_pix, preco_cartao, comissao, ativo, ordem')
     .order('ordem', { ascending: true })
 
   if (!isAdmin) {
@@ -33,26 +33,30 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(data ?? [])
 }
 
-// POST — autenticado admin, cria novo sub-exame
+// POST — autenticado admin, cria novo teste rápido
 export async function POST(request: NextRequest) {
   const admin = await requireAdmin(request)
   if (!admin) return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 })
 
   const body = await request.json().catch(() => null)
-  const { nome, codigo, preco_pix, preco_cartao, comissao, ordem } = body ?? {}
+  const { nome, descricao, material_padrao, metodo_padrao, observacao_padrao,
+          preco_pix, preco_cartao, comissao, ordem } = body ?? {}
 
   if (!nome?.trim()) return NextResponse.json({ error: 'Nome é obrigatório.' }, { status: 400 })
 
   const { data, error } = await supabase
-    .from('bioquimica_exames')
+    .from('testes_rapidos')
     .insert({
-      nome:        nome.trim(),
-      codigo:      codigo?.trim() || null,
-      preco_pix:   Number(preco_pix)    || 0,
-      preco_cartao: Number(preco_cartao) || 0,
-      comissao:    Number(comissao)      || 0,
-      ordem:       Number(ordem)         || 0,
-      ativo:       true,
+      nome:              nome.trim(),
+      descricao:         descricao?.trim() || null,
+      material_padrao:   material_padrao?.trim() || null,
+      metodo_padrao:     metodo_padrao?.trim() || null,
+      observacao_padrao: observacao_padrao?.trim() || null,
+      preco_pix:         Number(preco_pix)    || 0,
+      preco_cartao:      Number(preco_cartao) || 0,
+      comissao:          Number(comissao)     || 0,
+      ordem:             Number(ordem)        || 0,
+      ativo:             true,
     })
     .select('*')
     .single()

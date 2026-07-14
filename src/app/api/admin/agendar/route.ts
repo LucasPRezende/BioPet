@@ -10,9 +10,11 @@ import {
   upsertTutor,
   insertExames,
   insertBioquimica,
+  insertTestesRapidos,
   precificarExames,
   type ExameInput,
   type BioquimicaInput,
+  type TesteRapidoInput,
 } from '@/lib/agendamento-helpers'
 import { formaEfetiva } from '@/lib/pricing'
 
@@ -57,6 +59,7 @@ export async function POST(request: NextRequest) {
     sedacao_necessaria, pet_internado,
     pagamento_responsavel,
     bioquimica_selecionados,
+    testes_rapidos_selecionados,
     encaixe,
     notificar,
     clinica_id,
@@ -145,12 +148,14 @@ export async function POST(request: NextRequest) {
   const statusPag       = pagarGratuito ? 'pago' : (pagarClinica || pagarPresencial ? 'a_receber' : 'pendente')
 
   const bioPayload      = Array.isArray(bioquimica_selecionados) ? bioquimica_selecionados as BioquimicaInput[] : []
+  const testePayload    = Array.isArray(testes_rapidos_selecionados) ? testes_rapidos_selecionados as TesteRapidoInput[] : []
   const examesPrecificados = await precificarExames(examesArr, {
-    forma:    formaEfetiva(pagResp, forma_pagamento),
-    gratuito: pagarGratuito,
-    bio:      bioPayload,
-    dataHora: data_hora,
-    encaixe:  encaixe ?? false,
+    forma:         formaEfetiva(pagResp, forma_pagamento),
+    gratuito:      pagarGratuito,
+    bio:           bioPayload,
+    testesRapidos: testePayload,
+    dataHora:      data_hora,
+    encaixe:       encaixe ?? false,
   })
 
   const tipoExameLabel  = examesPrecificados.map(e => e.tipo_exame).join(', ')
@@ -188,6 +193,7 @@ export async function POST(request: NextRequest) {
   // 5. Insere exames (já precificados pelo backend) e sub-exames de bioquímica
   await insertExames(agendamento.id, examesPrecificados)
   await insertBioquimica(agendamento.id, bioPayload)
+  await insertTestesRapidos(agendamento.id, testePayload)
 
   // 6. Notificação WhatsApp para o tutor
   const isEncaixe  = encaixe ?? false

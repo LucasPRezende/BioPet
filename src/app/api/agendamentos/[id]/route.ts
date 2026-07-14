@@ -30,7 +30,7 @@ export async function GET(
 
   const { data, error } = await supabase
     .from('agendamentos')
-    .select('*, tutores(id, nome, telefone), pets(id, nome, especie, raca), laudos(id, token, tipo_exame), agendamento_exames(tipo_exame, valor, desconto, duracao_minutos, descricao)')
+    .select('*, tutores(id, nome, telefone), pets(id, nome, especie, raca, sexo, data_nascimento), laudos(id, token, tipo_exame), agendamento_exames(tipo_exame, valor, desconto, duracao_minutos, descricao), agendamento_testes_rapidos(id, teste_rapido_id, testes_rapidos(nome))')
     .eq('id', Number(params.id))
     .single()
 

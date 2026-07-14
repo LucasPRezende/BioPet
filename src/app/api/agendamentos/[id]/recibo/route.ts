@@ -27,7 +27,8 @@ export async function GET(
       pets(nome, especie, raca),
       clinicas(nome),
       agendamento_exames(tipo_exame, descricao),
-      agendamento_bioquimica(id, bioquimica_exames(nome))
+      agendamento_bioquimica(id, bioquimica_exames(nome)),
+      agendamento_testes_rapidos(id, testes_rapidos(nome))
     `)
     .eq('id', Number(params.id))
     .single()
@@ -58,12 +59,17 @@ export async function GET(
   const bioNomes = (ag.agendamento_bioquimica ?? [])
     .map(b => one<{ nome: string }>(b.bioquimica_exames)?.nome)
     .filter((n): n is string => !!n)
+  const testeNomes = (ag.agendamento_testes_rapidos ?? [])
+    .map(t => one<{ nome: string }>(t.testes_rapidos)?.nome)
+    .filter((n): n is string => !!n)
 
   const rows = ag.agendamento_exames ?? []
   const exames: string[] = rows.length > 0
     ? rows.map(e =>
         e.tipo_exame === 'Bioquímica' && bioNomes.length > 0
           ? `Bioquímica (${bioNomes.join(', ')})`
+        : e.tipo_exame === 'Teste Rápido' && testeNomes.length > 0
+          ? `Teste Rápido (${testeNomes.join(', ')})`
           : e.tipo_exame,
       )
     : ag.tipo_exame.split(',').map((s: string) => s.trim()).filter(Boolean)

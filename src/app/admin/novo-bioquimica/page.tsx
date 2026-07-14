@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useRef, useCallback, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useRef, useCallback, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 import { EXAM_CODES, type MindrayResult } from '@/lib/mindray-types'
 import TutorBusca from '@/components/TutorBusca'
@@ -235,8 +235,10 @@ interface Form {
 
 
 
-export default function NovoBioquimicaPage() {
+function NovoBioquimicaInner() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const agendamentoId = searchParams.get('agendamento_id')
   const fileInputRef   = useRef<HTMLInputElement>(null)
   const faixaManualRef = useRef(false)
 
@@ -279,6 +281,33 @@ export default function NovoBioquimicaPage() {
   }, [])
 
   useEffect(() => { loadVets() }, [loadVets])
+
+  // Prefill a partir do agendamento (quando aberto pela agenda)
+  useEffect(() => {
+    if (!agendamentoId) return
+    let cancelado = false
+    fetch(`/api/agendamentos/${agendamentoId}`).then(r => r.ok ? r.json() : null).then(ag => {
+      if (!ag || cancelado) return
+      const tutor = Array.isArray(ag.tutores) ? ag.tutores[0] : ag.tutores
+      const pet   = Array.isArray(ag.pets)    ? ag.pets[0]    : ag.pets
+      if (tutor?.id) setTutorId(tutor.id)
+      if (pet?.id)   setPetId(pet.id)
+      if (pet?.data_nascimento) setPetDataNascimento(pet.data_nascimento)
+      if (ag.veterinario_id) setVetId(Number(ag.veterinario_id))
+      faixaManualRef.current = false
+      setForm(prev => ({
+        ...prev,
+        nome_pet: pet?.nome ?? prev.nome_pet,
+        especie:  pet?.especie ?? prev.especie,
+        raca:     pet?.raca ?? prev.raca,
+        sexo:     pet?.sexo ?? prev.sexo,
+        idade:    pet?.data_nascimento ? calcIdadeDeNascimento(pet.data_nascimento) : prev.idade,
+        tutor:    tutor?.nome ?? prev.tutor,
+        telefone: tutor?.telefone ?? prev.telefone,
+      }))
+    }).catch(() => {})
+    return () => { cancelado = true }
+  }, [agendamentoId])
 
   useEffect(() => {
     fetch('/api/bioquimica/faixas-etarias')
@@ -453,7 +482,7 @@ export default function NovoBioquimicaPage() {
       veterinario_id:     vetId,
       tutor_id:           tutorId,
       pet_id:             petId,
-      agendamento_id:     null,
+      agendamento_id:     agendamentoId ? Number(agendamentoId) : null,
     }
 
     const res = await fetch('/api/laudos/gerar-bioquimica', {
@@ -865,5 +894,13 @@ export default function NovoBioquimicaPage() {
         />
       )}
     </div>
+  )
+}
+
+export default function NovoBioquimicaPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-50" />}>
+      <NovoBioquimicaInner />
+    </Suspense>
   )
 }
