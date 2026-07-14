@@ -93,6 +93,8 @@ function NovoHemogasometriaContent() {
 
   const [loadingAg,   setLoadingAg]   = useState(false)
   const [agInfo,      setAgInfo]      = useState<AgendamentoInfo | null>(null)
+  const [vets,        setVets]        = useState<{ id: number; nome: string }[]>([])
+  const [vetId,       setVetId]       = useState<number | null>(null)
 
   const [step,        setStep]        = useState<'upload' | 'preview'>('upload')
   const [uploading,   setUploading]   = useState(false)
@@ -116,6 +118,11 @@ function NovoHemogasometriaContent() {
     data_laudo:         new Date().toLocaleDateString('en-CA'),
   })
 
+  // Carrega a lista de veterinários (para o seletor)
+  useEffect(() => {
+    fetch('/api/veterinarios').then(r => r.ok ? r.json() : []).then(setVets).catch(() => {})
+  }, [])
+
   // Carrega dados do agendamento ao montar
   useEffect(() => {
     if (!agendamentoId) return
@@ -128,9 +135,10 @@ function NovoHemogasometriaContent() {
         const tutor = (Array.isArray(d.tutores) ? d.tutores[0] : d.tutores) as { id: number; nome: string; telefone: string } | null
         const pet   = (Array.isArray(d.pets)    ? d.pets[0]    : d.pets)    as { id: number; nome: string; especie: string; raca: string } | null
 
-        // Busca nome do vet pelo veterinario_id que vem no campo raiz do agendamento
+        // Vet responsável do agendamento (id + nome) — usado no vínculo do laudo e no PDF
         let vetNome = ''
         if (d.veterinario_id) {
+          setVetId(d.veterinario_id)
           const vRes = await fetch('/api/veterinarios').then(r => r.ok ? r.json() : [])
           const v = (vRes as { id: number; nome: string }[]).find(v => v.id === d.veterinario_id)
           vetNome = v?.nome ?? ''
@@ -239,15 +247,16 @@ function NovoHemogasometriaContent() {
       telefone:  form.telefone   || agInfo.telefone,
     } : pdfData
 
+    const vetNome = vets.find(v => v.id === vetId)?.nome ?? form.medico_responsavel
     const payload = {
-      pdfData:            finalPdfData,
+      pdfData:            { ...finalPdfData, medico: vetNome || finalPdfData.medico },
       tutor:              form.tutor       || agInfo?.tutor   || pdfData.tutor,
       telefone:           form.telefone    || agInfo?.telefone || '',
       sexo:               form.sexo,
       raca:               form.raca        || agInfo?.raca    || '',
-      medico_responsavel: form.medico_responsavel,
+      medico_responsavel: vetNome,
       data_laudo:         form.data_laudo,
-      veterinario_id:     null,
+      veterinario_id:     vetId,
       tutor_id:           agInfo?.tutor_id ?? null,
       pet_id:             agInfo?.pet_id   ?? null,
       agendamento_id:     agendamentoId ? parseInt(agendamentoId, 10) : null,
@@ -500,9 +509,17 @@ function NovoHemogasometriaContent() {
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Médico Responsável</label>
-                    <input type="text" value={form.medico_responsavel}
-                      onChange={e => setForm(p => ({ ...p, medico_responsavel: e.target.value }))}
-                      placeholder="Nome do veterinário" className={INPUT} />
+                    <select
+                      value={vetId ?? ''}
+                      onChange={e => {
+                        const id = e.target.value ? Number(e.target.value) : null
+                        setVetId(id)
+                        setForm(p => ({ ...p, medico_responsavel: vets.find(v => v.id === id)?.nome ?? '' }))
+                      }}
+                      className={INPUT}>
+                      <option value="">— Não informado</option>
+                      {vets.map(v => <option key={v.id} value={v.id}>{v.nome}</option>)}
+                    </select>
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Data do Laudo</label>

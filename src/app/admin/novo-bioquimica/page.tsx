@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect, Suspense } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
+import LaudoSucesso from '@/components/LaudoSucesso'
 
 import { EXAM_CODES, type MindrayResult } from '@/lib/mindray-types'
 import TutorBusca from '@/components/TutorBusca'
@@ -236,7 +237,6 @@ interface Form {
 
 
 function NovoBioquimicaInner() {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const agendamentoId = searchParams.get('agendamento_id')
   const fileInputRef   = useRef<HTMLInputElement>(null)
@@ -264,6 +264,7 @@ function NovoBioquimicaInner() {
   const [importError, setImportError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
+  const [success,    setSuccess]    = useState<{ id: number; tutor: string; telefone: string } | null>(null)
   const [rawTexts,   setRawTexts]   = useState<string[]>([])
   const [showRaw,    setShowRaw]    = useState(false)
   const [tutorId,           setTutorId]           = useState<number | null>(null)
@@ -494,7 +495,8 @@ function NovoBioquimicaInner() {
     })
 
     if (res.ok) {
-      router.push('/admin/laudos')
+      const laudo = await res.json()
+      setSuccess({ id: laudo.id, tutor: form.tutor, telefone: form.telefone })
     } else {
       const d = await res.json().catch(() => ({}))
       setSubmitError(d.error ?? 'Erro ao gerar laudo.')
@@ -506,6 +508,17 @@ function NovoBioquimicaInner() {
   const allCodes = Object.keys(EXAM_CODES).filter(
     (c, i, arr) => arr.indexOf(c) === i && EXAM_CODES[c]
   )
+
+  if (success) {
+    return (
+      <LaudoSucesso
+        laudoId={success.id}
+        tutor={success.tutor}
+        telefone={success.telefone}
+        titulo="Laudo de Bioquímica cadastrado!"
+      />
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
