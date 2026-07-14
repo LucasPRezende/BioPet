@@ -83,6 +83,8 @@ function NovoTesteRapidoInner() {
   const [submitError, setSubmitError] = useState('')
   const [petDataNascimento, setPetDataNascimento] = useState<string | null>(null)
   const [success, setSuccess] = useState<{ id: number; tutor: string; telefone: string } | null>(null)
+  const [previewing, setPreviewing] = useState(false)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
 
   // Carrega catálogo e vets
   useEffect(() => {
@@ -169,29 +171,23 @@ function NovoTesteRapidoInner() {
   const totalPix     = incluidosOrdenados.reduce((s, c) => s + Number(c.preco_pix), 0)
   const totalComissao = incluidosOrdenados.reduce((s, c) => s + Number(c.comissao), 0)
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setSubmitError('')
-
+  // Valida os campos obrigatórios; devolve a mensagem de erro ou null.
+  function validar(): string | null {
     if (!form.nome_pet || !form.especie || !form.tutor || !form.telefone) {
-      setSubmitError('Preencha os campos obrigatórios: animal, espécie, tutor e telefone.')
-      return
+      return 'Preencha os campos obrigatórios: animal, espécie, tutor e telefone.'
     }
-    if (incluidos.length === 0) {
-      setSubmitError('Selecione ao menos um teste rápido.')
-      return
-    }
+    if (incluidos.length === 0) return 'Selecione ao menos um teste rápido.'
     const semResultado = incluidosOrdenados.filter(c => !linhas[c.id]?.status)
     if (semResultado.length > 0) {
-      setSubmitError(`Informe o resultado de: ${semResultado.map(c => c.nome).join(', ')}.`)
-      return
+      return `Informe o resultado de: ${semResultado.map(c => c.nome).join(', ')}.`
     }
+    return null
+  }
 
-    setSubmitting(true)
-
+  // Monta o pdfData usado tanto na prévia quanto na emissão.
+  function buildPdfData() {
     const selectedVet = vets.find(v => String(v.id) === form.veterinario_id)
     const materiaisUnicos = Array.from(new Set(incluidosOrdenados.map(c => linhas[c.id]?.material).filter(Boolean)))
-
     const resultados = incluidosOrdenados.map(c => ({
       nome:      c.nome,
       descricao: c.descricao,
@@ -199,24 +195,67 @@ function NovoTesteRapidoInner() {
       metodo:    linhas[c.id]?.metodo ?? '',
       status:    linhas[c.id]?.status || 'neg',
     }))
+    return {
+      nome_pet:    form.nome_pet,
+      especie:     form.especie,
+      raca:        form.raca,
+      sexo:        form.sexo,
+      idade:       form.idade,
+      tutor:       form.tutor,
+      medico:      selectedVet?.nome ?? '',
+      crmv:        '',
+      clinica:     selectedVet?.clinicas?.nome ?? '',
+      material:    materiaisUnicos.join(', '),
+      data_laudo:  form.data_laudo,
+      data_coleta: form.data_coleta,
+      resultados,
+      observacoes: observacoes.split(/\n\s*\n/).map(s => s.trim()).filter(Boolean),
+    }
+  }
+
+  async function handlePreview() {
+    setSubmitError('')
+    const err = validar()
+    if (err) { setSubmitError(err); return }
+    setPreviewing(true)
+    try {
+      const res = await fetch('/api/laudos/preview-teste-rapido', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ pdfData: buildPdfData() }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        setSubmitError(d.error ?? 'Erro ao gerar a prévia.')
+      } else {
+        const blob = await res.blob()
+        if (previewUrl) URL.revokeObjectURL(previewUrl)
+        setPreviewUrl(URL.createObjectURL(blob))
+      }
+    } catch {
+      setSubmitError('Erro ao gerar a prévia.')
+    }
+    setPreviewing(false)
+  }
+
+  function fecharPreview() {
+    if (previewUrl) URL.revokeObjectURL(previewUrl)
+    setPreviewUrl(null)
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setSubmitError('')
+
+    const err = validar()
+    if (err) { setSubmitError(err); return }
+
+    setSubmitting(true)
+
+    const selectedVet = vets.find(v => String(v.id) === form.veterinario_id)
 
     const payload = {
-      pdfData: {
-        nome_pet:    form.nome_pet,
-        especie:     form.especie,
-        raca:        form.raca,
-        sexo:        form.sexo,
-        idade:       form.idade,
-        tutor:       form.tutor,
-        medico:      selectedVet?.nome ?? '',
-        crmv:        '',
-        clinica:     selectedVet?.clinicas?.nome ?? '',
-        material:    materiaisUnicos.join(', '),
-        data_laudo:  form.data_laudo,
-        data_coleta: form.data_coleta,
-        resultados,
-        observacoes: observacoes.split(/\n\s*\n/).map(s => s.trim()).filter(Boolean),
-      },
+      pdfData:            buildPdfData(),
       tutor:              form.tutor,
       telefone:           form.telefone,
       sexo:               form.sexo,
@@ -467,12 +506,45 @@ function NovoTesteRapidoInner() {
             <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">{submitError}</p>
           )}
 
-          <button type="submit" disabled={submitting}
-            className="w-full bg-[#19202d] hover:bg-[#2a3447] disabled:opacity-50 text-white font-bold py-3 rounded-xl transition text-sm tracking-wide">
-            {submitting ? 'Gerando PDF...' : '✨ Gerar Laudo de Teste Rápido'}
-          </button>
+          <div className="flex gap-3">
+            <button type="button" onClick={handlePreview} disabled={previewing || submitting}
+              className="flex-1 border-2 border-[#19202d] text-[#19202d] hover:bg-gray-50 disabled:opacity-50 font-bold py-3 rounded-xl transition text-sm tracking-wide">
+              {previewing ? 'Gerando prévia...' : '👁 Pré-visualizar'}
+            </button>
+            <button type="submit" disabled={submitting || previewing}
+              className="flex-1 bg-[#19202d] hover:bg-[#2a3447] disabled:opacity-50 text-white font-bold py-3 rounded-xl transition text-sm tracking-wide">
+              {submitting ? 'Gerando PDF...' : '✨ Gerar Laudo'}
+            </button>
+          </div>
         </form>
       </main>
+
+      {/* Modal de pré-visualização */}
+      {previewUrl && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex flex-col p-4" onClick={fecharPreview}>
+          <div className="bg-white rounded-xl overflow-hidden flex flex-col w-full max-w-4xl mx-auto my-auto"
+            style={{ height: '92vh' }} onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 shrink-0">
+              <div>
+                <p className="font-bold text-[#19202d] text-sm">Pré-visualização do laudo</p>
+                <p className="text-xs text-gray-400">Confira antes de gerar — nada foi salvo nem enviado ainda.</p>
+              </div>
+              <button onClick={fecharPreview} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+            </div>
+            <iframe src={previewUrl} title="Prévia do laudo" className="flex-1 w-full" />
+            <div className="px-5 py-3 border-t border-gray-100 flex justify-end gap-3 shrink-0">
+              <button onClick={fecharPreview}
+                className="px-4 py-2 border border-gray-200 text-gray-500 rounded-lg text-sm hover:bg-gray-50 transition">
+                Fechar e ajustar
+              </button>
+              <button onClick={() => { fecharPreview(); (document.querySelector('form') as HTMLFormElement)?.requestSubmit() }}
+                className="px-4 py-2 bg-[#19202d] hover:bg-[#2a3447] text-white font-semibold rounded-lg text-sm transition">
+                ✨ Está certo — Gerar Laudo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
