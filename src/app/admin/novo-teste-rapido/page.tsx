@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 
 import TutorBusca from '@/components/TutorBusca'
+import LaudoSucesso from '@/components/LaudoSucesso'
 import { ESPECIES } from '@/lib/especies'
 
 interface TesteRapido {
@@ -52,7 +53,6 @@ function calcIdadeDeNascimento(dataNasc: string): string {
 }
 
 function NovoTesteRapidoInner() {
-  const router       = useRouter()
   const searchParams = useSearchParams()
   const agendamentoId = searchParams.get('agendamento_id')
   const obsManualRef = useRef(false)
@@ -82,6 +82,7 @@ function NovoTesteRapidoInner() {
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [petDataNascimento, setPetDataNascimento] = useState<string | null>(null)
+  const [success, setSuccess] = useState<{ id: number; tutor: string; telefone: string } | null>(null)
 
   // Carrega catálogo e vets
   useEffect(() => {
@@ -237,12 +238,24 @@ function NovoTesteRapidoInner() {
     })
 
     if (res.ok) {
-      router.push('/admin/laudos')
+      const laudo = await res.json()
+      setSuccess({ id: laudo.id, tutor: form.tutor, telefone: form.telefone })
     } else {
       const d = await res.json().catch(() => ({}))
       setSubmitError(d.error ?? 'Erro ao gerar laudo.')
     }
     setSubmitting(false)
+  }
+
+  if (success) {
+    return (
+      <LaudoSucesso
+        laudoId={success.id}
+        tutor={success.tutor}
+        telefone={success.telefone}
+        titulo="Laudo de Teste Rápido cadastrado!"
+      />
+    )
   }
 
   return (
