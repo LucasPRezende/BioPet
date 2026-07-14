@@ -1055,6 +1055,14 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
               )
             })()}
 
+            {/* Recibo (disponível quando pago) */}
+            {(statusPag === 'pago' || statusPag === 'pago_clinica') && !!ag.valor && Number(ag.valor) > 0 && (
+              <a href={`/api/agendamentos/${ag.id}/recibo`}
+                className="flex items-center justify-center gap-2 w-full border border-[#8a6e36]/30 bg-amber-50 hover:bg-amber-100 text-[#8a6e36] text-sm font-semibold px-3 py-2 rounded-lg transition">
+                🧾 Baixar recibo (PDF)
+              </a>
+            )}
+
             {/* Ações de status */}
             <div>
               <p className={LABEL}>Alterar status</p>

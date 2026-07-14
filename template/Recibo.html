@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>Recibo — BioPet</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:       #0F2942;
+    --ink-2:     #1B3A5B;
+    --teal:      #3BA7B0;
+    --teal-soft: #CFE7E9;
+    --gold:      #C9A96A;
+    --gold-soft: #EFE3C9;
+    --cream:     #FAF7F2;
+    --paper:     #FFFFFF;
+    --line:      #E6E1D6;
+    --muted:     #6B7280;
+  }
+
+  *{ box-sizing: border-box; }
+  html,body{ margin:0; padding:0; background:#ECE7DC; color:var(--ink);
+             font-family:'Inter', sans-serif; -webkit-font-smoothing:antialiased; }
+
+  .page{
+    width: 210mm;
+    min-height: 297mm;
+    margin: 16px auto;
+    background: var(--paper);
+    position: relative;
+    padding: 0 12mm 50mm 12mm;
+    box-shadow: 0 18px 60px rgba(15,41,66,.12), 0 2px 6px rgba(15,41,66,.06);
+    overflow: hidden;
+  }
+
+  .header{
+    position: relative;
+    margin: 0 -12mm 0 -12mm;
+    background: #0D2339;
+    color: #fff;
+    padding: 3mm 14mm 3mm 14mm;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .header::after{
+    content:"";
+    position:absolute; left:0; right:0; bottom:-2.5mm; height:2.5mm;
+    background: linear-gradient(90deg, var(--gold) 0%, var(--gold-soft) 50%, var(--gold) 100%);
+  }
+  .logo-full{
+    height: 22mm;
+    width: auto;
+    max-width: 100%;
+    display:block;
+    filter: drop-shadow(0 2px 6px rgba(0,0,0,.25));
+  }
+
+  .doc-title-bar{
+    margin: 4mm 0 0 6mm;
+    padding-bottom: 3mm;
+    border-bottom: 1px solid var(--line);
+    display:flex; align-items: baseline; justify-content: space-between; gap: 6mm;
+  }
+  .doc-title-bar h1{
+    margin: 0;
+    font-weight: 700;
+    font-size: 16pt;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--ink);
+  }
+  .doc-title-bar .subtitle{
+    font-family:'Cormorant Garamond', serif;
+    font-style: italic;
+    color: var(--teal);
+    font-size: 12pt;
+  }
+
+  .info-grid{
+    margin-top: 6mm;
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    border: 1px solid var(--line);
+    background: linear-gradient(180deg, #FCFBF7 0%, #FFFFFF 100%);
+  }
+  .info-card{
+    padding: 3.5mm 4mm;
+    border-right: 1px solid var(--line);
+  }
+  .info-card:last-child{ border-right:none; }
+  .info-card .label{
+    font-size: 7pt;
+    letter-spacing: 1.8px;
+    text-transform: uppercase;
+    color: var(--teal);
+    font-weight: 600;
+    margin-bottom: 2mm;
+    display:flex; align-items:center; gap:2mm;
+  }
+  .info-card .label::before{
+    content:""; display:inline-block; width:3mm; height:1px; background: var(--gold);
+  }
+  .info-card dl{ margin:0; display:grid; grid-template-columns: auto 1fr; gap: 1mm 3mm; }
+  .info-card dt{ font-size: 8pt; color: var(--muted); font-weight:500; }
+  .info-card dd{ margin:0; font-size: 9pt; color: var(--ink); font-weight:500; }
+
+  .section-head{
+    margin-top: 8mm;
+    margin-bottom: 3mm;
+    display:flex; align-items:center; gap: 4mm;
+  }
+  .section-head h2{
+    font-family:'Cormorant Garamond', serif;
+    font-weight:500;
+    font-size: 15pt;
+    margin:0;
+    color: var(--ink);
+    white-space:nowrap;
+  }
+  .section-head .rule{
+    flex:1; height:1px; background: var(--line); position:relative;
+  }
+  .section-head .rule::before{
+    content:""; position:absolute; left:0; top:-1px; width:12mm; height:2px; background:var(--gold);
+  }
+  .section-head .tag{
+    font-size:8pt; letter-spacing:2px; text-transform:uppercase;
+    color:var(--gold); font-weight:600;
+  }
+
+  .declaration{
+    font-size: 11.5pt;
+    line-height: 1.8;
+    color: var(--ink);
+  }
+  .declaration b{ color: var(--ink); font-weight:700; }
+
+  ul.exam-list{
+    list-style: none;
+    margin: 4mm 0 0 0;
+    padding: 0;
+  }
+  ul.exam-list li{
+    display:flex; align-items:baseline; gap: 3mm;
+    font-size: 11pt;
+    color: var(--ink);
+    font-weight: 500;
+    padding: 2.5mm 4mm;
+    border-bottom: 1px solid var(--line);
+  }
+  ul.exam-list li:nth-child(even){ background: #FBF9F3; }
+  ul.exam-list li::before{
+    content:"";
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--teal);
+    flex-shrink:0;
+  }
+
+  .amount-box{
+    margin-top: 7mm;
+    border: 1.5px solid var(--gold);
+    background: linear-gradient(180deg, var(--gold-soft) 0%, #FFFFFF 55%);
+    padding: 3.5mm 6mm;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    max-width: 90mm;
+  }
+  .amount-box .label{
+    font-size: 7.5pt;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--ink-2);
+    font-weight: 700;
+  }
+  .amount-box .value{
+    font-family:'JetBrains Mono', monospace;
+    font-size: 15pt;
+    font-weight: 500;
+    color: var(--ink);
+  }
+
+  .place-date{
+    margin-top: 9mm;
+    text-align: right;
+    font-family:'Cormorant Garamond', serif;
+    font-style: italic;
+    font-size: 13pt;
+    color: var(--ink-2);
+  }
+
+  .sign-section{
+    position: absolute;
+    left: 14mm;
+    right: 12mm;
+    bottom: 15mm;
+    display:flex;
+    justify-content:center;
+  }
+  .signature{
+    text-align:center;
+    min-width: 80mm;
+    position: relative;
+  }
+  .sig-image{
+    display:block;
+    margin: 0 auto -3mm;
+    height: 14mm;
+    width: auto;
+    object-fit: contain;
+    position: relative;
+    z-index: 2;
+  }
+  .signature .sig-line{
+    border-top: 1px solid var(--ink);
+    padding-top: 2mm;
+    position: relative;
+  }
+  .signature .sig-name{
+    font-family:'Cormorant Garamond', serif;
+    font-size: 12pt;
+    color: var(--ink);
+    font-weight:600;
+  }
+  .signature .sig-role{
+    font-size: 8pt;
+    color: var(--muted);
+    margin-top: .5mm;
+  }
+  .signature .sig-crmv{
+    font-family:'JetBrains Mono', monospace;
+    font-size: 7.5pt;
+    color: var(--gold);
+    letter-spacing: 1.5px;
+    margin-top: 1mm;
+  }
+
+  .page-footer{
+    position:absolute;
+    left: 14mm; right: 12mm; bottom: 3mm;
+    display:flex; justify-content:space-between; align-items:flex-end;
+    font-size: 7pt;
+    color: var(--muted);
+    letter-spacing: .5px;
+    padding-top: 2mm;
+    border-top: 1px solid var(--line);
+    line-height: 1.6;
+  }
+  .page-footer .mark{
+    color: var(--gold);
+    font-family:'Cormorant Garamond', serif;
+    font-style: italic;
+    font-size: 9pt;
+  }
+
+  @page { size: A4; margin: 0; }
+  @media print {
+    html,body{
+      background:#fff;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
+    *, *::before, *::after{
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    .page{ margin:0; box-shadow:none; width:210mm; min-height:297mm; }
+    .toolbar{ display:none !important; }
+  }
+
+  .toolbar{
+    position: fixed; top: 16px; right: 16px; z-index: 10;
+    display:flex; gap:8px;
+    font-family:'Inter', sans-serif;
+  }
+  .toolbar button{
+    background: var(--ink); color:#fff; border:none;
+    padding: 9px 14px; border-radius: 6px;
+    font-size: 12px; font-weight:500; letter-spacing:.4px;
+    cursor:pointer; box-shadow: 0 6px 20px rgba(15,41,66,.25);
+  }
+  .toolbar button:hover{ background: var(--ink-2); }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <button onclick="window.print()">Imprimir / Salvar PDF</button>
+</div>
+
+<article class="page" data-screen-label="Recibo">
+
+  <!-- CABEÇALHO -->
+  <header class="header">
+    <img class="logo-full" src="assets/logo-full.png" alt="Biopet — Laboratório Veterinário" />
+  </header>
+
+  <!-- TÍTULO DO DOCUMENTO -->
+  <div class="doc-title-bar">
+    <h1>Recibo</h1>
+    <span class="subtitle">Comprovante de pagamento</span>
+  </div>
+
+  <!-- INFORMAÇÕES -->
+  <section class="info-grid" style="margin-top:6mm">{{INFO_CARDS}}</section>
+
+  <!-- DECLARAÇÃO -->
+  <div class="section-head">
+    <span class="tag">Declaração</span>
+    <h2>Recebimento</h2>
+    <div class="rule"></div>
+  </div>
+
+  <p class="declaration">
+    Recebi de <b>{{PAGADOR}}</b> a importância de <b>{{VALOR_FMT}} ({{VALOR_EXTENSO}})</b>,
+    referente à realização dos seguintes exames veterinários:
+  </p>
+
+  <ul class="exam-list">{{EXAM_LIST}}</ul>
+
+  <p class="declaration" style="margin-top:6mm">
+    Declaro, para os devidos fins, que o valor acima foi recebido.
+  </p>
+
+  <div class="amount-box">
+    <span class="label">Valor recebido</span>
+    <span class="value">{{VALOR_FMT}}</span>
+  </div>
+
+  <div class="place-date">{{DATA_LOCAL}}</div>
+
+  <!-- ASSINATURA -->
+  <section class="sign-section">
+    <div class="signature">
+      <img class="sig-image" src="assets/assinatura.png" alt="Assinatura" />
+      <div class="sig-line">
+        <div class="sig-name">Luciana Pereira de Brites</div>
+        <div class="sig-role">Médica Responsável</div>
+        <div class="sig-crmv">CRMV 12923</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RODAPÉ -->
+  <div class="page-footer">
+    <span>Av. Sávio Cota de Almeida Gama, 137 — Niterói, Volta Redonda/RJ · 27283-526<br>(24) 99999-9867</span>
+    <span class="mark">Tecnologia, precisão e cuidado em cada resultado</span>
+  </div>
+
+</article>
+
+</body>
+</html>
