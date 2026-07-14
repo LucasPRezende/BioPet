@@ -265,6 +265,8 @@ function NovoBioquimicaInner() {
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [success,    setSuccess]    = useState<{ id: number; tutor: string; telefone: string } | null>(null)
+  const [previewing, setPreviewing] = useState(false)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [rawTexts,   setRawTexts]   = useState<string[]>([])
   const [showRaw,    setShowRaw]    = useState(false)
   const [tutorId,           setTutorId]           = useState<number | null>(null)
@@ -423,23 +425,20 @@ function NovoBioquimicaInner() {
     setResultados(prev => [...prev, { codigo: '', nome: '', valor: '', unidade: '', metodo: '', status: '' }])
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setSubmitError('')
-
+  // Valida campos obrigatórios; devolve mensagem de erro ou null.
+  function validar(): string | null {
     if (!form.nome_pet || !form.especie || !form.tutor || !form.telefone) {
-      setSubmitError('Preencha os campos obrigatórios: animal, espécie, tutor e telefone.')
-      return
+      return 'Preencha os campos obrigatórios: animal, espécie, tutor e telefone.'
     }
     if (resultados.filter(r => r.valor).length === 0) {
-      setSubmitError('Adicione pelo menos um resultado com valor.')
-      return
+      return 'Adicione pelo menos um resultado com valor.'
     }
+    return null
+  }
 
-    setSubmitting(true)
-
+  // Monta o pdfData usado tanto na prévia quanto na emissão.
+  function buildPdfData() {
     const selectedVet = vets.find(v => v.id === vetId)
-
     // Merge reference values into exam results for the PDF (match by code + method)
     const resultadosComRef = resultados.map(r => {
       const metodo = r.metodo ?? ''
@@ -456,26 +455,69 @@ function NovoBioquimicaInner() {
         valor_max: ref?.valor_max ?? null,
       }
     })
+    return {
+      nome_pet:   form.nome_pet,
+      especie:    form.especie,
+      raca:       form.raca,
+      sexo:       form.sexo,
+      idade:      form.idade,
+      peso:       form.peso,
+      tutor:      form.tutor,
+      telefone:   form.telefone,
+      material:   form.material,
+      medico:     selectedVet?.nome ?? '',
+      crmv:       '',
+      clinica:    typeof selectedVet?.clinicas === 'object' && selectedVet.clinicas !== null
+                    ? (selectedVet.clinicas as { nome: string }).nome
+                    : '',
+      data_laudo: form.data_laudo,
+      resultados: resultadosComRef,
+    }
+  }
+
+  async function handlePreview() {
+    setSubmitError('')
+    const err = validar()
+    if (err) { setSubmitError(err); return }
+    setPreviewing(true)
+    try {
+      const res = await fetch('/api/laudos/preview-bioquimica', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ pdfData: buildPdfData() }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        setSubmitError(d.error ?? 'Erro ao gerar a prévia.')
+      } else {
+        const blob = await res.blob()
+        if (previewUrl) URL.revokeObjectURL(previewUrl)
+        setPreviewUrl(URL.createObjectURL(blob))
+      }
+    } catch {
+      setSubmitError('Erro ao gerar a prévia.')
+    }
+    setPreviewing(false)
+  }
+
+  function fecharPreview() {
+    if (previewUrl) URL.revokeObjectURL(previewUrl)
+    setPreviewUrl(null)
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setSubmitError('')
+
+    const err = validar()
+    if (err) { setSubmitError(err); return }
+
+    setSubmitting(true)
+
+    const selectedVet = vets.find(v => v.id === vetId)
 
     const payload = {
-      pdfData: {
-        nome_pet:   form.nome_pet,
-        especie:    form.especie,
-        raca:       form.raca,
-        sexo:       form.sexo,
-        idade:      form.idade,
-        peso:       form.peso,
-        tutor:      form.tutor,
-        telefone:   form.telefone,
-        material:   form.material,
-        medico:     selectedVet?.nome ?? '',
-        crmv:       '',
-        clinica:    typeof selectedVet?.clinicas === 'object' && selectedVet.clinicas !== null
-                      ? (selectedVet.clinicas as { nome: string }).nome
-                      : '',
-        data_laudo: form.data_laudo,
-        resultados: resultadosComRef,
-      },
+      pdfData:            buildPdfData(),
       tutor:              form.tutor,
       telefone:           form.telefone,
       sexo:               form.sexo,
@@ -893,15 +935,45 @@ function NovoBioquimicaInner() {
             </p>
           )}
 
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full bg-[#19202d] hover:bg-[#2a3447] disabled:opacity-50 text-white font-bold py-3 rounded-xl transition text-sm tracking-wide"
-          >
-            {submitting ? 'Gerando PDF...' : '✨ Gerar Laudo de Bioquímica'}
-          </button>
+          <div className="flex gap-3">
+            <button type="button" onClick={handlePreview} disabled={previewing || submitting}
+              className="flex-1 border-2 border-[#19202d] text-[#19202d] hover:bg-gray-50 disabled:opacity-50 font-bold py-3 rounded-xl transition text-sm tracking-wide">
+              {previewing ? 'Gerando prévia...' : '👁 Pré-visualizar'}
+            </button>
+            <button type="submit" disabled={submitting || previewing}
+              className="flex-1 bg-[#19202d] hover:bg-[#2a3447] disabled:opacity-50 text-white font-bold py-3 rounded-xl transition text-sm tracking-wide">
+              {submitting ? 'Gerando PDF...' : '✨ Gerar Laudo'}
+            </button>
+          </div>
         </form>
       </main>
+
+      {/* Modal de pré-visualização */}
+      {previewUrl && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex flex-col p-4" onClick={fecharPreview}>
+          <div className="bg-white rounded-xl overflow-hidden flex flex-col w-full max-w-4xl mx-auto my-auto"
+            style={{ height: '92vh' }} onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 shrink-0">
+              <div>
+                <p className="font-bold text-[#19202d] text-sm">Pré-visualização do laudo</p>
+                <p className="text-xs text-gray-400">Confira antes de gerar — nada foi salvo nem enviado ainda.</p>
+              </div>
+              <button onClick={fecharPreview} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+            </div>
+            <iframe src={previewUrl} title="Prévia do laudo" className="flex-1 w-full" />
+            <div className="px-5 py-3 border-t border-gray-100 flex justify-end gap-3 shrink-0">
+              <button onClick={fecharPreview}
+                className="px-4 py-2 border border-gray-200 text-gray-500 rounded-lg text-sm hover:bg-gray-50 transition">
+                Fechar e ajustar
+              </button>
+              <button onClick={() => { fecharPreview(); (document.querySelector('form') as HTMLFormElement)?.requestSubmit() }}
+                className="px-4 py-2 bg-[#19202d] hover:bg-[#2a3447] text-white font-semibold rounded-lg text-sm transition">
+                ✨ Está certo — Gerar Laudo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {vetModal && (
         <NovoVetModal
