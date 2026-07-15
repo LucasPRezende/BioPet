@@ -133,6 +133,14 @@ async function processarMidia(msg: MensagemRecebida) {
 }
 
 /**
+ * Trecho estável da saudação automática configurada no WhatsApp Business dessa
+ * instância (dispara sozinha pra qualquer contato novo, sem ninguém digitar).
+ * Chega como fromMe com texto real — sem esse filtro, "pausa a IA por humano
+ * assumiu" mesmo pra gente que nunca falou com o bot.
+ */
+const SAUDACAO_AUTOMATICA_WHATSAPP = 'atendimento CIVET'
+
+/**
  * Trata uma mensagem SAÍDA (fromMe): se foi nossa (IA/sistema) já está registrada;
  * se o id é desconhecido, foi um HUMANO digitando — registra e pausa a IA.
  */
@@ -143,6 +151,11 @@ async function tratarEnviada(msg: MensagemRecebida) {
   // ser evento de protocolo do WhatsApp (recibo, sync) que também chega como
   // fromMe. Pausar a IA por isso seria falso positivo, então ignora.
   if (!msg.texto) return
+
+  // Saudação automática do WhatsApp Business — não é humano nem sistema nosso,
+  // é o próprio WhatsApp respondendo sozinho. Ignora por completo: não registra,
+  // não pausa nada.
+  if (msg.texto.includes(SAUDACAO_AUTOMATICA_WHATSAPP)) return
 
   let origem = await classificarFromMe(msg.msgId)
 
