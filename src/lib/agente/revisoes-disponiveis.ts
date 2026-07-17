@@ -136,7 +136,7 @@ export async function montarInfoClienteNovo(telefone: string): Promise<string | 
   ]
   if (revisoes.length > 0) {
     linhas.push(
-      'REVISÃO GRATUITA DISPONÍVEL para este cliente — mencione JÁ NA SUA PRIMEIRA RESPOSTA, mesmo que ele só tenha cumprimentado:',
+      'REVISÃO GRATUITA DISPONÍVEL para este cliente — mencione na sua primeira resposta como LEMBRETE SECUNDÁRIO, nunca como assunto principal: primeiro apresente-se e pergunte como pode ajudar (ou responda o que ele pediu), e só então acrescente UMA linha leve no final (ex.: "Aliás, vi que a Cacau ainda não marcou a revisão gratuita da ultra — quer aproveitar e marcar?"). NÃO despeje prazo e restrição de horário nesse primeiro momento — esses detalhes só quando o cliente demonstrar interesse (a restrição de horário SEMPRE antes de perguntar a data):',
     )
     for (const r of revisoes) {
       linhas.push(
