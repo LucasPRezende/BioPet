@@ -14,6 +14,7 @@ import { responder, acionarHumanoPorErro } from '@/lib/agente/orquestrador'
 import { sendWhatsAppText, getBase64FromMedia } from '@/lib/evolution'
 import { transcreverAudio, lerImagemEncaminhamento } from '@/lib/agente/midia'
 import { classificarFromMe, registrarHumano, contextoPendente } from '@/lib/agente/outbound'
+import { montarInfoClienteNovo } from '@/lib/agente/revisoes-disponiveis'
 
 /**
  * Webhook de recepção do WhatsApp (Evolution API) — agente com IA.
@@ -68,12 +69,20 @@ async function processar(
     console.log(`[agente/webhook] de ${pushName ?? '?'} (${telefone}): "${texto.slice(0, 80)}"`)
 
     // Contexto de mensagens enviadas FORA da IA (sistema/humano) na mesma thread.
-    const [contexto, cfg] = await Promise.all([contextoPendente(telefone), getConfigPromptAgente()])
+    // Na PRIMEIRA mensagem da conversa, injeta também quem é o cliente + revisões
+    // gratuitas disponíveis (a IA oferece proativamente sem depender de tool).
+    const primeira = estado.historico.length === 0
+    const [contexto, cfg, infoCliente] = await Promise.all([
+      contextoPendente(telefone),
+      getConfigPromptAgente(),
+      primeira ? montarInfoClienteNovo(telefone).catch(() => undefined) : Promise.resolve(undefined),
+    ])
 
     const { resposta, historico } = await responder(telefone, texto, estado.historico, {
       contexto,
       faq: cfg.faq,
       examesNaoAgendaveis: cfg.examesNaoAgendaveis,
+      infoCliente,
     })
     await salvarConversa(telefone, historico, msgId)
     await sendWhatsAppText(telefone, resposta, 'ia')

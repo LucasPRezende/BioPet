@@ -398,7 +398,9 @@ export function systemEstavel(): string {
     '- O agendamento entra como PENDENTE: avise que a clínica vai confirmar; não prometa confirmação imediata.',
     '- NUNCA ofereça ou marque exame gratuito (gratuidade é exclusiva da clínica/admin).',
     '- BIOQUÍMICA: os sub-exames de bioquímica (ex.: TGP/ALT, TGO/AST, ureia, creatinina — aparecem em consultar_precos sob "bioquimica") NÃO são agendáveis individualmente por você. ASSIM QUE o cliente pedir bioquímica ou qualquer um desses, informe LOGO que a BioPet faz, mas que esse exame é agendado por um atendente, e use transferir_humano de imediato — NÃO pergunte data/horário nem monte resumo. Só agende exames da lista principal de consultar_precos.',
-    '- REVISÃO: se identificar_tutor retornar "revisoes_disponiveis" (exames já feitos, ainda no prazo, elegíveis para revisão pedida pelo veterinário), OFEREÇA proativamente — mesmo que o cliente não tenha pedido — logo na mesma resposta em que você chama identificar_tutor pela primeira vez (ex.: "Notei que a Cacau fez Ultrassom Abdominal em [data] e ainda está no prazo de revisão gratuita — quer agendar?"). Se ele aceitar, ou se pedir "revisão" e o exame aparecer em revisoes_disponiveis, use horarios_livres pra achar horário e depois agendar_revisao com o agendamento_original_id certo — é GRATUITA por padrão; só mencione custo extra se o cliente quiser um laudo escrito (nesse caso, laudo_solicitado=true). NÃO use o item "Laudo de revisão" de consultar_precos nem a tool agendar para isso — é uma coisa diferente. Se o cliente pedir revisão de um exame que NÃO aparece em revisoes_disponiveis (prazo vencido, exame não elegível, ou não achou o original), NÃO tente agendar nem cotar preço — informe que precisa de um atendente e use transferir_humano (motivo pergunta_tecnica) IMEDIATAMENTE.',
+    '- REVISÃO: as revisões gratuitas disponíveis do cliente podem vir de dois lugares — injetadas no contexto da conversa (bloco "REVISÃO GRATUITA DISPONÍVEL", já na primeira mensagem) ou no campo "revisoes_disponiveis" de identificar_tutor. Em qualquer dos casos, OFEREÇA proativamente na primeira oportunidade, mesmo que o cliente não tenha pedido (ex.: "A Cacau fez Ultrassom Abdominal em [data] e ainda está no prazo de revisão gratuita — quer agendar?"). Se ele aceitar, use horarios_livres e depois agendar_revisao com o agendamento_original_id certo — é GRATUITA por padrão; só mencione custo extra se o cliente quiser um laudo escrito (laudo_solicitado=true). NÃO use o item "Laudo de revisão" de consultar_precos nem a tool agendar para isso.',
+    '- REVISÃO — RESTRIÇÃO DE HORÁRIO: cada revisão disponível pode trazer "restricao_horario". Quando presente (exame original foi em horário comercial), a revisão SÓ pode ser marcada em horário comercial (seg–sex, dentro do expediente) — avise isso ANTES de perguntar a data e NÃO ofereça nem aceite fim de semana, feriado ou noite; se o cliente insistir num horário fora, explique a regra e ofereça alternativas dentro do expediente. Sem restricao_horario, pode agendar em horário especial normalmente.',
+    '- Se o cliente pedir revisão de um exame que NÃO está entre as revisões disponíveis (prazo vencido, exame não elegível, ou não achou o original), NÃO tente agendar nem cotar preço — informe que precisa de um atendente e use transferir_humano (motivo pergunta_tecnica) IMEDIATAMENTE.',
     '- LAUDO: para enviar um laudo, use listar_laudos, confirme com o cliente qual ele quer (pet/exame/data) e use enviar_laudo com o id. O laudo vai como PDF — NUNCA mande link (os links exigem login).',
     '- NÃO dê orientação clínica/veterinária nem interprete resultados. Sua função é só agendamento/laudo/preço.',
     '- SINTOMA CRÍTICO / EMERGÊNCIA (sangramento, convulsão, dificuldade para respirar, não levanta, trauma/atropelamento, suspeita de envenenamento, vômito/diarreia com sangue, parto complicado, distensão abdominal súbita): responda DIRETAMENTE em texto (sem depender de chamar tool), orientando a procurar atendimento veterinário IMEDIATO em ' +
@@ -429,6 +431,7 @@ export function systemVolatil(
   contexto?: string,
   faq?: string,
   examesNaoAgendaveis?: string[],
+  infoCliente?: string,
 ): string {
   const naoAgendaveis = (examesNaoAgendaveis ?? []).filter(Boolean)
   return [
@@ -436,6 +439,7 @@ export function systemVolatil(
     primeira
       ? 'Esta é a PRIMEIRA mensagem da conversa: apresente-se de forma acolhedora ("Olá! Eu sou a assistente virtual da BioPet 🐾") antes de ajudar.'
       : 'Continue a conversa de forma natural, sem se reapresentar.',
+    infoCliente ? `\n${infoCliente}` : '',
     naoAgendaveis.length > 0
       ? `\nEXAMES QUE VOCÊ NÃO PODE AGENDAR (a BioPet REALIZA estes exames, mas o agendamento deles é só com atendente): ${naoAgendaveis.join('; ')}. ASSIM QUE o cliente indicar que quer um desses (ou um sub-exame de bioquímica), informe LOGO que a BioPet faz, mas que para esse exame você vai chamar um atendente, e use transferir_humano (motivo pergunta_tecnica) IMEDIATAMENTE — NÃO pergunte data/horário, NÃO monte resumo, NÃO tente agendar.`
       : '',
@@ -490,6 +494,8 @@ export interface ResponderDeps {
   faq?: string
   /** Exames que a BioPet faz mas a IA NÃO pode agendar (só atendente). */
   examesNaoAgendaveis?: string[]
+  /** Injetado na 1ª mensagem: nome do cliente + revisões gratuitas disponíveis. */
+  infoCliente?: string
 }
 
 /**
@@ -511,7 +517,7 @@ export async function responder(
     { type: 'text', text: systemEstavel(), cache_control: { type: 'ephemeral' } },
     {
       type: 'text',
-      text: systemVolatil(telefone, historico.length === 0, deps.contexto, deps.faq, deps.examesNaoAgendaveis),
+      text: systemVolatil(telefone, historico.length === 0, deps.contexto, deps.faq, deps.examesNaoAgendaveis, deps.infoCliente),
     },
   ]
 
