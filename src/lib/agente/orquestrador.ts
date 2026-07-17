@@ -143,6 +143,22 @@ export const TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'agendar_revisao',
+    description:
+      'Cria uma REVISÃO de um exame já feito (reavaliação pedida pelo veterinário), vinculada ao agendamento original. Use SÓ para um agendamento_original_id que apareceu em "revisoes_disponiveis" (retornado por identificar_tutor). Gratuita por padrão — só chame com laudo_solicitado=true se o cliente pedir explicitamente um laudo escrito da revisão (tem custo extra). Só chame após confirmação explícita do cliente (pet, data/hora).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        agendamento_original_id: { type: 'number', description: 'Id do agendamento original, de revisoes_disponiveis.' },
+        data_hora: { type: 'string', description: 'YYYY-MM-DDTHH:MM:00 (horário local)' },
+        veterinario_id: { type: 'number', description: 'Opcional — se não informado, usa o mesmo veterinário do exame original.' },
+        laudo_solicitado: { type: 'boolean', description: 'true SÓ se o cliente pedir um laudo escrito extra (tem custo). Default: false (revisão sem laudo, gratuita).' },
+        observacoes: { type: 'string' },
+      },
+      required: ['agendamento_original_id', 'data_hora'],
+    },
+  },
+  {
     name: 'meus_agendamentos',
     description: 'Lista os próximos agendamentos do tutor (pelo telefone da conversa).',
     input_schema: { type: 'object', properties: {} },
@@ -249,6 +265,8 @@ async function executarTool(
         origem: 'agente',
       })
     // (input.exames já vai no spread acima quando presente)
+    case 'agendar_revisao':
+      return chamarApi('/api/agente/agendar-revisao', 'POST', input)
     case 'meus_agendamentos':
       return chamarApi(`/api/agente/meus-agendamentos?telefone=${tel}`, 'GET')
     case 'cancelar_agendamento':
@@ -378,7 +396,7 @@ export function systemEstavel(): string {
     '- O agendamento entra como PENDENTE: avise que a clínica vai confirmar; não prometa confirmação imediata.',
     '- NUNCA ofereça ou marque exame gratuito (gratuidade é exclusiva da clínica/admin).',
     '- BIOQUÍMICA: os sub-exames de bioquímica (ex.: TGP/ALT, TGO/AST, ureia, creatinina — aparecem em consultar_precos sob "bioquimica") NÃO são agendáveis individualmente por você. ASSIM QUE o cliente pedir bioquímica ou qualquer um desses, informe LOGO que a BioPet faz, mas que esse exame é agendado por um atendente, e use transferir_humano de imediato — NÃO pergunte data/horário nem monte resumo. Só agende exames da lista principal de consultar_precos.',
-    '- REVISÃO: se o cliente disser que o veterinário pediu uma REVISÃO de um exame já feito (reavaliar/repetir algo já realizado — ex.: "revisão da ultra", "a Dra pediu pra revisar"), isso NÃO é o mesmo que agendar um exame do catálogo, mesmo que exista um item parecido em consultar_precos (ex.: "Laudo de revisão"). Revisão de verdade tem regra própria de gratuidade e precisa ficar vinculada ao exame original — você ainda não tem como aplicar isso corretamente. ASSIM QUE perceber que é revisão, informe que a BioPet faz revisão, mas que quem finaliza esse agendamento é um atendente, e use transferir_humano (motivo pergunta_tecnica) IMEDIATAMENTE — NÃO pergunte data/horário, NÃO monte resumo, NÃO cote preço, NÃO chame agendar.',
+    '- REVISÃO: se identificar_tutor retornar "revisoes_disponiveis" (exames já feitos, ainda no prazo, elegíveis para revisão pedida pelo veterinário), OFEREÇA proativamente — mesmo que o cliente não tenha pedido — logo na mesma resposta em que você chama identificar_tutor pela primeira vez (ex.: "Notei que a Cacau fez Ultrassom Abdominal em [data] e ainda está no prazo de revisão gratuita — quer agendar?"). Se ele aceitar, ou se pedir "revisão" e o exame aparecer em revisoes_disponiveis, use horarios_livres pra achar horário e depois agendar_revisao com o agendamento_original_id certo — é GRATUITA por padrão; só mencione custo extra se o cliente quiser um laudo escrito (nesse caso, laudo_solicitado=true). NÃO use o item "Laudo de revisão" de consultar_precos nem a tool agendar para isso — é uma coisa diferente. Se o cliente pedir revisão de um exame que NÃO aparece em revisoes_disponiveis (prazo vencido, exame não elegível, ou não achou o original), NÃO tente agendar nem cotar preço — informe que precisa de um atendente e use transferir_humano (motivo pergunta_tecnica) IMEDIATAMENTE.',
     '- LAUDO: para enviar um laudo, use listar_laudos, confirme com o cliente qual ele quer (pet/exame/data) e use enviar_laudo com o id. O laudo vai como PDF — NUNCA mande link (os links exigem login).',
     '- NÃO dê orientação clínica/veterinária nem interprete resultados. Sua função é só agendamento/laudo/preço.',
     '- SINTOMA CRÍTICO / EMERGÊNCIA (sangramento, convulsão, dificuldade para respirar, não levanta, trauma/atropelamento, suspeita de envenenamento, vômito/diarreia com sangue, parto complicado, distensão abdominal súbita): responda DIRETAMENTE em texto (sem depender de chamar tool), orientando a procurar atendimento veterinário IMEDIATO em ' +
