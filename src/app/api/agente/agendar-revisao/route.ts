@@ -1,15 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { verifyAgentKey } from '@/lib/agent-auth'
-import { gerarFeriadosPorAno, isHorarioEspecial } from '@/lib/feriados'
-import { calcularElegibilidadeRevisao } from '@/lib/revisao-elegibilidade'
+import { gerarFeriadosPorAno } from '@/lib/feriados'
+import { calcularElegibilidadeRevisao, dentroJanelaComercial } from '@/lib/revisao-elegibilidade'
 import { normalizeTelefone } from '@/lib/telefone'
-
-/** Separa uma data_hora "YYYY-MM-DDTHH:MM:00" em data ("YYYY-MM-DD") e hora ("HH:MM"). */
-function splitDataHora(dataHora: string): { data: string; hora: string } {
-  const [data, horaCompleta = '00:00'] = dataHora.split('T')
-  return { data, hora: horaCompleta.slice(0, 5) }
-}
 
 /**
  * Cria uma REVISÃO (reavaliação de um exame já feito, pedida pelo veterinário)
@@ -124,12 +118,11 @@ export async function POST(request: NextRequest) {
   const horarioFim = horarioMap['horario_especial_fim'] ?? '17:00'
   const duracao = original.duracao_minutos ?? 30
 
-  const original_ = splitDataHora(original.data_hora)
-  const revisao_ = splitDataHora(data_hora)
-  const originalEspecial = isHorarioEspecial(original_.hora, duracao, original_.data, feriados, horarioFim, horarioInicio)
-  const revisaoEspecial = isHorarioEspecial(revisao_.hora, duracao, revisao_.data, feriados, horarioFim, horarioInicio)
+  // Mesma semântica do painel admin (/api/revisoes): conta o horário de INÍCIO.
+  const originalComercial = dentroJanelaComercial(original.data_hora, horarioInicio, horarioFim, feriados)
+  const revisaoComercial = dentroJanelaComercial(data_hora, horarioInicio, horarioFim, feriados)
 
-  if (!originalEspecial && revisaoEspecial) {
+  if (originalComercial && !revisaoComercial) {
     return NextResponse.json({
       error: `Revisões de exames feitos em horário comercial só podem ser agendadas em horário comercial (${horarioInicio}–${horarioFim}, seg–sex).`,
       precisa_atendente: true,
@@ -138,7 +131,7 @@ export async function POST(request: NextRequest) {
 
   let valorTotal = 0
   if (config.gera_laudo) {
-    valorTotal = revisaoEspecial ? Number(config.valor_fora_comercial) : Number(config.valor_horario_comercial)
+    valorTotal = revisaoComercial ? Number(config.valor_horario_comercial) : Number(config.valor_fora_comercial)
   } else if (laudoSolicitado) {
     valorTotal = Number(config.valor_laudo_extra)
   }

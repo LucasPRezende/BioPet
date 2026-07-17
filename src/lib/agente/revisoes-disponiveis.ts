@@ -6,8 +6,8 @@
  */
 import { supabase } from '@/lib/supabase'
 import { normalizeTelefone } from '@/lib/telefone'
-import { calcularElegibilidadeRevisao } from '@/lib/revisao-elegibilidade'
-import { gerarFeriadosPorAno, isHorarioEspecial } from '@/lib/feriados'
+import { calcularElegibilidadeRevisao, dentroJanelaComercial } from '@/lib/revisao-elegibilidade'
+import { gerarFeriadosPorAno } from '@/lib/feriados'
 
 export interface RevisaoDisponivel {
   agendamento_original_id: number
@@ -81,10 +81,8 @@ export async function buscarRevisoesDisponiveis(petIds: number[]): Promise<Revis
       const config = configMap[getTipoPermitido(ag.tipo_exame)!]
       const eleg = calcularElegibilidadeRevisao(ag.data_hora, config, contador[ag.id] ?? 0)
       const pet = Array.isArray(ag.pets) ? (ag.pets as { nome: string }[])[0] : (ag.pets as { nome: string } | null)
-      const [data, horaCompleta = '00:00'] = ag.data_hora.split('T')
-      const originalEspecial = isHorarioEspecial(
-        horaCompleta.slice(0, 5), ag.duracao_minutos ?? 30, data, feriados, horarioFim, horarioInicio,
-      )
+      // Mesma semântica do painel admin: conta só o horário de INÍCIO do original.
+      const originalComercial = dentroJanelaComercial(ag.data_hora, horarioInicio, horarioFim, feriados)
       return {
         agendamento_original_id: ag.id,
         pet_nome: pet?.nome ?? null,
@@ -92,9 +90,9 @@ export async function buscarRevisoesDisponiveis(petIds: number[]): Promise<Revis
         data_original: ag.data_hora,
         prazo_limite: eleg.prazo_limite.toISOString().slice(0, 10),
         pode_agendar: eleg.pode_agendar,
-        restricao_horario: originalEspecial
-          ? null
-          : `exame original foi em horário comercial — a revisão SÓ pode ser agendada em horário comercial (seg–sex, ${horarioInicio}–${horarioFim})`,
+        restricao_horario: originalComercial
+          ? `exame original foi em horário comercial — a revisão SÓ pode ser agendada em horário comercial (seg–sex, começando entre ${horarioInicio} e ${horarioFim})`
+          : null,
       }
     })
     .filter(r => r.pode_agendar)
