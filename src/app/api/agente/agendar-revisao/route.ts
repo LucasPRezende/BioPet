@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { verifyAgentKey } from '@/lib/agent-auth'
 import { gerarFeriadosPorAno, isHorarioEspecial } from '@/lib/feriados'
 import { calcularElegibilidadeRevisao } from '@/lib/revisao-elegibilidade'
+import { normalizeTelefone } from '@/lib/telefone'
 
 /** Separa uma data_hora "YYYY-MM-DDTHH:MM:00" em data ("YYYY-MM-DD") e hora ("HH:MM"). */
 function splitDataHora(dataHora: string): { data: string; hora: string } {
@@ -25,26 +26,41 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null)
   const {
     agendamento_original_id, data_hora, laudo_solicitado,
-    forma_pagamento, veterinario_id, observacoes,
+    forma_pagamento, veterinario_id, observacoes, telefone,
   } = body ?? {}
   const laudoSolicitado = !!laudo_solicitado
 
-  if (!agendamento_original_id || !data_hora) {
+  if (!agendamento_original_id || !data_hora || !telefone) {
     return NextResponse.json(
-      { error: 'agendamento_original_id e data_hora são obrigatórios.' },
+      { error: 'agendamento_original_id, data_hora e telefone são obrigatórios.' },
       { status: 400 },
     )
   }
 
   const { data: original, error: errOrig } = await supabase
     .from('agendamentos')
-    .select('id, tipo_exame, data_hora, tutor_id, pet_id, veterinario_id, duracao_minutos')
+    .select('id, tipo_exame, data_hora, tutor_id, pet_id, veterinario_id, duracao_minutos, tutores(nome, telefone)')
     .eq('id', agendamento_original_id)
     .eq('is_revisao', false)
     .maybeSingle()
 
   if (errOrig || !original) {
     return NextResponse.json({ error: 'Agendamento original não encontrado.' }, { status: 404 })
+  }
+
+  // Posse: o agendamento original tem que ser do tutor desta conversa. O
+  // telefone vem injetado pelo servidor (nunca do modelo), então isso impede
+  // criar revisão em cima do exame de outro cliente.
+  const tutorOriginal = Array.isArray(original.tutores)
+    ? (original.tutores as { nome: string | null; telefone: string }[])[0]
+    : (original.tutores as { nome: string | null; telefone: string } | null)
+  const telConversa = normalizeTelefone(String(telefone).replace(/\D/g, ''))
+  const telDono = normalizeTelefone((tutorOriginal?.telefone ?? '').replace(/\D/g, ''))
+  if (!telDono || telDono !== telConversa) {
+    return NextResponse.json(
+      { error: 'Este agendamento não pertence ao tutor desta conversa.', precisa_atendente: true },
+      { status: 403 },
+    )
   }
 
   const tiposNoAgendamento = original.tipo_exame.split(',').map((t: string) => t.trim())
@@ -144,11 +160,11 @@ export async function POST(request: NextRequest) {
 
   try {
     await supabase.from('notificacoes').insert({
-      telefone: null,
-      nome_tutor: null,
+      telefone: telDono,
+      nome_tutor: tutorOriginal?.nome ?? null,
       motivo: 'agendamento',
       tipo_evento: 'agendamento',
-      mensagem_cliente: `Revisão de ${original.tipo_exame} • via assistente (WhatsApp)`,
+      mensagem_cliente: `Revisão de ${original.tipo_exame}${valorTotal === 0 ? ' (gratuita)' : ''} • via assistente (WhatsApp)`,
       agendamento_id: revisao.id,
     })
   } catch {

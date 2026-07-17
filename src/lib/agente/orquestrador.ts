@@ -266,7 +266,9 @@ async function executarTool(
       })
     // (input.exames já vai no spread acima quando presente)
     case 'agendar_revisao':
-      return chamarApi('/api/agente/agendar-revisao', 'POST', input)
+      // telefone injetado server-side: o endpoint valida que o agendamento
+      // original pertence a este tutor (o modelo nunca controla isso).
+      return chamarApi('/api/agente/agendar-revisao', 'POST', { ...input, telefone })
     case 'meus_agendamentos':
       return chamarApi(`/api/agente/meus-agendamentos?telefone=${tel}`, 'GET')
     case 'cancelar_agendamento':
@@ -406,7 +408,13 @@ export function systemEstavel(): string {
     '- PEDIR PARA FALAR COM UMA PESSOA: só use transferir_humano se o cliente CONFIRMAR que quer falar com um atendente/pessoa. Apenas MENCIONAR um nome (ex.: "Dra Luciana", "Luciana") NÃO é pedido de transferência — "Luciana" é o nome da responsável e muitos clientes usam como referência. "Quero agendar uma ultra com a Dra Luciana" é um pedido de AGENDAMENTO (a Luciana pode ser a veterinária): siga o fluxo normal e, se fizer sentido, trate o nome como veterinário (listar_veterinarios). Só em algo ambíguo como "falar com a Luciana", confirme antes: pergunte se a pessoa quer mesmo falar com um atendente; só transfira se ela disser que sim.',
     '- Em caso de erro ao executar uma ação, não invente — informe que houve um problema e use transferir_humano (motivo erro_tecnico).',
     '',
-    'ESTILO: cordial, acolhedora, clara e breve, em português do Brasil. Emojis com moderação. Faça uma pergunta por vez.',
+    'ESTILO — DIRETA AO PONTO (português do Brasil, cordial mas objetiva; o cliente está no WhatsApp e quer resolver rápido):',
+    '- Responda primeiro, enfeite depois (ou nunca). Corte aberturas de preenchimento: "Ótimo!", "Perfeito!", "Que legal!", "Excelente!". Não narre seus passos internos ("Deixa eu verificar...", "Agora vou consultar o valor...") — chame a tool em silêncio e responda já com o resultado.',
+    '- Mensagens curtas: 1 a 4 linhas na maioria dos casos. A apresentação completa só na primeira mensagem da conversa.',
+    '- No máximo UM emoji por mensagem — e pode ser nenhum.',
+    '- Uma pergunta por mensagem; quando houver pergunta pendente, ela vem PRIMEIRO.',
+    '- Não repita o que o cliente já viu (resumo já mostrado, valor já informado) — repita só o que mudou.',
+    '- HORÁRIOS: nunca liste todos um a um. Resuma o intervalo (ex.: "Tenho livre das 8h às 17h30, de meia em meia hora — qual prefere?") e, se o cliente indicou um período, ofereça só as 2–3 opções mais próximas.',
     'FORMATAÇÃO WhatsApp: negrito com UM asterisco (*assim*), itálico com _assim_. NUNCA use ** (markdown), títulos com # nem tabelas.',
   ].join('\n')
 }
@@ -560,8 +568,15 @@ export async function responder(
     }
   }
 
-  // Excedeu as rodadas de tool — encerra com fallback.
+  // Excedeu as rodadas de tool — aciona o atendente DE VERDADE (a mensagem
+  // promete isso) e encerra com fallback. Via `executar` para respeitar a
+  // injeção dos testes (não tocar banco/WhatsApp em teste).
   logUso(uso, MAX_RODADAS_TOOL)
+  await executar(
+    'transferir_humano',
+    { motivo: 'ia_travou', resumo: `IA excedeu o limite de rodadas ao atender: "${textoUsuario.slice(0, 200)}"` },
+    telefone,
+  ).catch(() => {})
   return {
     resposta: 'Desculpe, tive uma dificuldade aqui. Vou pedir para um atendente te responder. 🙏',
     historico: messages,
