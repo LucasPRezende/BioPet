@@ -101,6 +101,16 @@ export async function POST(request: NextRequest) {
     }, { status: 422 })
   }
 
+  // A revisão precisa ACONTECER dentro do prazo, não só ser pedida dentro dele.
+  // Dia do prazo-limite conta por inteiro (até 23:59).
+  const fimPrazo = new Date(eleg.prazo_limite)
+  fimPrazo.setHours(23, 59, 59, 999)
+  if (new Date(data_hora) > fimPrazo) {
+    return NextResponse.json({
+      error: `A revisão precisa ser realizada até ${eleg.prazo_limite.toLocaleDateString('pt-BR')} (${config.prazo_dias} dias após o exame original). Escolha uma data até lá.`,
+    }, { status: 422 })
+  }
+
   const [{ data: feriadosRows }, { data: horarioRows }] = await Promise.all([
     supabase.from('feriados').select('data'),
     supabase.from('system_config').select('key, value').in('key', ['horario_especial_inicio', 'horario_especial_fim']),

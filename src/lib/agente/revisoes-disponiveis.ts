@@ -141,7 +141,7 @@ export async function montarInfoClienteNovo(telefone: string): Promise<string | 
     for (const r of revisoes) {
       linhas.push(
         `- ${r.pet_nome ?? 'pet'}: ${r.tipo_exame} feito em ${formatBr(r.data_original)} ` +
-          `(agendamento_original_id=${r.agendamento_original_id} para agendar_revisao, prazo até ${formatBr(r.prazo_limite + 'T00:00')})` +
+          `(agendamento_original_id=${r.agendamento_original_id} para agendar_revisao; a revisão precisa SER REALIZADA até ${formatBr(r.prazo_limite + 'T00:00')} — não ofereça datas depois disso)` +
           (r.restricao_horario ? ` — ATENÇÃO: ${r.restricao_horario}. Avise ANTES de perguntar a data e não ofereça fim de semana/feriado/noite.` : ''),
       )
     }
