@@ -172,6 +172,20 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  // Blindagem: a IA às vezes ALUCINA um veterinario_id (ex.: mandou id 1, que não
+  // existe → FK violada → 500). Se o id não existir na tabela, agenda SEM vet em
+  // vez de quebrar o agendamento inteiro (o nome fica nas observações do encaminhamento).
+  let vetIdValido: number | null = null
+  if (veterinario_id) {
+    const { data: vetRow } = await supabase
+      .from('veterinarios')
+      .select('id')
+      .eq('id', Number(veterinario_id))
+      .maybeSingle()
+    if (vetRow) vetIdValido = Number(veterinario_id)
+    else console.warn(`[agente/agendar] veterinario_id ${veterinario_id} inexistente — agendando sem vet`)
+  }
+
   const { data, error } = await supabase
     .from('agendamentos')
     .insert({
@@ -181,7 +195,7 @@ export async function POST(request: NextRequest) {
       data_hora,
       duracao_minutos:    totalDuracao,
       valor:              null, // definido por recalcularTotal abaixo
-      veterinario_id:     veterinario_id ? Number(veterinario_id) : null,
+      veterinario_id:     vetIdValido,
       forma_pagamento:    forma_pagamento ?? 'a confirmar',
       google_calendar_id: google_calendar_id ?? null,
       observacoes:        observacoes ?? null,

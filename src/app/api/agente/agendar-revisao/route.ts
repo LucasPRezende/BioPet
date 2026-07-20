@@ -136,6 +136,16 @@ export async function POST(request: NextRequest) {
     valorTotal = Number(config.valor_laudo_extra)
   }
 
+  // Blindagem contra veterinario_id alucinado pela IA (id inexistente → FK 500).
+  // Se não existir, cai no vet do exame original.
+  let vetIdValido: number | null = original.veterinario_id ?? null
+  if (veterinario_id) {
+    const { data: vetRow } = await supabase
+      .from('veterinarios').select('id').eq('id', Number(veterinario_id)).maybeSingle()
+    if (vetRow) vetIdValido = Number(veterinario_id)
+    else console.warn(`[agente/agendar-revisao] veterinario_id ${veterinario_id} inexistente — usando o do exame original`)
+  }
+
   const { data: revisao, error: errRev } = await supabase
     .from('agendamentos')
     .insert({
@@ -149,7 +159,7 @@ export async function POST(request: NextRequest) {
       status: 'pendente',
       status_pagamento: valorTotal > 0 ? 'pendente' : 'gratuito',
       system_user_id: process.env.AGENT_USER_ID ? Number(process.env.AGENT_USER_ID) : null,
-      veterinario_id: veterinario_id ? Number(veterinario_id) : (original.veterinario_id ?? null),
+      veterinario_id: vetIdValido,
       observacoes: observacoes ?? null,
       is_revisao: true,
       agendamento_original_id,
