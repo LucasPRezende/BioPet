@@ -579,7 +579,7 @@ export default function DashboardPage() {
                 <div className="flex items-center gap-3">
                   <span className="text-amber-500 text-lg">📋</span>
                   <p className="text-sm font-semibold text-amber-700">
-                    {alertas.falta_laudo} exame{alertas.falta_laudo > 1 ? 's' : ''} aguardando laudo há +2 dias úteis
+                    {alertas.falta_laudo} exame{alertas.falta_laudo > 1 ? 's' : ''} passado{alertas.falta_laudo > 1 ? 's' : ''} há +2 dias úteis sem laudo — emitir laudo ou cancelar
                   </p>
                   <button onClick={() => setShowFaltaLaudo(v => !v)} className="ml-auto text-xs text-amber-700 underline shrink-0">
                     {showFaltaLaudo ? 'Ocultar' : 'Ver lista'}

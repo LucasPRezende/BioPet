@@ -37,11 +37,17 @@ export async function GET(request: NextRequest) {
     .is('agendamento_id', null)
     .is('agendamento_dispensado', false)
 
-  // 2) Agendamentos concluídos/em atendimento há mais de 2 dias úteis sem laudo
+  // 2) Agendamentos com data já passada há mais de 2 dias úteis e ainda sem laudo.
+  //    Inclui 'agendado' de propósito: o status só vira 'concluído' quando um
+  //    laudo é emitido (ver laudos/gerar e laudos/vincular), então um exame SEM
+  //    laudo fica preso em 'agendado' — se filtrássemos só por concluído/em
+  //    atendimento, um laudo genuinamente atrasado nunca apareceria aqui. Um
+  //    no-show não cancelado também cai nesta lista, o que é desejado: força a
+  //    equipe a emitir o laudo ou cancelar o agendamento.
   const { data: agsCandidatos } = await supabase
     .from('agendamentos')
     .select('id, tipo_exame, data_hora, is_revisao, laudo_revisao_solicitado, laudo_dispensado, pets(nome), tutores(nome)')
-    .in('status', ['concluído', 'em atendimento'])
+    .in('status', ['agendado', 'concluído', 'em atendimento'])
     .lte('data_hora', `${cutoffStr}T23:59:59`)
 
   const candidatos = (agsCandidatos ?? []).filter(ag => {
