@@ -444,6 +444,93 @@ function BioquimicaSection() {
   )
 }
 
+// ── Modal de edição de um teste rápido (nome, subtítulo, material, método, observação) ──
+
+function TesteRapidoEditModal({ teste, onClose, onSaved }: {
+  teste:   TesteRapidoExame
+  onClose: () => void
+  onSaved: (t: TesteRapidoExame) => void
+}) {
+  const [nome,      setNome]      = useState(teste.nome)
+  const [descricao, setDescricao] = useState(teste.descricao ?? '')
+  const [material,  setMaterial]  = useState(teste.material_padrao ?? '')
+  const [metodo,    setMetodo]    = useState(teste.metodo_padrao ?? '')
+  const [obs,       setObs]       = useState(teste.observacao_padrao ?? '')
+  const [saving,    setSaving]    = useState(false)
+  const [error,     setError]     = useState('')
+
+  async function handleSave() {
+    if (!nome.trim()) { setError('O nome é obrigatório.'); return }
+    setSaving(true); setError('')
+    const res = await fetch(`/api/comissoes/testes-rapidos/${teste.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nome:              nome.trim(),
+        descricao:         descricao.trim() || null,
+        material_padrao:   material.trim() || null,
+        metodo_padrao:     metodo.trim() || null,
+        observacao_padrao: obs.trim() || null,
+      }),
+    })
+    if (res.ok) {
+      onSaved(await res.json())
+    } else {
+      const d = await res.json().catch(() => ({}))
+      setError(d.error ?? 'Erro ao salvar.')
+    }
+    setSaving(false)
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4 py-6 overflow-y-auto" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden my-auto" onClick={e => e.stopPropagation()}>
+        <div className="bg-[#19202d] px-6 py-4 flex items-center justify-between">
+          <h3 className="text-white font-bold text-sm">Editar teste rápido</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-white text-xl leading-none">×</button>
+        </div>
+        <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+          <div>
+            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Nome *</label>
+            <input type="text" value={nome} onChange={e => setNome(e.target.value)} className={T} placeholder="Ex: Snap 4Dx Plus" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Subtítulo (aparece abaixo do nome no laudo)</label>
+            <input type="text" value={descricao} onChange={e => setDescricao(e.target.value)} className={T} placeholder="Ex: Anticorpos IgG" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Material padrão</label>
+              <input type="text" value={material} onChange={e => setMaterial(e.target.value)} className={T} placeholder="Ex: Soro, Sangue total" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Método padrão</label>
+              <input type="text" value={metodo} onChange={e => setMetodo(e.target.value)} className={T} placeholder="Ex: Imunocromatografia" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Observação padrão (bloco de observações do laudo)</label>
+            <textarea value={obs} onChange={e => setObs(e.target.value)} rows={9}
+              className={T + ' resize-none font-mono text-xs leading-relaxed'}
+              placeholder="Texto que já vem preenchido quando este teste é incluído no laudo." />
+            <p className="text-[11px] text-gray-400 mt-1">
+              Deixe uma <strong>linha em branco</strong> entre os parágrafos para que apareçam separados no laudo. É editável na hora de emitir cada laudo.
+            </p>
+          </div>
+          {error && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
+        </div>
+        <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
+          <button onClick={onClose} className="flex-1 border border-gray-200 text-gray-500 py-2.5 rounded-lg text-sm hover:bg-gray-50 transition">Cancelar</button>
+          <button onClick={handleSave} disabled={saving}
+            className="flex-1 bg-[#19202d] hover:bg-[#232d3f] text-white font-semibold py-2.5 rounded-lg text-sm transition disabled:opacity-60">
+            {saving ? 'Salvando...' : 'Salvar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Seção Teste Rápido ────────────────────────────────────────────────────────
 
 function TesteRapidoSection() {
@@ -452,6 +539,7 @@ function TesteRapidoSection() {
   const [saving,   setSaving]   = useState<Set<number>>(new Set())
   const [editCell, setEditCell] = useState<{ id: number; field: 'preco_pix' | 'preco_cartao' | 'comissao' } | null>(null)
   const [editVal,  setEditVal]  = useState('')
+  const [editModal, setEditModal] = useState<TesteRapidoExame | null>(null)
 
   const fetchTestes = useCallback(async () => {
     const res = await fetch('/api/comissoes/testes-rapidos')
@@ -575,9 +663,11 @@ function TesteRapidoSection() {
                             className="text-gray-400 hover:text-[#8a6e36] disabled:opacity-20 transition text-base leading-none px-1" title="Mover para baixo">↓</button>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-center">
+                      <td className="px-4 py-3 text-center whitespace-nowrap">
+                        <button onClick={() => setEditModal(t)} disabled={isSaving}
+                          className="text-xs text-[#8a6e36] hover:text-[#5a4a28] transition px-1.5 py-1 font-semibold" title="Editar nome, material, método e observações">✏️ Editar</button>
                         <button onClick={() => softDelete(t)} disabled={isSaving}
-                          className="text-xs text-red-400 hover:text-red-600 transition p-1" title="Desativar">✕</button>
+                          className="text-xs text-red-400 hover:text-red-600 transition p-1 ml-1" title="Desativar">✕</button>
                       </td>
                     </tr>
                   )
@@ -587,10 +677,18 @@ function TesteRapidoSection() {
           </div>
           <div className="px-4 py-3 border-t border-gray-50 bg-gray-50">
             <p className="text-xs text-gray-400">
-              Clique em Pix, Cartão ou Comissão para editar inline. Pressione Enter ou clique fora para salvar.
+              Clique em Pix, Cartão ou Comissão para editar inline. Use <strong>✏️ Editar</strong> para o nome, material, método e as observações do laudo.
             </p>
           </div>
         </div>
+      )}
+
+      {editModal && (
+        <TesteRapidoEditModal
+          teste={editModal}
+          onClose={() => setEditModal(null)}
+          onSaved={t => { setTestes(prev => prev.map(x => x.id === t.id ? t : x)); setEditModal(null) }}
+        />
       )}
     </div>
   )
