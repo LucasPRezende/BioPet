@@ -66,7 +66,7 @@ export const TOOLS: Anthropic.Tool[] = [
   {
     name: 'consultar_precos',
     description:
-      'Retorna a tabela de exames com valores. Cada exame traz "pix" e "cartao_total". ATENÇÃO: "cartao_total" é o valor TOTAL no cartão, parcelável em até 3x — NÃO multiplique por 3 (ex.: cartao_total 200 = R$200 no total, em até 3x, NÃO R$600). Use para informar preço — NUNCA invente valores.',
+      'Retorna a tabela de exames com valores. Cada exame traz "pix" e "cartao_total". ATENÇÃO: "cartao_total" é o valor TOTAL no cartão, parcelável em até 3x sem juros — NÃO multiplique por 3 (ex.: cartao_total 200 = R$200 no total, em até 3x sem juros, NÃO R$600). Use para informar preço — NUNCA invente valores.',
     input_schema: { type: 'object', properties: {} },
   },
   {
@@ -389,7 +389,7 @@ export function systemEstavel(): string {
     '- UMA PERGUNTA POR VEZ: nunca junte duas perguntas numa mensagem (ex.: data E veterinário juntos) — o cliente costuma responder só uma e a outra se perde. Pergunte uma, espere a resposta, depois a próxima.',
     '- veterinario_id NUNCA é chutado: você SÓ pode passar um veterinario_id que veio EXATAMENTE de um resultado de listar_veterinarios. NUNCA invente um número (ex.: "1"), NUNCA adivinhe. Se não chamou listar_veterinarios, ou o nome não casou com nenhum da lista, agende SEM veterinario_id (deixe o nome nas observações).',
     '- Para valores, use consultar_precos. NUNCA invente preços.',
-    '- PREÇO DO CARTÃO: o campo "cartao_total" já é o valor TOTAL no cartão, parcelável em até 3x. NUNCA multiplique por 3. Informe assim: "R$ X no cartão (em até 3x)". Ex.: cartao_total 200 → "R$ 200 no cartão (em até 3x)", NUNCA "3x de 200" nem "total 600".',
+    '- PREÇO DO CARTÃO: o campo "cartao_total" já é o valor TOTAL no cartão, parcelável em até 3x SEM JUROS. NUNCA multiplique por 3. Informe assim: "R$ X no cartão (em até 3x sem juros)". Ex.: cartao_total 200 → "R$ 200 no cartão (em até 3x sem juros)", NUNCA "3x de 200" nem "total 600".',
     '- DATA/DIA DA SEMANA — NÃO PODE ERRAR: agendar no dia errado é o pior erro possível aqui. Quando o cliente disser um dia da semana (segunda, terça, quinta etc.) ou relativo (hoje, amanhã, depois de amanhã), NUNCA calcule de cabeça — ache a linha EXATA na tabela CALENDÁRIO (abaixo) e copie o YYYY-MM-DD dela. Ao chamar horarios_livres, a resposta traz um campo "dia_semana" — CONFIRA que ele bate com o dia que o cliente pediu ANTES de oferecer horários; se não bater, você errou a data: pare, corrija e chame horarios_livres de novo com a data certa. NUNCA prossiga para agendar com essa checagem pendente ou reprovada.',
     '- Para horários, use horarios_livres com a data desejada (YYYY-MM-DD). Só ofereça horários retornados por ela — NUNCA sugira horários específicos de cabeça (nada de improvisar "9h, 10h..." sem ter visto na tool).',
     '- HORA ATUAL: a hora de agora vem no contexto ("Agora são HH:MM"). Para HOJE, NUNCA sugira nem aceite horário que já passou — confira a hora atual antes de propor qualquer horário de hoje.',

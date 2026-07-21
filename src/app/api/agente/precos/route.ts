@@ -48,7 +48,7 @@ export async function GET() {
 
   return NextResponse.json({
     horario_comercial: 'Segunda a Sexta, 9h às 16h30',
-    nota_cartao: 'cartao_total é o valor TOTAL no cartão (parcelável em até 3x) — NÃO multiplicar por 3.',
+    nota_cartao: 'cartao_total é o valor TOTAL no cartão (parcelável em até 3x sem juros) — NÃO multiplicar por 3.',
     exames,
     bioquimica: {
       descricao: 'Valores por exame individual — preço fixo independente do horário',
