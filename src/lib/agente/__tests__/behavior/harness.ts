@@ -22,8 +22,8 @@ const PRECOS = {
     {
       tipo: 'Ultrassom Abdominal',
       varia_por_horario: true,
-      horario_comercial: { pix: 180, cartao_3x: 200 },
-      fora_horario: { pix: 250, cartao_3x: 280 },
+      horario_comercial: { pix: 180, cartao_total: 200 },
+      fora_horario: { pix: 250, cartao_total: 280 },
       duracao_minutos: 30,
     },
   ],

@@ -26,11 +26,11 @@ export async function GET() {
         varia_por_horario:  true,
         horario_comercial: {
           pix:       e.preco_pix_comercial,
-          cartao_3x: e.preco_cartao_comercial,
+          cartao_total: e.preco_cartao_comercial,
         },
         fora_horario: {
-          pix:       e.preco_pix_fora_horario,
-          cartao_3x: e.preco_cartao_fora_horario,
+          pix:          e.preco_pix_fora_horario,
+          cartao_total: e.preco_cartao_fora_horario,
         },
         duracao_minutos: e.duracao_minutos,
         observacao:      e.observacao,
@@ -40,7 +40,7 @@ export async function GET() {
       tipo:              e.tipo_exame,
       varia_por_horario: false,
       pix:               e.preco_pix_comercial,
-      cartao_3x:         e.preco_cartao_comercial,
+      cartao_total:      e.preco_cartao_comercial,
       duracao_minutos:   e.duracao_minutos,
       observacao:        e.observacao,
     }
@@ -48,14 +48,15 @@ export async function GET() {
 
   return NextResponse.json({
     horario_comercial: 'Segunda a Sexta, 9h às 16h30',
+    nota_cartao: 'cartao_total é o valor TOTAL no cartão (parcelável em até 3x) — NÃO multiplicar por 3.',
     exames,
     bioquimica: {
       descricao: 'Valores por exame individual — preço fixo independente do horário',
       exames: (bioData ?? []).map(e => ({
-        nome:      e.nome,
-        codigo:    e.codigo,
-        pix:       e.preco_pix,
-        cartao_3x: e.preco_cartao,
+        nome:         e.nome,
+        codigo:       e.codigo,
+        pix:          e.preco_pix,
+        cartao_total: e.preco_cartao,
       })),
     },
   })
