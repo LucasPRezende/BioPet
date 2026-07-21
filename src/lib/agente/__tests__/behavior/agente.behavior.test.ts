@@ -110,4 +110,19 @@ run('comportamento do agente (IA real, tools fake)', () => {
     )
     expect(recusou).toBe(false)
   })
+
+  it('preço do cartão: informa o TOTAL (em até 3x sem juros), sem multiplicar por 3', OPTS, async () => {
+    const c = novaConversa()
+    await c.enviar('quanto custa o ultrassom abdominal no cartão?')
+
+    const t = c.textos()
+    // Chamou a tool de preços (não inventou).
+    expect(c.nomes()).toContain('consultar_precos')
+    // Informou o valor TOTAL correto do cartão (200), não o triplo (600).
+    expect(t).toContain('200')
+    expect(t).not.toMatch(/600|r\$\s?600/)
+    // Deixou claro que é parcelável em até 3x sem juros.
+    expect(/sem juros/i.test(t)).toBe(true)
+    expect(/3x|3 vezes|at[ée] 3/i.test(t)).toBe(true)
+  })
 })
