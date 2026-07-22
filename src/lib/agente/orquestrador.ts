@@ -165,11 +165,11 @@ export const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'cancelar_agendamento',
-    description: 'Cancela um agendamento pelo id.',
+    description: 'Cancela um agendamento pelo id. O agendamento_id TEM que vir de meus_agendamentos (a lista do próprio cliente) — NUNCA invente/chute esse número. Se não tiver a lista, chame meus_agendamentos ANTES.',
     input_schema: {
       type: 'object',
       properties: {
-        agendamento_id: { type: 'number' },
+        agendamento_id: { type: 'number', description: 'Id vindo de meus_agendamentos — nunca chutado.' },
         motivo: { type: 'string' },
       },
       required: ['agendamento_id'],
@@ -177,11 +177,11 @@ export const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'remarcar_agendamento',
-    description: 'Remarca um agendamento para nova data/hora.',
+    description: 'Remarca um agendamento para nova data/hora. O agendamento_id TEM que vir de meus_agendamentos (a lista do próprio cliente) — NUNCA invente/chute esse número. Se não tiver a lista, chame meus_agendamentos ANTES.',
     input_schema: {
       type: 'object',
       properties: {
-        agendamento_id: { type: 'number' },
+        agendamento_id: { type: 'number', description: 'Id vindo de meus_agendamentos — nunca chutado.' },
         nova_data_hora: { type: 'string', description: 'YYYY-MM-DDTHH:MM:00' },
       },
       required: ['agendamento_id', 'nova_data_hora'],
@@ -272,16 +272,18 @@ async function executarTool(
     case 'meus_agendamentos':
       return chamarApi(`/api/agente/meus-agendamentos?telefone=${tel}`, 'GET')
     case 'cancelar_agendamento':
+      // telefone injetado server-side: o endpoint valida que o agendamento é
+      // deste tutor (impede cancelar o de outro cliente por id chutado).
       return chamarApi(
         `/api/agente/cancelar?id=${Number(input.agendamento_id)}`,
         'PATCH',
-        { motivo: input.motivo },
+        { motivo: input.motivo, telefone },
       )
     case 'remarcar_agendamento':
       return chamarApi(
         `/api/agente/remarcar?id=${Number(input.agendamento_id)}`,
         'PATCH',
-        { nova_data_hora: input.nova_data_hora },
+        { nova_data_hora: input.nova_data_hora, telefone },
       )
     case 'listar_laudos':
       return chamarApi(`/api/agente/laudo?telefone=${tel}`, 'GET')
@@ -388,6 +390,7 @@ export function systemEstavel(): string {
     '- VETERINÁRIO DO ENCAMINHAMENTO: quando a mensagem for um encaminhamento (PDF/imagem) que já traz o nome do veterinário solicitante, ESSE é o veterinário responsável — NÃO precisa perguntar de novo. Chame listar_veterinarios, case o nome e passe o veterinario_id ao agendar. Só se o nome do encaminhamento NÃO casar com nenhum da lista é que você pergunta/segue sem. NUNCA deixe o veterinário só nas observações se ele existe na lista — o campo veterinario_id tem que ser preenchido.',
     '- UMA PERGUNTA POR VEZ: nunca junte duas perguntas numa mensagem (ex.: data E veterinário juntos) — o cliente costuma responder só uma e a outra se perde. Pergunte uma, espere a resposta, depois a próxima.',
     '- veterinario_id NUNCA é chutado: você SÓ pode passar um veterinario_id que veio EXATAMENTE de um resultado de listar_veterinarios. NUNCA invente um número (ex.: "1"), NUNCA adivinhe. Se não chamou listar_veterinarios, ou o nome não casou com nenhum da lista, agende SEM veterinario_id (deixe o nome nas observações).',
+    '- CANCELAR / REMARCAR — NUNCA chute o agendamento_id: para cancelar ou remarcar, primeiro chame meus_agendamentos, mostre/identifique o agendamento certo do cliente e use o id EXATO que veio de lá. JAMAIS invente um número (o cliente pode não ter dito o id, e chutar cancela/remarca o agendamento de OUTRA pessoa). Se meus_agendamentos vier vazio ou não achar o agendamento que o cliente descreve, NÃO chute — explique que não localizou e use transferir_humano (motivo pergunta_tecnica). A conversa pode começar do zero (histórico expira em 1h), então NÃO confie em id de memória: reconsulte meus_agendamentos.',
     '- Para valores, use consultar_precos. NUNCA invente preços.',
     '- PREÇO DO CARTÃO: o campo "cartao_total" já é o valor TOTAL no cartão, parcelável em até 3x SEM JUROS. NUNCA multiplique por 3. Informe assim: "R$ X no cartão (em até 3x sem juros)". Ex.: cartao_total 200 → "R$ 200 no cartão (em até 3x sem juros)", NUNCA "3x de 200" nem "total 600".',
     '- DATA/DIA DA SEMANA — NÃO PODE ERRAR: agendar no dia errado é o pior erro possível aqui. Quando o cliente disser um dia da semana (segunda, terça, quinta etc.) ou relativo (hoje, amanhã, depois de amanhã), NUNCA calcule de cabeça — ache a linha EXATA na tabela CALENDÁRIO (abaixo) e copie o YYYY-MM-DD dela. Ao chamar horarios_livres, a resposta traz um campo "dia_semana" — CONFIRA que ele bate com o dia que o cliente pediu ANTES de oferecer horários; se não bater, você errou a data: pare, corrija e chame horarios_livres de novo com a data certa. NUNCA prossiga para agendar com essa checagem pendente ou reprovada.',

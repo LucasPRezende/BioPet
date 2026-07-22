@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { verifyAgentKey } from '@/lib/agent-auth'
+import { normalizeTelefone } from '@/lib/telefone'
 
 const DIAS = [
   'domingo', 'segunda-feira', 'terça-feira', 'quarta-feira',
@@ -31,10 +32,13 @@ export async function PATCH(request: NextRequest) {
   }
 
   const body = await request.json().catch(() => null)
-  const { nova_data_hora } = body ?? {}
+  const { nova_data_hora, telefone } = body ?? {}
 
   if (!nova_data_hora) {
     return NextResponse.json({ error: '"nova_data_hora" é obrigatório.' }, { status: 400 })
+  }
+  if (!telefone) {
+    return NextResponse.json({ error: '"telefone" é obrigatório.' }, { status: 400 })
   }
 
   // Busca agendamento atual + dados do tutor
@@ -46,6 +50,18 @@ export async function PATCH(request: NextRequest) {
 
   if (fetchError || !atual) {
     return NextResponse.json({ error: 'Agendamento não encontrado.' }, { status: 404 })
+  }
+
+  // Posse: só remarca agendamento do tutor desta conversa (telefone injetado
+  // pelo servidor). Impede remarcar o agendamento de outro cliente por id chutado.
+  const tutorDono = Array.isArray(atual.tutores) ? atual.tutores[0] : atual.tutores as { telefone: string; nome: string } | null
+  const telConversa = normalizeTelefone(String(telefone).replace(/\D/g, ''))
+  const telDono = normalizeTelefone((tutorDono?.telefone ?? '').replace(/\D/g, ''))
+  if (!telDono || telDono !== telConversa) {
+    return NextResponse.json(
+      { error: 'Este agendamento não pertence ao tutor desta conversa.', precisa_atendente: true },
+      { status: 403 },
+    )
   }
 
   if (atual.status === 'cancelado') {
