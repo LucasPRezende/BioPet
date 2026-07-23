@@ -184,10 +184,18 @@ export async function POST(request: NextRequest) {
     /* notificação é best-effort — não derruba a revisão criada */
   }
 
+  const laudoIncluido = config.gera_laudo || laudoSolicitado
+
   return NextResponse.json({
     agendamento_id: revisao.id,
     valor_total: valorTotal,
     gratuito: valorTotal === 0,
-    laudo_incluido: config.gera_laudo || laudoSolicitado,
+    laudo_incluido: laudoIncluido,
+    // Nudge lido pela IA na hora de confirmar: informa que a gratuita não gera
+    // laudo e, se o cliente quiser o laudo, escala (preço/cobrança são do humano).
+    ...(laudoIncluido ? {} : {
+      aviso_cliente:
+        'Ao confirmar, avise o cliente (sem oferecer ativamente): esta revisão gratuita NÃO inclui laudo escrito. Se ele quiser um laudo da revisão, há um custo à parte — nesse caso NÃO tente cobrar nem recriar você mesma, use transferir_humano (motivo pergunta_tecnica) para um atendente organizar o laudo e o pagamento.',
+    }),
   }, { status: 201 })
 }
