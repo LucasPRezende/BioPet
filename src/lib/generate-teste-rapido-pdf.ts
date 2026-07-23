@@ -5,12 +5,20 @@ import { launchBrowser } from './chromium'
 
 export type ResultadoStatus = 'neg' | 'pos' | 'nreag' | 'reag' | 'indet'
 
+export interface AnalitoResultado {
+  nome:   string
+  status: 'pos' | 'neg'
+}
+
 export interface TesteRapidoResultado {
   nome:      string
   descricao: string | null
   material:  string
   metodo:    string
   status:    ResultadoStatus
+  // Testes "combo" (ex.: 4Dx, FIV/FeLV): resultado por agente. Quando presente,
+  // o laudo detalha cada agente em vez de um único resultado.
+  analitos?: AnalitoResultado[]
 }
 
 export interface TesteRapidoPDFData {
@@ -56,13 +64,29 @@ function toBase64(filePath: string): string | null {
 }
 
 function buildRow(r: TesteRapidoResultado): string {
-  const meta = STATUS_META[r.status] ?? STATUS_META.neg
   const small = r.descricao ? `<small>${esc(r.descricao)}</small>` : ''
+
+  // Célula de resultado: combo → lista de agentes; simples → um único pill.
+  let resultadoCell: string
+  if (r.analitos && r.analitos.length > 0) {
+    const linhas = r.analitos.map(a => {
+      const meta = STATUS_META[a.status] ?? STATUS_META.neg
+      return `<div class="analito-row">
+        <span class="analito-nome">${esc(a.nome)}</span>
+        <span class="status ${meta.cls}">${esc(meta.label)}</span>
+      </div>`
+    }).join('')
+    resultadoCell = `<div class="analito-list">${linhas}</div>`
+  } else {
+    const meta = STATUS_META[r.status] ?? STATUS_META.neg
+    resultadoCell = `<span class="status ${meta.cls}">${esc(meta.label)}</span>`
+  }
+
   return `<tr>
     <td class="exam-name">${esc(r.nome)} ${small}</td>
     <td class="material-cell">${esc(r.material)}</td>
     <td class="method-cell">${esc(r.metodo)}</td>
-    <td style="text-align:center"><span class="status ${meta.cls}">${esc(meta.label)}</span></td>
+    <td style="text-align:center">${resultadoCell}</td>
   </tr>`
 }
 
@@ -89,6 +113,11 @@ export async function generateTesteRapidoPDF(data: TesteRapidoPDFData): Promise<
   html = html.replace('</head>', `<style>
     .date-value, .sig-crmv { font-family: 'Courier New', Courier, monospace !important; }
     * { -webkit-font-smoothing: antialiased; }
+    /* Testes combo: lista de agentes na coluna Resultado */
+    .analito-list { display:flex; flex-direction:column; gap:1.4mm; align-items:stretch; }
+    .analito-row { display:flex; align-items:center; justify-content:space-between; gap:3mm; }
+    .analito-nome { font-size:8.2pt; color:var(--ink); text-align:left; }
+    .analito-row .status { flex:0 0 auto; }
   </style></head>`)
 
   // ── Cards de informação ─────────────────────────────────────────────────────

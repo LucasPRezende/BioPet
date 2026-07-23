@@ -23,12 +23,25 @@ interface TesteRapido {
 
 interface Vet { id: number; nome: string; clinicas?: { nome: string } | null }
 
+// Testes "combo": detectam vários agentes num teste só. Quando o teste está
+// nesta lista, o resultado é marcado POR AGENTE (Positivo/Negativo) e o laudo
+// detalha para qual deu positivo. A lista de agentes é fixa pelo kit do teste.
+const ANALITOS_POR_TESTE: Record<string, string[]> = {
+  'Snap 4Dx Plus':    ['Ehrlichia spp.', 'Anaplasma spp.', 'Borrelia Burgdorferi', 'Dirofilaria Immitis'],
+  'Combo FIV / FeLV': ['FIV (Vírus da Imunodeficiência Felina)', 'FeLV (Vírus da Leucemia Felina)'],
+}
+function analitosDe(nome: string): string[] {
+  return ANALITOS_POR_TESTE[nome] ?? []
+}
+
 // Linha de resultado editável (um por teste incluído)
 interface Linha {
   id:        number
   material:  string
   metodo:    string
   status:    '' | 'neg' | 'pos' | 'nreag' | 'reag'
+  // Testes combo: status por agente (keyed pelo nome do agente).
+  analitos:  Record<string, 'pos' | 'neg'>
 }
 
 const RESULTADO_OPCOES: { value: Linha['status']; label: string; cls: string }[] = [
@@ -36,6 +49,12 @@ const RESULTADO_OPCOES: { value: Linha['status']; label: string; cls: string }[]
   { value: 'pos',   label: 'Positivo',      cls: 'text-red-700 bg-red-50 border-red-300' },
   { value: 'nreag', label: 'Não reagente',  cls: 'text-gray-600 bg-gray-100 border-gray-300' },
   { value: 'reag',  label: 'Reagente',      cls: 'text-red-700 bg-red-50 border-red-300' },
+]
+
+// Pílulas Positivo/Negativo por agente (combo)
+const ANALITO_OPCOES: { value: 'neg' | 'pos'; label: string; cls: string }[] = [
+  { value: 'neg', label: 'Negativo', cls: 'text-green-700 bg-green-50 border-green-300' },
+  { value: 'pos', label: 'Positivo', cls: 'text-red-700 bg-red-50 border-red-300' },
 ]
 
 const SEXOS = ['Macho', 'Fêmea', 'Não informado']
@@ -137,6 +156,7 @@ function NovoTesteRapidoInner() {
           material: cat?.material_padrao ?? '',
           metodo:   cat?.metodo_padrao ?? '',
           status:   '',
+          analitos: {},
         }
       }
       return next
@@ -160,6 +180,13 @@ function NovoTesteRapidoInner() {
     setLinhas(prev => ({ ...prev, [id]: { ...prev[id], ...patch } }))
   }
 
+  function setAnalito(id: number, agente: string, status: 'pos' | 'neg') {
+    setLinhas(prev => ({
+      ...prev,
+      [id]: { ...prev[id], analitos: { ...prev[id]?.analitos, [agente]: status } },
+    }))
+  }
+
   function handleFormChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
     const { name, value } = e.target
     setForm(p => ({ ...p, [name]: value }))
@@ -177,9 +204,16 @@ function NovoTesteRapidoInner() {
       return 'Preencha os campos obrigatórios: animal, espécie, tutor e telefone.'
     }
     if (incluidos.length === 0) return 'Selecione ao menos um teste rápido.'
-    const semResultado = incluidosOrdenados.filter(c => !linhas[c.id]?.status)
-    if (semResultado.length > 0) {
-      return `Informe o resultado de: ${semResultado.map(c => c.nome).join(', ')}.`
+    for (const c of incluidosOrdenados) {
+      const agentes = analitosDe(c.nome)
+      if (agentes.length > 0) {
+        const faltando = agentes.filter(a => !linhas[c.id]?.analitos?.[a])
+        if (faltando.length > 0) {
+          return `Marque o resultado de cada agente em "${c.nome}": ${faltando.join(', ')}.`
+        }
+      } else if (!linhas[c.id]?.status) {
+        return `Informe o resultado de: ${c.nome}.`
+      }
     }
     return null
   }
@@ -188,13 +222,21 @@ function NovoTesteRapidoInner() {
   function buildPdfData() {
     const selectedVet = vets.find(v => String(v.id) === form.veterinario_id)
     const materiaisUnicos = Array.from(new Set(incluidosOrdenados.map(c => linhas[c.id]?.material).filter(Boolean)))
-    const resultados = incluidosOrdenados.map(c => ({
-      nome:      c.nome,
-      descricao: c.descricao,
-      material:  linhas[c.id]?.material ?? '',
-      metodo:    linhas[c.id]?.metodo ?? '',
-      status:    linhas[c.id]?.status || 'neg',
-    }))
+    const resultados = incluidosOrdenados.map(c => {
+      const agentes = analitosDe(c.nome)
+      const base = {
+        nome:      c.nome,
+        descricao: c.descricao,
+        material:  linhas[c.id]?.material ?? '',
+        metodo:    linhas[c.id]?.metodo ?? '',
+      }
+      if (agentes.length > 0) {
+        const analitos = agentes.map(a => ({ nome: a, status: linhas[c.id]?.analitos?.[a] || 'neg' }))
+        const status = analitos.some(a => a.status === 'pos') ? 'pos' : 'neg'
+        return { ...base, status, analitos }
+      }
+      return { ...base, status: linhas[c.id]?.status || 'neg' }
+    })
     return {
       nome_pet:    form.nome_pet,
       especie:     form.especie,
@@ -456,20 +498,57 @@ function NovoTesteRapidoInner() {
                         </div>
                       </div>
 
-                      <div>
-                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">Resultado <span className="text-red-400">*</span></label>
-                        <div className="flex flex-wrap gap-2">
-                          {RESULTADO_OPCOES.map(opt => {
-                            const active = linha?.status === opt.value
-                            return (
-                              <button key={opt.value} type="button" onClick={() => setLinha(c.id, { status: opt.value })}
-                                className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition ${active ? opt.cls + ' ring-2 ring-offset-1 ring-[#8a6e36]' : 'border-gray-200 text-gray-500 hover:border-[#8a6e36]'}`}>
-                                {opt.label}
-                              </button>
-                            )
-                          })}
-                        </div>
-                      </div>
+                      {(() => {
+                        const agentes = analitosDe(c.nome)
+                        if (agentes.length > 0) {
+                          // Teste combo: resultado por agente (Positivo/Negativo)
+                          return (
+                            <div>
+                              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">
+                                Resultado por agente <span className="text-red-400">*</span>
+                              </label>
+                              <div className="space-y-2">
+                                {agentes.map(a => {
+                                  const cur = linha?.analitos?.[a]
+                                  return (
+                                    <div key={a} className="flex items-center justify-between gap-3 bg-gray-50 rounded-lg px-3 py-2">
+                                      <span className="text-sm text-[#19202d]">{a}</span>
+                                      <div className="flex gap-1.5 shrink-0">
+                                        {ANALITO_OPCOES.map(opt => {
+                                          const active = cur === opt.value
+                                          return (
+                                            <button key={opt.value} type="button" onClick={() => setAnalito(c.id, a, opt.value)}
+                                              className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition ${active ? opt.cls + ' ring-2 ring-offset-1 ring-[#8a6e36]' : 'border-gray-200 text-gray-500 hover:border-[#8a6e36]'}`}>
+                                              {opt.label}
+                                            </button>
+                                          )
+                                        })}
+                                      </div>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          )
+                        }
+                        // Teste simples: resultado único
+                        return (
+                          <div>
+                            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">Resultado <span className="text-red-400">*</span></label>
+                            <div className="flex flex-wrap gap-2">
+                              {RESULTADO_OPCOES.map(opt => {
+                                const active = linha?.status === opt.value
+                                return (
+                                  <button key={opt.value} type="button" onClick={() => setLinha(c.id, { status: opt.value })}
+                                    className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition ${active ? opt.cls + ' ring-2 ring-offset-1 ring-[#8a6e36]' : 'border-gray-200 text-gray-500 hover:border-[#8a6e36]'}`}>
+                                    {opt.label}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )
+                      })()}
                     </div>
                   )
                 })}
