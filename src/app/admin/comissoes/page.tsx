@@ -37,6 +37,7 @@ interface TesteRapidoExame {
   material_padrao:   string | null
   metodo_padrao:     string | null
   observacao_padrao: string | null
+  analitos:          string[] | null
   preco_pix:         number
   preco_cartao:      number
   comissao:          number
@@ -456,12 +457,14 @@ function TesteRapidoEditModal({ teste, onClose, onSaved }: {
   const [material,  setMaterial]  = useState(teste.material_padrao ?? '')
   const [metodo,    setMetodo]    = useState(teste.metodo_padrao ?? '')
   const [obs,       setObs]       = useState(teste.observacao_padrao ?? '')
+  const [agentes,   setAgentes]   = useState((teste.analitos ?? []).join('\n'))
   const [saving,    setSaving]    = useState(false)
   const [error,     setError]     = useState('')
 
   async function handleSave() {
     if (!nome.trim()) { setError('O nome é obrigatório.'); return }
     setSaving(true); setError('')
+    const analitos = agentes.split('\n').map(a => a.trim()).filter(Boolean)
     const res = await fetch(`/api/comissoes/testes-rapidos/${teste.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -471,6 +474,7 @@ function TesteRapidoEditModal({ teste, onClose, onSaved }: {
         material_padrao:   material.trim() || null,
         metodo_padrao:     metodo.trim() || null,
         observacao_padrao: obs.trim() || null,
+        analitos:          analitos.length > 0 ? analitos : null,
       }),
     })
     if (res.ok) {
@@ -507,6 +511,15 @@ function TesteRapidoEditModal({ teste, onClose, onSaved }: {
               <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Método padrão</label>
               <input type="text" value={metodo} onChange={e => setMetodo(e.target.value)} className={T} placeholder="Ex: Imunocromatografia" />
             </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Agentes (teste combo)</label>
+            <textarea value={agentes} onChange={e => setAgentes(e.target.value)} rows={4}
+              className={T + ' resize-none text-xs leading-relaxed'}
+              placeholder={'Um agente por linha. Ex.:\nEhrlichia spp.\nAnaplasma spp.'} />
+            <p className="text-[11px] text-gray-400 mt-1">
+              Para testes que detectam <strong>vários agentes</strong> (ex.: 4Dx, FIV/FeLV): um por linha. Na emissão o resultado é marcado Positivo/Negativo por agente. <strong>Deixe em branco</strong> para teste de resultado único.
+            </p>
           </div>
           <div>
             <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Observação padrão (bloco de observações do laudo)</label>

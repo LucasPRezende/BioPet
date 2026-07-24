@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from('testes_rapidos')
-    .select('id, nome, descricao, material_padrao, metodo_padrao, observacao_padrao, preco_pix, preco_cartao, comissao, ativo, ordem')
+    .select('id, nome, descricao, material_padrao, metodo_padrao, observacao_padrao, analitos, preco_pix, preco_cartao, comissao, ativo, ordem')
     .order('ordem', { ascending: true })
 
   if (!isAdmin) {
@@ -40,9 +40,13 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json().catch(() => null)
   const { nome, descricao, material_padrao, metodo_padrao, observacao_padrao,
-          preco_pix, preco_cartao, comissao, ordem } = body ?? {}
+          analitos, preco_pix, preco_cartao, comissao, ordem } = body ?? {}
 
   if (!nome?.trim()) return NextResponse.json({ error: 'Nome é obrigatório.' }, { status: 400 })
+
+  const analitosNorm = Array.isArray(analitos)
+    ? analitos.map((a: string) => String(a).trim()).filter(Boolean)
+    : null
 
   const { data, error } = await supabase
     .from('testes_rapidos')
@@ -52,6 +56,7 @@ export async function POST(request: NextRequest) {
       material_padrao:   material_padrao?.trim() || null,
       metodo_padrao:     metodo_padrao?.trim() || null,
       observacao_padrao: observacao_padrao?.trim() || null,
+      analitos:          analitosNorm && analitosNorm.length > 0 ? analitosNorm : null,
       preco_pix:         Number(preco_pix)    || 0,
       preco_cartao:      Number(preco_cartao) || 0,
       comissao:          Number(comissao)     || 0,

@@ -24,7 +24,7 @@ export async function PATCH(
 
   const body = await request.json().catch(() => null)
   const { nome, descricao, material_padrao, metodo_padrao, observacao_padrao,
-          preco_pix, preco_cartao, comissao, ativo, ordem } = body ?? {}
+          analitos, preco_pix, preco_cartao, comissao, ativo, ordem } = body ?? {}
 
   const updates: Record<string, unknown> = {}
   if (nome              !== undefined) updates.nome              = nome?.trim()
@@ -32,6 +32,10 @@ export async function PATCH(
   if (material_padrao   !== undefined) updates.material_padrao   = material_padrao?.trim() || null
   if (metodo_padrao     !== undefined) updates.metodo_padrao     = metodo_padrao?.trim() || null
   if (observacao_padrao !== undefined) updates.observacao_padrao = observacao_padrao?.trim() || null
+  if (analitos          !== undefined) {
+    const norm = Array.isArray(analitos) ? analitos.map((a: string) => String(a).trim()).filter(Boolean) : null
+    updates.analitos = norm && norm.length > 0 ? norm : null
+  }
   if (preco_pix         !== undefined) updates.preco_pix         = Number(preco_pix)
   if (preco_cartao      !== undefined) updates.preco_cartao      = Number(preco_cartao)
   if (comissao          !== undefined) updates.comissao          = Number(comissao)

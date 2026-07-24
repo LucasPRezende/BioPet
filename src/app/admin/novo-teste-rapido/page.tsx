@@ -14,6 +14,7 @@ interface TesteRapido {
   material_padrao:   string | null
   metodo_padrao:     string | null
   observacao_padrao: string | null
+  analitos:          string[] | null
   preco_pix:         number
   preco_cartao:      number
   comissao:          number
@@ -23,15 +24,17 @@ interface TesteRapido {
 
 interface Vet { id: number; nome: string; clinicas?: { nome: string } | null }
 
-// Testes "combo": detectam vários agentes num teste só. Quando o teste está
-// nesta lista, o resultado é marcado POR AGENTE (Positivo/Negativo) e o laudo
-// detalha para qual deu positivo. A lista de agentes é fixa pelo kit do teste.
-const ANALITOS_POR_TESTE: Record<string, string[]> = {
+// Testes "combo" detectam vários agentes num teste só: o resultado é marcado
+// POR AGENTE (Positivo/Negativo) e o laudo detalha para qual deu positivo.
+// A lista de agentes vem do catálogo (coluna `analitos`, editável no painel).
+// O mapa abaixo é só um FALLBACK caso o teste ainda não tenha `analitos` no banco.
+const ANALITOS_FALLBACK: Record<string, string[]> = {
   'Snap 4Dx Plus':    ['Ehrlichia spp.', 'Anaplasma spp.', 'Borrelia Burgdorferi', 'Dirofilaria Immitis'],
   'Combo FIV / FeLV': ['FIV (Vírus da Imunodeficiência Felina)', 'FeLV (Vírus da Leucemia Felina)'],
 }
-function analitosDe(nome: string): string[] {
-  return ANALITOS_POR_TESTE[nome] ?? []
+function analitosDe(c: { nome: string; analitos?: string[] | null }): string[] {
+  if (c.analitos && c.analitos.length > 0) return c.analitos
+  return ANALITOS_FALLBACK[c.nome] ?? []
 }
 
 // Linha de resultado editável (um por teste incluído)
@@ -205,7 +208,7 @@ function NovoTesteRapidoInner() {
     }
     if (incluidos.length === 0) return 'Selecione ao menos um teste rápido.'
     for (const c of incluidosOrdenados) {
-      const agentes = analitosDe(c.nome)
+      const agentes = analitosDe(c)
       if (agentes.length > 0) {
         const faltando = agentes.filter(a => !linhas[c.id]?.analitos?.[a])
         if (faltando.length > 0) {
@@ -223,7 +226,7 @@ function NovoTesteRapidoInner() {
     const selectedVet = vets.find(v => String(v.id) === form.veterinario_id)
     const materiaisUnicos = Array.from(new Set(incluidosOrdenados.map(c => linhas[c.id]?.material).filter(Boolean)))
     const resultados = incluidosOrdenados.map(c => {
-      const agentes = analitosDe(c.nome)
+      const agentes = analitosDe(c)
       const base = {
         nome:      c.nome,
         descricao: c.descricao,
@@ -499,7 +502,7 @@ function NovoTesteRapidoInner() {
                       </div>
 
                       {(() => {
-                        const agentes = analitosDe(c.nome)
+                        const agentes = analitosDe(c)
                         if (agentes.length > 0) {
                           // Teste combo: resultado por agente (Positivo/Negativo)
                           return (
