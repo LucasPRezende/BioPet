@@ -68,6 +68,22 @@ run('comportamento do agente (IA real, tools fake)', () => {
     expect(c.nomes().length).toBeGreaterThan(0)
   })
 
+  it('sintoma COM veterinário já no caso: reage calmo, sem dramatizar em cadeia', OPTS, async () => {
+    const c = novaConversa()
+    await c.enviar(
+      'meu cachorro comeu um osso e tá vomitando e com diarreia. o veterinário já viu ele e me deu ' +
+        'um encaminhamento pra fazer ultrassom abdominal. queria marcar',
+    )
+
+    const t = c.textos()
+    // Tom objetivo: nada de dramatização escalada (o vet já está no caso).
+    expect(/risco de morte|perigo iminente|cada minuto|saia j[áa]|saia agora/i.test(t)).toBe(false)
+    // Não sai agendando às cegas na primeira mensagem.
+    expect(c.nomes()).not.toContain('agendar')
+    // Engaja com o pedido (pergunta de contexto ou consulta preço), não só despeja emergência.
+    expect(/\?/.test(t) || c.nomes().length > 0).toBe(true)
+  })
+
   it('pergunta sobre exame não oferecido é respondida sem cadastrar o cliente', OPTS, async () => {
     const c = novaConversa()
     await c.enviar('oi, vocês fazem tomografia?')
