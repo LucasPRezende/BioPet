@@ -116,7 +116,24 @@ export async function responderOpenRouter(
 
     const texto = typeof msg.content === 'string' ? msg.content : ''
     logUsoOpenRouter(model, uso, rodada + 1)
-    return { resposta: paraWhatsApp(texto) || '(sem texto)', historico: messages, uso }
+
+    if (!texto.trim()) {
+      // Turno terminado sem texto nenhum (não é "excedeu rodadas") — escala
+      // de verdade em vez de deixar o cliente sem resposta e a equipe sem
+      // saber. Mesma lógica do caminho Anthropic.
+      await executar(
+        'transferir_humano',
+        { motivo: 'ia_travou', resumo: `IA terminou o turno sem responder ao atender: "${textoUsuario.slice(0, 200)}"` },
+        telefone,
+      ).catch(() => {})
+      return {
+        resposta: 'Desculpe, tive uma dificuldade aqui. Vou pedir para um atendente te responder. 🙏',
+        historico: messages,
+        uso,
+      }
+    }
+
+    return { resposta: paraWhatsApp(texto), historico: messages, uso }
   }
 
   logUsoOpenRouter(model, uso, MAX_RODADAS)

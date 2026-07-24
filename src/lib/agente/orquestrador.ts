@@ -580,10 +580,25 @@ export async function responder(
       .trim()
 
     logUso(uso, rodada + 1)
-    return {
-      resposta: paraWhatsApp(texto) || 'Desculpe, não consegui responder agora.',
-      historico: messages,
+
+    if (!texto) {
+      // O modelo terminou o turno sem gerar nenhum texto (não é "excedeu
+      // rodadas" — é um turno vazio de verdade). Sem isso, o cliente ficava
+      // com uma desculpa genérica e NINGUÉM era avisado — escala de verdade,
+      // igual ao caminho de "excedeu rodadas" (mesma filosofia: na dúvida,
+      // não improvisa, escala).
+      await executar(
+        'transferir_humano',
+        { motivo: 'ia_travou', resumo: `IA terminou o turno sem responder ao atender: "${textoUsuario.slice(0, 200)}"` },
+        telefone,
+      ).catch(() => {})
+      return {
+        resposta: 'Desculpe, tive uma dificuldade aqui. Vou pedir para um atendente te responder. 🙏',
+        historico: messages,
+      }
     }
+
+    return { resposta: paraWhatsApp(texto), historico: messages }
   }
 
   // Excedeu as rodadas de tool — aciona o atendente DE VERDADE (a mensagem
