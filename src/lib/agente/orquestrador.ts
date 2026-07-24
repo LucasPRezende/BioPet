@@ -227,7 +227,7 @@ export const TOOLS: Anthropic.Tool[] = [
 // Execução das tools (telefone é injetado pelo servidor, nunca pelo modelo)
 // ---------------------------------------------------------------------------
 
-async function executarTool(
+export async function executarTool(
   nome: string,
   input: Record<string, any>,
   telefone: string,

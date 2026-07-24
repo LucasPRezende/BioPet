@@ -10,7 +10,8 @@ import {
   type MensagemRecebida,
 } from '@/lib/agente/conversa'
 import { enfileirarMensagem } from '@/lib/agente/debounce'
-import { responder, acionarHumanoPorErro } from '@/lib/agente/orquestrador'
+import { acionarHumanoPorErro } from '@/lib/agente/orquestrador'
+import { responder } from '@/lib/agente/responder-provedor'
 import { sendWhatsAppText, getBase64FromMedia } from '@/lib/evolution'
 import { transcreverAudio, lerImagemEncaminhamento } from '@/lib/agente/midia'
 import { classificarFromMe, registrarHumano, contextoPendente } from '@/lib/agente/outbound'

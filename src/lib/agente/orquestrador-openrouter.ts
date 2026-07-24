@@ -1,15 +1,24 @@
 /**
- * EXPERIMENTAL — orquestrador alternativo via OpenRouter (API compatível com
- * OpenAI), para comparar outros modelos (DeepSeek, MiniMax…) com o Haiku.
+ * Orquestrador alternativo via OpenRouter (API compatível com OpenAI), para
+ * usar outros modelos (Kimi, DeepSeek…) no lugar do Claude nativo.
  *
  * Reaproveita as MESMAS tools, o MESMO system prompt e o MESMO executor de
  * tools do orquestrador de produção — só muda o "dialeto" da API (tool calling
- * no formato OpenAI: tool_calls / role:'tool'). NÃO é usado em produção; serve
- * para rodar a suíte comportamental contra vários modelos e medir custo.
+ * no formato OpenAI: tool_calls / role:'tool'). Usado tanto pela suíte de
+ * comparação de modelos quanto pelo flag AGENTE_MODELO_OPENROUTER (ver
+ * responder-provedor.ts) para testar um modelo em produção sem tocar no
+ * caminho nativo da Anthropic.
  *
  * Requer OPENROUTER_API_KEY no ambiente.
  */
-import { TOOLS, systemEstavel, systemVolatil, paraWhatsApp, type ToolExecutor } from './orquestrador'
+import {
+  TOOLS,
+  systemEstavel,
+  systemVolatil,
+  paraWhatsApp,
+  executarTool,
+  type ResponderDeps,
+} from './orquestrador'
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
 const MAX_RODADAS = 6
@@ -34,25 +43,43 @@ export interface RespostaModelo {
   uso: UsoModelo
 }
 
+/** Loga o consumo de uma resposta via OpenRouter (custo já vem calculado pela API). */
+function logUsoOpenRouter(modelo: string, uso: UsoModelo, rodadas: number): void {
+  console.log(
+    `[agente/uso-openrouter] modelo=${modelo} rodadas=${rodadas} ` +
+      `prompt=${uso.promptTokens} completion=${uso.completionTokens} custo=$${uso.custoUSD.toFixed(5)}`,
+  )
+}
+
 /**
- * Mesma semântica de `responder`, mas via OpenRouter. `historico` é o array de
- * mensagens no formato OpenAI (inclui a system message na primeira posição).
+ * Mesma semântica de `responder` (orquestrador.ts), mas via OpenRouter.
+ * `historico` é o array de mensagens no formato OpenAI (system + user/assistant/tool).
+ *
+ * O system message é RECONSTRUÍDO A CADA CHAMADA (nunca reaproveitado do
+ * histórico) — mesmo comportamento do caminho Anthropic, necessário porque
+ * ele carrega informação que muda a cada turno (hora atual, contexto pendente,
+ * FAQ, exames não agendáveis). Sem isso, uma conversa longa arrastaria a hora
+ * da PRIMEIRA mensagem para sempre.
  */
 export async function responderOpenRouter(
   model: string,
   telefone: string,
   textoUsuario: string,
   historico: any[],
-  deps: { executar: ToolExecutor },
+  deps: ResponderDeps = {},
 ): Promise<RespostaModelo> {
   const key = process.env.OPENROUTER_API_KEY
   if (!key) throw new Error('OPENROUTER_API_KEY ausente')
 
-  const messages: any[] =
-    historico.length > 0
-      ? [...historico]
-      : [{ role: 'system', content: `${systemEstavel()}\n\n${systemVolatil(telefone, true)}` }]
-  messages.push({ role: 'user', content: textoUsuario })
+  const executar = deps.executar ?? executarTool
+  const primeira = historico.length === 0
+  const systemMsg = {
+    role: 'system',
+    content: `${systemEstavel()}\n\n${systemVolatil(telefone, primeira, deps.contexto, deps.faq, deps.examesNaoAgendaveis, deps.infoCliente)}`,
+  }
+
+  const semSystem = historico.filter((m) => m.role !== 'system')
+  const messages: any[] = [systemMsg, ...semSystem, { role: 'user', content: textoUsuario }]
 
   const tools = toolsOpenAI()
   const uso: UsoModelo = { promptTokens: 0, completionTokens: 0, custoUSD: 0 }
@@ -81,15 +108,26 @@ export async function responderOpenRouter(
       for (const tc of msg.tool_calls) {
         let args: Record<string, any> = {}
         try { args = JSON.parse(tc.function?.arguments || '{}') } catch { /* ignora */ }
-        const out = await deps.executar(tc.function?.name, args, telefone)
+        const out = await executar(tc.function?.name, args, telefone)
         messages.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(out) })
       }
       continue
     }
 
     const texto = typeof msg.content === 'string' ? msg.content : ''
+    logUsoOpenRouter(model, uso, rodada + 1)
     return { resposta: paraWhatsApp(texto) || '(sem texto)', historico: messages, uso }
   }
 
-  return { resposta: '(excedeu rodadas)', historico: messages, uso }
+  logUsoOpenRouter(model, uso, MAX_RODADAS)
+  await executar(
+    'transferir_humano',
+    { motivo: 'ia_travou', resumo: `IA excedeu o limite de rodadas ao atender: "${textoUsuario.slice(0, 200)}"` },
+    telefone,
+  ).catch(() => {})
+  return {
+    resposta: 'Desculpe, tive uma dificuldade aqui. Vou pedir para um atendente te responder. 🙏',
+    historico: messages,
+    uso,
+  }
 }
