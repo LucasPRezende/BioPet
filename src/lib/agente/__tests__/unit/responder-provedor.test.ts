@@ -57,4 +57,33 @@ describe('responder-provedor (flag AGENTE_MODELO_OPENROUTER)', () => {
     // uso NÃO vaza pro retorno — mesma forma que o caminho Anthropic
     expect(r).toEqual({ resposta: 'oi (openrouter)', historico: [{ role: 'openrouter' }] })
   })
+
+  // Regressão: histórico salvo pela Anthropic (content = array de blocos)
+  // entregue direto pro dialeto OpenAI quebrava a chamada no Kimi de verdade
+  // ("message ... must not be empty"). Reiniciar a conversa em vez de crashar.
+  const HISTORICO_ANTHROPIC = [
+    { role: 'user', content: 'oi' },
+    { role: 'assistant', content: [{ type: 'text', text: 'Olá!' }] },
+  ]
+  const HISTORICO_OPENAI = [
+    { role: 'user', content: 'oi' },
+    { role: 'assistant', content: 'Olá!' },
+  ]
+
+  it('flag ligada + histórico no formato Anthropic → reinicia a conversa (não quebra)', async () => {
+    process.env.AGENTE_MODELO_OPENROUTER = 'moonshotai/kimi-k3'
+    await responder(TEL, 'oi de novo', HISTORICO_ANTHROPIC)
+    expect(responderOpenRouter).toHaveBeenCalledWith('moonshotai/kimi-k3', TEL, 'oi de novo', [], {})
+  })
+
+  it('flag desligada + histórico no formato OpenAI (sobra de um teste anterior) → reinicia', async () => {
+    await responder(TEL, 'oi de novo', HISTORICO_OPENAI)
+    expect(responderAnthropic).toHaveBeenCalledWith(TEL, 'oi de novo', [], {})
+  })
+
+  it('formato compatível → histórico passa intacto (sem reiniciar à toa)', async () => {
+    process.env.AGENTE_MODELO_OPENROUTER = 'moonshotai/kimi-k3'
+    await responder(TEL, 'oi de novo', HISTORICO_OPENAI)
+    expect(responderOpenRouter).toHaveBeenCalledWith('moonshotai/kimi-k3', TEL, 'oi de novo', HISTORICO_OPENAI, {})
+  })
 })

@@ -14,14 +14,40 @@
 import { responder as responderAnthropic, type ResponderDeps, type RespostaOrquestrador } from './orquestrador'
 import { responderOpenRouter } from './orquestrador-openrouter'
 
+/**
+ * O histórico persistido (`conversas.historico`) é gravado no dialeto de
+ * mensagem do provedor que respondeu por último: Anthropic usa `content` como
+ * array de blocos (text/tool_use/tool_result); OpenAI/OpenRouter usa `content`
+ * como string (ou null nas chamadas de tool). São formatos incompatíveis — um
+ * histórico Anthropic entregue direto pro dialeto OpenAI (ou vice-versa) quebra
+ * a chamada à API (já aconteceu: "message ... must not be empty" no Kimi).
+ * Detecta pelo formato de `content`, não por um campo dedicado — evita
+ * qualquer mudança de schema só para isso.
+ */
+function pareceHistoricoAnthropic(historico: any[]): boolean {
+  return historico.some((m) => Array.isArray(m?.content))
+}
+
 export async function responder(
   telefone: string,
   textoUsuario: string,
-  historico: any[],
+  historicoOriginal: any[],
   deps: ResponderDeps = {},
 ): Promise<RespostaOrquestrador> {
   const modeloOpenRouter = process.env.AGENTE_MODELO_OPENROUTER?.trim()
-  if (!modeloOpenRouter) return responderAnthropic(telefone, textoUsuario, historico, deps)
+  const usaOpenRouter = !!modeloOpenRouter
+
+  const anthropicShaped = historicoOriginal.length > 0 && pareceHistoricoAnthropic(historicoOriginal)
+  const incompativel = historicoOriginal.length > 0 && anthropicShaped !== !usaOpenRouter
+  if (incompativel) {
+    console.log(
+      `[agente/provedor] histórico de ${telefone} está no dialeto errado para o provedor ativo ` +
+        `(usaOpenRouter=${usaOpenRouter}) — reiniciando a conversa.`,
+    )
+  }
+  const historico = incompativel ? [] : historicoOriginal
+
+  if (!usaOpenRouter) return responderAnthropic(telefone, textoUsuario, historico, deps)
 
   const r = await responderOpenRouter(modeloOpenRouter, telefone, textoUsuario, historico, deps)
   return { resposta: r.resposta, historico: r.historico }
