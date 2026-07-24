@@ -53,4 +53,36 @@ describe('enfileirarMensagem (debounce)', () => {
     vi.advanceTimersByTime(JANELA)
     expect(cb).toHaveBeenCalledTimes(2)
   })
+
+  // Regressão: texto (debounce direto) e mídia (Gemini → debounce, com atraso
+  // variável) podem abrir uma SEGUNDA janela para o mesmo telefone enquanto a
+  // PRIMEIRA ainda está processando (chamando o modelo, salvando o histórico).
+  // Sem serialização, as duas rodavam em paralelo e uma sobrescrevia o
+  // histórico da outra — a IA "esquecia" parte da conversa e se apresentava
+  // de novo. `processar` do MESMO telefone tem que esperar a anterior acabar.
+  it('serializa: 2ª janela do MESMO telefone espera a 1ª terminar de processar', async () => {
+    const eventos: string[] = []
+    let liberarPrimeira!: () => void
+    const travaPrimeira = new Promise<void>((r) => { liberarPrimeira = r })
+
+    const cb = vi.fn(async (texto: string) => {
+      eventos.push('inicio:' + texto)
+      if (texto === 'primeira') await travaPrimeira
+      eventos.push('fim:' + texto)
+    })
+
+    enfileirarMensagem('5566', 'primeira', 'm1', undefined, cb)
+    vi.advanceTimersByTime(JANELA)
+    expect(eventos).toEqual(['inicio:primeira']) // 1ª começou (fila vazia antes dela)
+
+    // 2ª mensagem chega e fecha sua PRÓPRIA janela enquanto a 1ª ainda está presa.
+    enfileirarMensagem('5566', 'segunda', 'm2', undefined, cb)
+    vi.advanceTimersByTime(JANELA)
+    expect(eventos).toEqual(['inicio:primeira']) // 2ª NÃO pode ter começado ainda
+
+    liberarPrimeira()
+    for (let i = 0; i < 10; i++) await Promise.resolve() // deixa a fila avançar
+
+    expect(eventos).toEqual(['inicio:primeira', 'fim:primeira', 'inicio:segunda', 'fim:segunda'])
+  })
 })
