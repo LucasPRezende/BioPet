@@ -46,6 +46,37 @@ function montarTextoEncaminhamento(tipo: 'PDF' | 'imagem', desc: string, legenda
   )
 }
 
+/**
+ * Mensagem quando o arquivo é um COMPROVANTE de pagamento. O sistema da BioPet
+ * confirma pagamentos automaticamente (webhook de pagamentos), então não há o que
+ * validar no comprovante — a IA só agradece. Não repassamos a análise do Gemini
+ * para não arriscar a IA comentar "autenticidade" (o Gemini às vezes acha que a
+ * data está no futuro e chama de falso — falso positivo).
+ */
+function montarTextoComprovante(legenda?: string): string {
+  return (
+    '[O cliente enviou um COMPROVANTE de pagamento (Pix/transferência/cartão). ' +
+    'O sistema da BioPet confirma os pagamentos automaticamente, então NÃO é preciso validar o comprovante, ' +
+    'conferir valores nem pedir encaminhamento. Apenas AGRADEÇA o envio de forma breve e cordial e confirme que está tudo certo. ' +
+    'NÃO trate como pedido de agendamento e NÃO comente sobre autenticidade/validade do comprovante.]' +
+    (legenda ? `\n\n[Legenda do cliente: ${legenda}]` : '')
+  )
+}
+
+/**
+ * Separa a linha "TIPO: X" (classificação do Gemini) do corpo da descrição.
+ * Sem a linha, assume ENCAMINHAMENTO (comportamento anterior).
+ */
+function classificarMidia(desc: string): {
+  tipo: 'ENCAMINHAMENTO' | 'COMPROVANTE' | 'OUTRO'
+  corpo: string
+} {
+  const m = desc.match(/^\s*TIPO:\s*(ENCAMINHAMENTO|COMPROVANTE|OUTRO)\b/i)
+  const tipo = (m?.[1]?.toUpperCase() as 'ENCAMINHAMENTO' | 'COMPROVANTE' | 'OUTRO') ?? 'ENCAMINHAMENTO'
+  const corpo = desc.replace(/^\s*TIPO:.*(?:\r?\n)?/i, '').trim()
+  return { tipo, corpo }
+}
+
 /** Processa o texto (já resolvido) com guard-rails + orquestrador + envio. */
 async function processar(
   telefone: string,
@@ -117,10 +148,16 @@ async function processarMidia(msg: MensagemRecebida) {
         return
       }
       const desc = await lerImagemEncaminhamento(media.base64, media.mimetype, msg.legenda)
-      texto = montarTextoEncaminhamento('PDF', desc, msg.legenda)
+      const { tipo, corpo } = classificarMidia(desc)
+      texto = tipo === 'COMPROVANTE'
+        ? montarTextoComprovante(msg.legenda)
+        : montarTextoEncaminhamento('PDF', corpo, msg.legenda)
     } else {
       const desc = await lerImagemEncaminhamento(media.base64, media.mimetype, msg.legenda)
-      texto = montarTextoEncaminhamento('imagem', desc, msg.legenda)
+      const { tipo, corpo } = classificarMidia(desc)
+      texto = tipo === 'COMPROVANTE'
+        ? montarTextoComprovante(msg.legenda)
+        : montarTextoEncaminhamento('imagem', corpo, msg.legenda)
     }
 
     if (!texto || /^\(sem fala\)$/i.test(texto.trim())) {

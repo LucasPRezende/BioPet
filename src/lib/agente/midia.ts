@@ -61,12 +61,17 @@ export async function lerImagemEncaminhamento(
   const model = genAI.getGenerativeModel({ model: MODELO_IMAGEM })
 
   const instrucao =
-    'Este arquivo (imagem ou PDF) foi enviado por um tutor pelo WhatsApp e provavelmente é um ENCAMINHAMENTO ' +
-    'veterinário (pode ser manuscrito). Extraia, em português e de forma objetiva: ' +
+    'Este arquivo (imagem ou PDF) foi enviado por um tutor pelo WhatsApp. ' +
+    'PRIMEIRO classifique o documento numa única linha inicial, exatamente no formato "TIPO: X", ' +
+    'onde X é um de: ENCAMINHAMENTO (pedido/solicitação de exame feito por veterinário), ' +
+    'COMPROVANTE (comprovante ou recibo de pagamento — Pix, transferência bancária, cartão), ' +
+    'OUTRO (qualquer outra coisa, ex.: foto do pet, print de conversa, documento pessoal). ' +
+    'DEPOIS da linha TIPO:\n' +
+    '- Se ENCAMINHAMENTO, extraia, em português e de forma objetiva: ' +
     '1) exame(s)/procedimento(s) solicitado(s); 2) nome do pet, se houver; ' +
-    '3) espécie, se houver; 4) veterinário solicitante, se houver; 5) qualquer observação relevante. ' +
-    'Se a imagem não for um encaminhamento (ex.: foto do pet), descreva brevemente o que é. ' +
-    'Não invente dados que não estão na imagem.' +
+    '3) espécie, se houver; 4) veterinário solicitante, se houver; 5) qualquer observação relevante.\n' +
+    '- Se COMPROVANTE ou OUTRO, descreva brevemente em uma linha o que é (não precisa detalhar valores nem julgar autenticidade).\n' +
+    'Não invente dados que não estão no arquivo.' +
     (legenda ? `\n\nLegenda enviada pelo tutor: "${legenda}"` : '')
 
   const result = await model.generateContent([
