@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { verifyAgentKey } from '@/lib/agent-auth'
 import { sendWhatsAppText } from '@/lib/evolution'
-import { normalizeTelefone } from '@/lib/telefone'
+import { marcarAtendimentoHumano } from '@/lib/agente/conversa'
 
 const TIPOS_QUE_ENVIAM_WHATSAPP = new Set([
   'ia_travou', 'pergunta_laudo', 'pergunta_tecnica', 'erro_tecnico',
@@ -57,23 +57,14 @@ export async function POST(request: NextRequest) {
   // Tipo efetivo: usa tipo_evento se fornecido, senão trata motivo como tipo
   const tipoEfetivo = tipo_evento ?? motivo
 
-  // Bloqueia IA (atendimento_humano) apenas para tipos de atenção
+  // Bloqueia IA (atendimento_humano) apenas para tipos de atenção. Grava a pausa
+  // em `tutores` E `conversas`, então funciona para QUALQUER número — cadastrado
+  // ou não. Antes só atualizava `tutores`, e escalar um não-cliente (parceiro,
+  // fornecedor, número errado) não pausava o bot: o UPDATE não achava linha e a
+  // IA voltava a responder no turno seguinte. `conversas` existe por telefone
+  // para qualquer contato que trocou mensagem com o bot.
   if (TIPOS_QUE_BLOQUEIAM_IA.has(tipoEfetivo)) {
-    const digits  = telefone.replace(/\D/g, '')
-    const telNorm = normalizeTelefone(digits)
-
-    const { data: cfg } = await supabase
-      .from('configuracoes_agente')
-      .select('tempo_retorno_ia_horas')
-      .limit(1)
-      .single()
-    const horas = cfg?.tempo_retorno_ia_horas ?? 2
-    const expiracao = new Date(Date.now() + horas * 60 * 60 * 1000).toISOString()
-
-    await supabase
-      .from('tutores')
-      .update({ atendimento_humano: true, atendimento_humano_ate: expiracao })
-      .or(`telefone.eq.${telNorm},telefone.eq.${digits}`)
+    await marcarAtendimentoHumano(telefone)
   }
 
   // Envia WhatsApp para admins para tipos que requerem notificação
