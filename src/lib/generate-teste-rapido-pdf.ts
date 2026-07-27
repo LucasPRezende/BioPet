@@ -141,7 +141,7 @@ export async function generateTesteRapidoPDF(data: TesteRapidoPDFData): Promise<
       <dl>${pacienteDl}</dl>
     </div>
     <div class="info-card">
-      <div class="label">Tutor(a)</div>
+      <div class="label">Responsável Legal</div>
       <dl><dt>Nome</dt><dd>${esc(data.tutor)}</dd></dl>
     </div>
     <div class="info-card">
