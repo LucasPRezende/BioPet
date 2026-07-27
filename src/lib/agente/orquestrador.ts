@@ -424,6 +424,7 @@ export function systemEstavel(): string {
     '',
     'ESTILO — DIRETA AO PONTO (português do Brasil, cordial mas objetiva; o cliente está no WhatsApp e quer resolver rápido):',
     '- Responda primeiro, enfeite depois (ou nunca). Corte aberturas de preenchimento: "Ótimo!", "Perfeito!", "Que legal!", "Excelente!". Não narre seus passos internos ("Deixa eu verificar...", "Agora vou consultar o valor...") — chame a tool em silêncio e responda já com o resultado.',
+    '- REGRA TÉCNICA — a mensagem pro cliente SÓ vai quando você termina o turno sem chamar tool (end_turn, tool_use=false): texto que você escrever JUNTO com uma chamada de tool NUNCA chega ao cliente — fica só na sua própria memória. Por isso: se ainda precisa perguntar algo antes de continuar (ex.: nome do pet), faça ISSO SÓ, sem chamar nenhuma tool na mesma resposta — espere a resposta do cliente, DEPOIS chame a tool. Nunca assuma que já perguntou algo se foi numa resposta que também chamou uma tool.',
     '- Mensagens curtas: 1 a 4 linhas na maioria dos casos. A apresentação completa só na primeira mensagem da conversa.',
     '- No máximo UM emoji por mensagem — e pode ser nenhum.',
     '- Uma pergunta por mensagem; quando houver pergunta pendente, ela vem PRIMEIRO.',
@@ -540,6 +541,12 @@ export async function responder(
 
   const uso = { input: 0, output: 0, cacheCriado: 0, cacheLido: 0 }
 
+  // Último texto não-vazio visto em QUALQUER rodada (mesmo as que chamaram
+  // tool) — usado como rede de segurança se a rodada final vier vazia (ver
+  // abaixo). O cliente só recebe o texto da rodada final normalmente; isso
+  // só entra em jogo nesse caso raro.
+  let ultimoTextoNaoVazio = ''
+
   for (let rodada = 0; rodada < MAX_RODADAS_TOOL; rodada++) {
     const resp = await client.messages.create({
       model: MODELO,
@@ -557,6 +564,13 @@ export async function responder(
 
     messages.push({ role: 'assistant', content: resp.content })
 
+    const textoDaRodada = resp.content
+      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+      .map((b) => b.text)
+      .join('\n')
+      .trim()
+    if (textoDaRodada) ultimoTextoNaoVazio = textoDaRodada
+
     if (resp.stop_reason === 'tool_use') {
       const results: Anthropic.ToolResultBlockParam[] = []
       for (const block of resp.content) {
@@ -573,20 +587,21 @@ export async function responder(
       continue
     }
 
-    const texto = resp.content
-      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-      .map((b) => b.text)
-      .join('\n')
-      .trim()
-
     logUso(uso, rodada + 1)
 
-    if (!texto) {
-      // O modelo terminou o turno sem gerar nenhum texto (não é "excedeu
-      // rodadas" — é um turno vazio de verdade). Sem isso, o cliente ficava
-      // com uma desculpa genérica e NINGUÉM era avisado — escala de verdade,
-      // igual ao caminho de "excedeu rodadas" (mesma filosofia: na dúvida,
-      // não improvisa, escala).
+    // Rodada final sem texto: em vez de escalar direto, recupera o último
+    // texto não-vazio do turno — pode ter sido uma pergunta de verdade que
+    // veio junto com uma tool call de uma rodada anterior (nunca chegou ao
+    // cliente, mas o modelo "acha" que já disse). Só escala se o turno
+    // INTEIRO não gerou texto nenhum, em rodada nenhuma.
+    const textoFinal = textoDaRodada || ultimoTextoNaoVazio
+
+    if (!textoFinal) {
+      // Turno inteiro sem nenhum texto gerado (não é "excedeu rodadas" — é
+      // um turno vazio de verdade). Sem isso, o cliente ficava com uma
+      // desculpa genérica e NINGUÉM era avisado — escala de verdade, igual
+      // ao caminho de "excedeu rodadas" (mesma filosofia: na dúvida, não
+      // improvisa, escala).
       await executar(
         'transferir_humano',
         { motivo: 'ia_travou', resumo: `IA terminou o turno sem responder ao atender: "${textoUsuario.slice(0, 200)}"` },
@@ -598,7 +613,7 @@ export async function responder(
       }
     }
 
-    return { resposta: paraWhatsApp(texto), historico: messages }
+    return { resposta: paraWhatsApp(textoFinal), historico: messages }
   }
 
   // Excedeu as rodadas de tool — aciona o atendente DE VERDADE (a mensagem

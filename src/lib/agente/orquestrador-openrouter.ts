@@ -84,6 +84,10 @@ export async function responderOpenRouter(
   const tools = toolsOpenAI()
   const uso: UsoModelo = { promptTokens: 0, completionTokens: 0, custoUSD: 0 }
 
+  // Último texto não-vazio visto em QUALQUER rodada (mesmo as que chamaram
+  // tool) — rede de segurança se a rodada final vier vazia (ver abaixo).
+  let ultimoTextoNaoVazio = ''
+
   for (let rodada = 0; rodada < MAX_RODADAS; rodada++) {
     const res = await fetch(OPENROUTER_URL, {
       method: 'POST',
@@ -104,6 +108,9 @@ export async function responderOpenRouter(
     const msg = choice?.message ?? {}
     messages.push(msg)
 
+    const textoDaRodada = (typeof msg.content === 'string' ? msg.content : '').trim()
+    if (textoDaRodada) ultimoTextoNaoVazio = textoDaRodada
+
     if (choice?.finish_reason === 'tool_calls' && Array.isArray(msg.tool_calls) && msg.tool_calls.length) {
       for (const tc of msg.tool_calls) {
         let args: Record<string, any> = {}
@@ -114,13 +121,18 @@ export async function responderOpenRouter(
       continue
     }
 
-    const texto = typeof msg.content === 'string' ? msg.content : ''
     logUsoOpenRouter(model, uso, rodada + 1)
 
-    if (!texto.trim()) {
-      // Turno terminado sem texto nenhum (não é "excedeu rodadas") — escala
-      // de verdade em vez de deixar o cliente sem resposta e a equipe sem
-      // saber. Mesma lógica do caminho Anthropic.
+    // Rodada final sem texto: recupera o último texto não-vazio do turno
+    // (pode ter sido uma pergunta de verdade que veio junto com uma tool
+    // call de rodada anterior e nunca chegou ao cliente). Só escala se o
+    // turno INTEIRO não gerou texto nenhum, em rodada nenhuma.
+    const textoFinal = textoDaRodada || ultimoTextoNaoVazio
+
+    if (!textoFinal) {
+      // Turno inteiro sem nenhum texto gerado (não é "excedeu rodadas") —
+      // escala de verdade em vez de deixar o cliente sem resposta e a
+      // equipe sem saber. Mesma lógica do caminho Anthropic.
       await executar(
         'transferir_humano',
         { motivo: 'ia_travou', resumo: `IA terminou o turno sem responder ao atender: "${textoUsuario.slice(0, 200)}"` },
@@ -133,7 +145,7 @@ export async function responderOpenRouter(
       }
     }
 
-    return { resposta: paraWhatsApp(texto), historico: messages, uso }
+    return { resposta: paraWhatsApp(textoFinal), historico: messages, uso }
   }
 
   logUsoOpenRouter(model, uso, MAX_RODADAS)
