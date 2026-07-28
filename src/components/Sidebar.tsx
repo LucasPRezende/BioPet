@@ -80,10 +80,16 @@ export default function Sidebar({ isOpen, onClose }: Props) {
   }, [])
 
   useEffect(() => {
-    fetch('/api/admin/notificacoes')
-      .then(r => r.ok ? r.json() : { nao_visualizadas: 0, agendamentos_novos: 0 })
-      .then(d => setUnread((d.nao_visualizadas ?? 0) + (d.agendamentos_novos ?? 0)))
-      .catch(() => {})
+    let active = true
+    function loadUnread() {
+      fetch('/api/admin/notificacoes')
+        .then(r => r.ok ? r.json() : { nao_visualizadas: 0, agendamentos_novos: 0 })
+        .then(d => { if (active) setUnread((d.nao_visualizadas ?? 0) + (d.agendamentos_novos ?? 0)) })
+        .catch(() => {})
+    }
+    loadUnread()
+    const interval = setInterval(loadUnread, 20_000)
+    return () => { active = false; clearInterval(interval) }
   }, [pathname])
 
   async function handleLogout() {

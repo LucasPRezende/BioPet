@@ -97,6 +97,7 @@ export async function GET(request: NextRequest) {
       status_pagamento: ag.status_pagamento,
       data_hora:       ag.data_hora,
       pet_nome:        (Array.isArray(ag.pets) ? ag.pets[0] : ag.pets as { nome: string } | null)?.nome ?? '—',
+      vencido:         ag.data_hora.slice(0, 10) < hojeStr && Number(ag.valor ?? 0) > 0,
     })),
   })
 }

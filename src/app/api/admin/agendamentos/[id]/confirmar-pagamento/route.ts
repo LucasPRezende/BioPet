@@ -33,6 +33,8 @@ export async function POST(
   const now = new Date().toISOString()
   const updatePayload: Record<string, unknown> = {
     status_pagamento: novoStatus,
+    pago_em: now,
+    pagamento_confirmado_por: session.userId,
     ...(isRepasseClinica ? { repasse_confirmado: true, repasse_em: now } : {}),
   }
 
@@ -61,5 +63,15 @@ export async function POST(
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  return NextResponse.json({ sucesso: true, status_pagamento: novoStatus })
+  const { data: admin } = await supabase
+    .from('system_users')
+    .select('nome')
+    .eq('id', session.userId)
+    .single()
+
+  return NextResponse.json({
+    sucesso: true,
+    status_pagamento: novoStatus,
+    pagamento_confirmado_por: admin ? { nome: admin.nome } : null,
+  })
 }

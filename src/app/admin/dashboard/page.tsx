@@ -37,7 +37,7 @@ interface Alertas {
   falta_laudo_lista:           { id: number; tipo_exame: string; data_hora: string; pet_nome: string }[]
   falta_pagamento:             number
   falta_pagamento_valor:       number
-  falta_pagamento_lista:       { id: number; tipo_exame: string; valor: number; status_pagamento: string; data_hora: string; pet_nome: string }[]
+  falta_pagamento_lista:       { id: number; tipo_exame: string; valor: number; status_pagamento: string; data_hora: string; pet_nome: string; vencido: boolean }[]
 }
 
 interface VetEntry {
@@ -91,7 +91,7 @@ interface ClinicaRow {
   agendamentos:    AgClinica[]
 }
 
-type Periodo = 'hoje' | 'semana' | 'mes' | 'personalizado'
+type Periodo = 'mes' | 'mes_passado' | 'personalizado'
 
 function formatBRL(n: number | null | undefined) {
   return Number(n ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -111,25 +111,32 @@ function getRange(periodo: Periodo, inicio: string, fim: string) {
   const now = new Date()
   const pad = (n: number) => String(n).padStart(2, '0')
   const toISO = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-  if (periodo === 'hoje')   { const t = toISO(now); return { inicio: t, fim: t } }
-  if (periodo === 'semana') {
-    const dom = new Date(now); dom.setDate(now.getDate() - now.getDay())
-    return { inicio: toISO(dom), fim: toISO(now) }
-  }
   if (periodo === 'mes') {
     const y = now.getFullYear(), m = now.getMonth()
     return { inicio: toISO(new Date(y, m, 1)), fim: toISO(new Date(y, m + 1, 0)) }
   }
+  if (periodo === 'mes_passado') {
+    const y = now.getFullYear(), m = now.getMonth()
+    return { inicio: toISO(new Date(y, m - 1, 1)), fim: toISO(new Date(y, m, 0)) }
+  }
   return { inicio, fim }
 }
 
-function StatCard({ label, value, sub, color, highlight, onClick }: {
-  label: string; value: string; sub?: string; color?: string; highlight?: boolean; onClick?: () => void
+function getMesAnteriorRange(inicioStr: string) {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const toISO = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+  const d = new Date(`${inicioStr}T12:00:00`)
+  const y = d.getFullYear(), m = d.getMonth()
+  return { inicio: toISO(new Date(y, m - 1, 1)), fim: toISO(new Date(y, m, 0)) }
+}
+
+function StatCard({ label, value, sub, color, onClick }: {
+  label: string; value: string; sub?: string; color?: string; onClick?: () => void
 }) {
   return (
     <div
       onClick={onClick}
-      className={`bg-white rounded-xl border shadow-sm overflow-hidden ${highlight ? 'ring-2 ring-amber-300' : ''} ${onClick ? 'cursor-pointer hover:shadow-md transition' : ''}`}
+      className={`bg-white rounded-xl border shadow-sm overflow-hidden ${onClick ? 'cursor-pointer hover:shadow-md transition' : ''}`}
     >
       <div className="h-1 bg-gold-stripe" />
       <div className="p-5">
@@ -141,12 +148,16 @@ function StatCard({ label, value, sub, color, highlight, onClick }: {
   )
 }
 
-function SectionDivider({ label }: { label: string }) {
+function SectionTitle({ label, color }: { label: string; color: string }) {
+  return <p className="text-xs font-extrabold uppercase tracking-wide" style={{ color }}>{label}</p>
+}
+
+function MiniStat({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="flex items-center gap-2 px-1">
-      <div className="h-px flex-1 bg-gray-200" />
-      <span className="text-xs font-bold text-gray-400 uppercase tracking-wide">{label}</span>
-      <div className="h-px flex-1 bg-gray-200" />
+    <div className="bg-gray-50 border border-gray-100 rounded-lg p-3">
+      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-0.5">{label}</p>
+      <p className="text-[15px] font-bold text-gray-600">{value}</p>
+      {sub && <p className="text-[10px] text-gray-400 mt-0.5">{sub}</p>}
     </div>
   )
 }
@@ -487,6 +498,7 @@ export default function DashboardPage() {
   const [clinicaModal,   setClinicaModal]   = useState<ClinicaRow | null>(null)
   const [showFaltaLaudo, setShowFaltaLaudo] = useState(false)
   const [showFaltaPag,   setShowFaltaPag]   = useState(false)
+  const [showDetalheFinanceiro, setShowDetalheFinanceiro] = useState(false)
   const [comissoesLaudo, setComissoesLaudo] = useState<{ usuario_id: number; nome: string; a_pagar: number; pago: number; qtd_a_pagar: number }[]>([])
   const [extracaoVet,    setExtracaoVet]    = useState<{ vet_id: number; nome: string; devido: number; qtd: number }[]>([])
   const [marcandoCom,    setMarcandoCom]    = useState<number | null>(null)
@@ -511,13 +523,9 @@ export default function DashboardPage() {
     if (resumoRes.status === 401) { router.push('/login'); return }
     if (resumoRes.ok) setResumo(await resumoRes.json())
 
-    // Período anterior (mesmo tamanho) para comparativo
-    const dIni = new Date(`${inicio}T12:00:00`), dFim = new Date(`${fim}T12:00:00`)
-    const dias = Math.round((dFim.getTime() - dIni.getTime()) / 86_400_000)
-    const antFim = new Date(dIni); antFim.setDate(antFim.getDate() - 1)
-    const antIni = new Date(antFim); antIni.setDate(antIni.getDate() - dias)
-    const toISO = (d: Date) => d.toLocaleDateString('en-CA')
-    fetch(`/api/admin/dashboard/resumo?inicio=${toISO(antIni)}&fim=${toISO(antFim)}`)
+    // Mês anterior (calendário) para comparativo
+    const mesAnterior = getMesAnteriorRange(inicio)
+    fetch(`/api/admin/dashboard/resumo?inicio=${mesAnterior.inicio}&fim=${mesAnterior.fim}`)
       .then(r => r.ok ? r.json() : null).then(d => setResumoAnterior(d)).catch(() => {})
     if (laudosRes.ok) setLaudoStats(await laudosRes.json())
     let newClinicas: ClinicaRow[] = []
@@ -554,16 +562,50 @@ export default function DashboardPage() {
 
   const hasAlertas = alertas && (alertas.laudos_sem_agendamento > 0 || alertas.falta_laudo > 0 || alertas.falta_pagamento > 0)
 
+  const pagVencidos = alertas ? alertas.falta_pagamento_lista.filter(ag => ag.vencido) : []
+  const pagNoPrazo  = alertas ? alertas.falta_pagamento_lista.filter(ag => !ag.vencido) : []
+  const pagVencidoValor  = pagVencidos.reduce((s, ag) => s + Number(ag.valor ?? 0), 0)
+  const pagNoPrazoValor  = pagNoPrazo.reduce((s, ag) => s + Number(ag.valor ?? 0), 0)
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <main className="max-w-6xl mx-auto px-4 py-8 space-y-6">
+      <main className="max-w-6xl mx-auto px-4 pb-8 space-y-6">
+
+        {/* Header escuro */}
+        <div className="bg-[#19202d] -mx-4 px-4 pt-6 pb-4 rounded-b-2xl flex flex-col gap-3.5">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h1 className="text-white text-xl font-extrabold">Dashboard</h1>
+            <span className="text-gray-400 text-xs">{fmtRange}</span>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {(['mes', 'mes_passado', 'personalizado'] as Periodo[]).map(p => (
+              <button key={p} onClick={() => setPeriodo(p)}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${periodo === p ? 'bg-[#c4a35a] text-[#19202d]' : 'bg-white/10 text-gray-300 hover:bg-white/15'}`}>
+                {p === 'mes' ? 'Este mês' : p === 'mes_passado' ? 'Mês passado' : 'Personalizado'}
+              </button>
+            ))}
+            {periodo === 'personalizado' && (
+              <>
+                <input type="date" value={inicioCustom} onChange={e => setInicioCustom(e.target.value)}
+                  className="border border-white/20 bg-white/5 text-white rounded-lg px-2.5 py-1.5 text-xs" />
+                <span className="text-gray-500 text-xs">até</span>
+                <input type="date" value={fimCustom} onChange={e => setFimCustom(e.target.value)}
+                  className="border border-white/20 bg-white/5 text-white rounded-lg px-2.5 py-1.5 text-xs" />
+              </>
+            )}
+            <button onClick={() => { fetchAlertas(); fetchStats() }} disabled={loading}
+              className="ml-auto bg-white/10 border border-white/15 text-gray-300 text-[11px] font-bold px-3 py-1.5 rounded-lg hover:bg-white/15 transition disabled:opacity-40">
+              {loading ? '⟳' : '↺ Atualizar'}
+            </button>
+          </div>
+        </div>
 
         {/* Alertas operacionais */}
         {alertas && hasAlertas && (
           <div className="space-y-2">
-            <SectionDivider label="Alertas operacionais" />
+            <p className="text-[11px] font-extrabold text-gray-400 uppercase tracking-widest">⚠ Alertas operacionais</p>
             {alertas.laudos_sem_agendamento > 0 && (
-              <div className="bg-red-50 border border-red-200 rounded-xl px-5 py-3 flex items-start gap-3">
+              <div className="bg-red-50 border border-red-200 border-l-4 border-l-red-600 rounded-xl px-5 py-3 flex items-start gap-3">
                 <span className="text-red-500 text-lg mt-0.5">⚠️</span>
                 <div className="flex-1">
                   <p className="text-sm font-semibold text-red-700">
@@ -575,7 +617,7 @@ export default function DashboardPage() {
               </div>
             )}
             {alertas.falta_laudo > 0 && (
-              <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-3">
+              <div className="bg-amber-50 border border-amber-200 border-l-4 border-l-amber-600 rounded-xl px-5 py-3">
                 <div className="flex items-center gap-3">
                   <span className="text-amber-500 text-lg">📋</span>
                   <p className="text-sm font-semibold text-amber-700">
@@ -586,42 +628,53 @@ export default function DashboardPage() {
                   </button>
                 </div>
                 {showFaltaLaudo && (
-                  <div className="mt-3 space-y-1.5 pl-8">
+                  <div className="mt-3 space-y-1 -mx-2">
                     {alertas.falta_laudo_lista.map(ag => (
-                      <div key={ag.id} className="flex items-center gap-2 text-xs text-amber-800 flex-wrap">
-                        <Link href={`/admin/agenda?data=${(ag.data_hora ?? '').slice(0, 10)}&abrir=${ag.id}`} className="font-semibold text-amber-700 hover:underline">Ag.{ag.id}</Link>
-                        <span>{ag.tipo_exame}</span>
-                        <span>—</span>
-                        <span className="font-medium">{ag.pet_nome}</span>
-                        <span className="text-amber-500">{formatDateTime(ag.data_hora)}</span>
-                      </div>
+                      <Link key={ag.id} href={`/admin/agenda?data=${(ag.data_hora ?? '').slice(0, 10)}&abrir=${ag.id}`}
+                        className="flex items-center gap-2 text-xs text-amber-800 flex-wrap px-2 py-1.5 rounded-lg hover:bg-amber-100/60 transition">
+                        <span className="flex-1">
+                          Ag.{ag.id} — {ag.tipo_exame} — <span className="font-medium">{ag.pet_nome}</span>{' '}
+                          <span className="text-amber-500">{formatDateTime(ag.data_hora)}</span>
+                        </span>
+                        <span className="font-bold text-amber-700 whitespace-nowrap">Abrir →</span>
+                      </Link>
                     ))}
                   </div>
                 )}
               </div>
             )}
             {alertas.falta_pagamento > 0 && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-5 py-3">
-                <div className="flex items-center gap-3">
+              <div className="bg-yellow-50 border border-yellow-200 border-l-4 border-l-yellow-600 rounded-xl px-5 py-3">
+                <div className="flex items-center gap-3 flex-wrap">
                   <span className="text-yellow-500 text-lg">💸</span>
-                  <p className="text-sm font-semibold text-yellow-800">
-                    {alertas.falta_pagamento} pagamento{alertas.falta_pagamento > 1 ? 's' : ''} pendente{alertas.falta_pagamento > 1 ? 's' : ''} — {formatBRL(alertas.falta_pagamento_valor)}
+                  <p className="text-sm font-semibold text-yellow-800 min-w-[180px]">
+                    Pagamentos a receber — {formatBRL(alertas.falta_pagamento_valor)}
                   </p>
+                  {pagVencidos.length > 0 && (
+                    <span className="text-[11px] font-extrabold bg-red-100 text-red-700 px-2.5 py-0.5 rounded-full">
+                      🔴 {pagVencidos.length} vencido{pagVencidos.length > 1 ? 's' : ''} · {formatBRL(pagVencidoValor)}
+                    </span>
+                  )}
+                  {pagNoPrazo.length > 0 && (
+                    <span className="text-[11px] font-extrabold bg-yellow-100 text-yellow-800 px-2.5 py-0.5 rounded-full">
+                      🟡 {pagNoPrazo.length} no prazo · {formatBRL(pagNoPrazoValor)}
+                    </span>
+                  )}
                   <button onClick={() => setShowFaltaPag(v => !v)} className="ml-auto text-xs text-yellow-700 underline shrink-0">
                     {showFaltaPag ? 'Ocultar' : 'Ver lista'}
                   </button>
                 </div>
                 {showFaltaPag && (
-                  <div className="mt-3 space-y-1.5 pl-8">
+                  <div className="mt-3 space-y-1 -mx-2">
                     {alertas.falta_pagamento_lista.map(ag => (
-                      <div key={ag.id} className="flex items-center gap-2 text-xs text-yellow-800 flex-wrap">
-                        <Link href={`/admin/agenda?data=${(ag.data_hora ?? '').slice(0, 10)}&abrir=${ag.id}`} className="font-semibold text-yellow-700 hover:underline">Ag.{ag.id}</Link>
-                        <span>{ag.tipo_exame}</span>
-                        <span>—</span>
-                        <span className="font-medium">{ag.pet_nome}</span>
-                        <span className="font-semibold text-yellow-700">{formatBRL(ag.valor)}</span>
-                        <span className="bg-yellow-200 text-yellow-800 px-1.5 py-0.5 rounded text-xs">{ag.status_pagamento}</span>
-                      </div>
+                      <Link key={ag.id} href={`/admin/agenda?data=${(ag.data_hora ?? '').slice(0, 10)}&abrir=${ag.id}`}
+                        className="flex items-center gap-2.5 text-xs text-yellow-800 flex-wrap px-2 py-1.5 rounded-lg hover:bg-yellow-100/60 transition">
+                        <span className={`font-extrabold whitespace-nowrap ${ag.vencido ? 'text-red-700' : 'text-yellow-700'}`}>
+                          {ag.vencido ? '🔴 Vencido' : '🟡 No prazo'}
+                        </span>
+                        <span className="flex-1">Ag.{ag.id} — {ag.pet_nome} — <span className="font-semibold">{formatBRL(ag.valor)}</span></span>
+                        <span className="font-bold text-yellow-700 whitespace-nowrap">Abrir →</span>
+                      </Link>
                     ))}
                   </div>
                 )}
@@ -630,34 +683,6 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Filtro de período */}
-        <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
-          <div className="h-1 bg-gold-stripe" />
-          <div className="p-4 flex flex-wrap items-center gap-3">
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-wide">Período:</span>
-            {(['hoje', 'semana', 'mes', 'personalizado'] as Periodo[]).map(p => (
-              <button key={p} onClick={() => setPeriodo(p)}
-                className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${periodo === p ? 'bg-[#19202d] text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
-                {p === 'hoje' ? 'Hoje' : p === 'semana' ? 'Esta semana' : p === 'mes' ? 'Este mês' : 'Personalizado'}
-              </button>
-            ))}
-            {periodo === 'personalizado' && (
-              <div className="flex items-center gap-2 ml-2">
-                <input type="date" value={inicioCustom} onChange={e => setInicioCustom(e.target.value)}
-                  className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#8a6e36]" />
-                <span className="text-gray-400 text-sm">até</span>
-                <input type="date" value={fimCustom} onChange={e => setFimCustom(e.target.value)}
-                  className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#8a6e36]" />
-              </div>
-            )}
-            <span className="text-xs text-gray-400 ml-auto">{fmtRange}</span>
-            <button onClick={() => { fetchAlertas(); fetchStats() }} disabled={loading}
-              className="ml-2 px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-200 text-gray-500 hover:bg-gray-50 transition disabled:opacity-40">
-              {loading ? '⟳' : '↺ Atualizar'}
-            </button>
-          </div>
-        </div>
-
         {loading ? (
           <div className="text-center py-16 text-gray-400">Carregando...</div>
         ) : (
@@ -665,253 +690,32 @@ export default function DashboardPage() {
             {/* Resumo financeiro de agendamentos */}
             {resumo && (
               <>
-                <SectionDivider label={`Agendamentos — ${fmtRange}`} />
-
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div className="bg-[#19202d] rounded-xl p-4 shadow-lg shadow-[#19202d]/20">
+                    <p className="text-[10.5px] font-bold text-[#c4a35a] uppercase tracking-wide mb-1.5">Total recebido</p>
+                    <p className="text-xl font-extrabold text-white">{formatBRL(resumo.total_recebido)}</p>
+                  </div>
+                  <StatCard label="Receita total" value={formatBRL(resumo.receita_total)} color="text-blue-700" />
+                  <StatCard label="A receber" value={formatBRL(resumo.total_a_receber)} color="text-amber-600"
+                    sub={resumo.a_receber_vencido > 0
+                      ? `${resumo.a_receber_vencido} vencido${resumo.a_receber_vencido > 1 ? 's' : ''} — ${formatBRL(resumo.a_receber_vencido_valor)}`
+                      : undefined} />
                   <StatCard label="Total agendamentos" value={String(resumo.total_agendamentos)} />
-                  <StatCard label="Receita total"      value={formatBRL(resumo.receita_total)}  color="text-blue-700" />
-                  <StatCard label="Total recebido"     value={formatBRL(resumo.total_recebido)} color="text-green-600" />
-                  <StatCard label="A receber"          value={formatBRL(resumo.total_a_receber)} color="text-amber-600"
-                    highlight={resumo.total_a_receber > 0} />
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                  <StatCard label="Ticket médio" value={formatBRL(resumo.total_agendamentos > 0 ? resumo.receita_total / resumo.total_agendamentos : 0)} />
-                  <StatCard label="% Recebido"   value={`${resumo.receita_total > 0 ? Math.round(resumo.total_recebido / resumo.receita_total * 100) : 0}%`} color="text-green-600" />
-                  <StatCard label="Taxa de conclusão" value={`${resumo.total_agendamentos > 0 ? Math.round(resumo.total_concluidos / resumo.total_agendamentos * 100) : 0}%`} sub={`${resumo.total_concluidos} concluídos`} />
-                  <StatCard label="Clientes" value={String(resumo.total_clientes)} sub="atendidos no período" />
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <MiniStat label="Ticket médio" value={formatBRL(resumo.total_agendamentos > 0 ? resumo.receita_total / resumo.total_agendamentos : 0)} />
+                  <MiniStat label="% Recebido"   value={`${resumo.receita_total > 0 ? Math.round(resumo.total_recebido / resumo.receita_total * 100) : 0}%`} />
+                  <MiniStat label="Taxa de conclusão" value={`${resumo.total_agendamentos > 0 ? Math.round(resumo.total_concluidos / resumo.total_agendamentos * 100) : 0}%`} sub={`${resumo.total_concluidos} concluídos`} />
+                  <MiniStat label="Clientes" value={String(resumo.total_clientes)} sub="atendidos no período" />
                 </div>
 
                 {resumoAnterior && (
                   <div className="bg-white rounded-xl border shadow-sm px-5 py-3 flex flex-wrap items-center gap-x-6 gap-y-1 text-xs">
-                    <span className="font-bold text-gray-400 uppercase tracking-wide">vs período anterior</span>
+                    <span className="font-bold text-gray-400 uppercase tracking-wide">vs mês anterior</span>
                     <Comparativo label="Receita"      atual={resumo.receita_total}      anterior={resumoAnterior.receita_total} brl />
                     <Comparativo label="Recebido"     atual={resumo.total_recebido}     anterior={resumoAnterior.total_recebido} brl />
                     <Comparativo label="Agendamentos" atual={resumo.total_agendamentos} anterior={resumoAnterior.total_agendamentos} />
-                  </div>
-                )}
-
-                {resumo.a_receber_vencido > 0 && (
-                  <div className="bg-red-50 border border-red-200 rounded-xl px-5 py-3 flex items-center gap-3">
-                    <span className="text-red-500 text-lg">⏰</span>
-                    <p className="text-sm font-semibold text-red-700 flex-1">
-                      {resumo.a_receber_vencido} pagamento{resumo.a_receber_vencido > 1 ? 's' : ''} a receber vencido{resumo.a_receber_vencido > 1 ? 's' : ''} — {formatBRL(resumo.a_receber_vencido_valor)}
-                    </p>
-                    <span className="text-xs text-red-500">cobrança em atraso</span>
-                  </div>
-                )}
-
-                {(resumo.total_antecipados > 0 || resumo.total_gratuitos > 0 || resumo.total_descontos > 0) && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {resumo.total_antecipados > 0 && (
-                      <StatCard
-                        label="Antecipados (futuros já pagos)"
-                        value={formatBRL(resumo.valor_antecipados)}
-                        sub={`${resumo.total_antecipados} agendamento${resumo.total_antecipados > 1 ? 's' : ''} futuros já pagos`}
-                        color="text-violet-600"
-                      />
-                    )}
-                    {resumo.total_gratuitos > 0 && (
-                      <StatCard
-                        label="Gratuitos no período"
-                        value={String(resumo.total_gratuitos)}
-                        sub={`Valor dispensado: ${formatBRL(resumo.valor_gratuitos)}`}
-                      />
-                    )}
-                    {resumo.total_descontos > 0 && (
-                      <StatCard
-                        label="Descontos concedidos"
-                        value={formatBRL(resumo.total_descontos)}
-                        sub="Total descontado no período (já refletido na receita)"
-                        color="text-amber-600"
-                      />
-                    )}
-                  </div>
-                )}
-
-                {/* Breakdown por forma de pagamento */}
-                <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
-                  <div className="h-1 bg-gold-stripe" />
-                  <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    <div>
-                      <p className="text-xs font-bold text-green-600 uppercase tracking-wide mb-3">Recebido por forma</p>
-                      <div className="space-y-2.5">
-                        {([
-                          { label: 'Pix / dinheiro presencial', value: resumo.breakdown.pix_presencial_rec },
-                          { label: 'Pix link',                  value: resumo.breakdown.pix_link_rec },
-                          { label: 'Cartão presencial',         value: resumo.breakdown.cartao_presencial_rec },
-                          { label: 'Cartão link',               value: resumo.breakdown.cartao_link_rec },
-                          { label: 'Clínica (pago_clinica)',    value: resumo.breakdown.clinica_rec },
-                        ] as { label: string; value: number }[]).filter(r => r.value > 0).map(({ label, value }) => (
-                          <div key={label} className="flex items-center justify-between text-sm">
-                            <span className="text-gray-600">{label}</span>
-                            <span className="font-semibold text-green-700">{formatBRL(value)}</span>
-                          </div>
-                        ))}
-                        {[
-                          resumo.breakdown.pix_presencial_rec, resumo.breakdown.pix_link_rec,
-                          resumo.breakdown.cartao_presencial_rec, resumo.breakdown.cartao_link_rec,
-                          resumo.breakdown.clinica_rec,
-                        ].every(v => v === 0) && (
-                          <p className="text-xs text-gray-400">Nenhum recebimento no período.</p>
-                        )}
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-amber-600 uppercase tracking-wide mb-3">A receber por origem</p>
-                      <div className="space-y-2.5">
-                        {([
-                          { label: 'Presencial (a confirmar)', value: resumo.breakdown.a_receber_presencial },
-                          { label: 'Link (aguardando pag.)',   value: resumo.breakdown.a_receber_link },
-                          { label: 'Clínica (repasse devido)', value: resumo.breakdown.a_receber_clinica },
-                        ] as { label: string; value: number }[]).map(({ label, value }) => (
-                          value > 0 ? (
-                            <div key={label} className="flex items-center justify-between text-sm">
-                              <span className="text-gray-600">{label}</span>
-                              <span className="font-semibold text-amber-700">{formatBRL(value)}</span>
-                            </div>
-                          ) : null
-                        ))}
-                        {resumo.breakdown.a_receber_presencial === 0 && resumo.breakdown.a_receber_link === 0 && resumo.breakdown.a_receber_clinica === 0 && (
-                          <p className="text-xs text-green-600 font-medium">Tudo recebido no período.</p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Gráfico receita por dia (com nº de agendamentos no rótulo) */}
-                <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
-                  <div className="h-1 bg-gold-stripe" />
-                  <div className="p-6">
-                    <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                      <h3 className="text-sm font-bold text-[#19202d] uppercase tracking-wide">Receita por Dia</h3>
-                      <span className="text-[11px] text-gray-400">barras = receita · (n) = nº de agendamentos</span>
-                    </div>
-                    <BarChart data={resumo.porDia.map(d => ({ data: d.data, valor: d.receita, info: d.quantidade }))} brl />
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* Laudos */}
-            {laudoStats && (
-              <>
-                <SectionDivider label="Laudos" />
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                  <StatCard label="Total de laudos" value={String(laudoStats.total)} />
-                  <StatCard label="Custo total"     value={formatBRL(laudoStats.custo)}    color="text-red-500" />
-                  <StatCard label="Comissões"       value={formatBRL(laudoStats.comissao)} color="text-amber-600" sub="a pagar" />
-                  <StatCard
-                    label="Lucro BioPet (est.)"
-                    value={formatBRL(resumo ? resumo.total_recebido - laudoStats.custo - laudoStats.comissao : laudoStats.lucro)}
-                    color={(resumo ? resumo.total_recebido - laudoStats.custo - laudoStats.comissao : laudoStats.lucro) >= 0 ? 'text-green-600' : 'text-red-500'}
-                    sub="recebido − custo − comissão"
-                  />
-                </div>
-
-                {comissoesLaudo.length > 0 && (
-                  <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
-                    <div className="h-1 bg-gold-stripe" />
-                    <div className="p-6">
-                      <h3 className="text-sm font-bold text-[#19202d] uppercase tracking-wide mb-4">Comissões de laudo a pagar — {fmtRange}</h3>
-                      <div className="space-y-2">
-                        {comissoesLaudo.map(c => (
-                          <div key={c.usuario_id} className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border border-gray-100 hover:bg-amber-50/30 transition flex-wrap">
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-semibold text-[#19202d]">{c.nome}</p>
-                              <p className="text-xs text-gray-400">
-                                A pagar: <span className="text-amber-600 font-semibold">{formatBRL(c.a_pagar)}</span>
-                                {c.pago > 0 && <> · Pago: <span className="text-green-600 font-semibold">{formatBRL(c.pago)}</span></>}
-                              </p>
-                            </div>
-                            {c.a_pagar > 0 ? (
-                              <button
-                                onClick={() => marcarComissaoPaga(c.usuario_id)}
-                                disabled={marcandoCom === c.usuario_id}
-                                className="text-xs px-3 py-1.5 rounded-lg font-semibold bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 disabled:opacity-50 whitespace-nowrap">
-                                {marcandoCom === c.usuario_id ? '...' : `Marcar pago (${c.qtd_a_pagar})`}
-                              </button>
-                            ) : c.pago > 0 ? (
-                              <button
-                                onClick={() => marcarComissaoPaga(c.usuario_id, true)}
-                                disabled={marcandoCom === c.usuario_id}
-                                className="text-xs px-3 py-1.5 rounded-lg text-gray-400 border border-gray-100 hover:bg-gray-50 disabled:opacity-50 whitespace-nowrap">
-                                {marcandoCom === c.usuario_id ? '...' : '✓ Pago · desfazer'}
-                              </button>
-                            ) : null}
-                          </div>
-                        ))}
-                      </div>
-                      <p className="text-[11px] text-gray-400 mt-3">Confirma a comissão dos laudos deste usuário no período selecionado.</p>
-                    </div>
-                  </div>
-                )}
-
-                {extracaoVet.length > 0 && (
-                  <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
-                    <div className="h-1 bg-gold-stripe" />
-                    <div className="p-6">
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-sm font-bold text-[#19202d] uppercase tracking-wide">Extrações devidas — {fmtRange}</h3>
-                        <Link href="/admin/extracoes" className="text-xs text-[#8a6e36] hover:underline">Gerenciar →</Link>
-                      </div>
-                      <div className="space-y-2">
-                        {extracaoVet.map(e => (
-                          <div key={e.vet_id} className="flex items-center justify-between px-3 py-2.5 rounded-lg border border-gray-100">
-                            <p className="text-sm font-semibold text-[#19202d]">{e.nome} <span className="text-xs text-gray-400 font-normal">· {e.qtd} extração{e.qtd > 1 ? 'ões' : ''}</span></p>
-                            <span className="text-sm font-bold text-amber-600">{formatBRL(e.devido)}</span>
-                          </div>
-                        ))}
-                      </div>
-                      <p className="text-[11px] text-gray-400 mt-3">Comissões de extração ainda não pagas. Confirme o pagamento em Extrações.</p>
-                    </div>
-                  </div>
-                )}
-
-                {laudoStats.porTipo.length > 0 && (
-                  <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
-                    <div className="h-1 bg-gold-stripe" />
-                    <div className="p-6">
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-sm font-bold text-[#19202d] uppercase tracking-wide">Por Tipo de Exame</h3>
-                        <Link href="/admin/comissoes" className="text-xs text-[#8a6e36] hover:underline">Editar preços →</Link>
-                      </div>
-                      <div className="overflow-x-auto">
-                        <table className="w-full">
-                          <thead>
-                            <tr className="border-b">
-                              {['Tipo', 'Qtd', '%', 'Receita', 'Custo', 'Comissão', 'Lucro'].map(h => (
-                                <th key={h} className="text-left py-2 px-3 text-xs font-bold text-gray-400 uppercase tracking-wide">{h}</th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-50">
-                            {laudoStats.porTipo.map(row => (
-                              <tr key={row.tipo_exame} className="hover:bg-amber-50/20 transition">
-                                <td className="py-3 px-3 font-medium text-[#19202d] text-sm">{row.tipo_exame}</td>
-                                <td className="py-3 px-3 text-gray-600 text-sm">{row.quantidade}</td>
-                                <td className="py-3 px-3">
-                                  <div className="flex items-center gap-1.5">
-                                    <div className="w-12 bg-gray-100 rounded-full h-1.5">
-                                      <div className="bg-[#c4a35a] h-1.5 rounded-full" style={{ width: `${row.percentual}%` }} />
-                                    </div>
-                                    <span className="text-xs text-gray-500">{row.percentual}%</span>
-                                  </div>
-                                </td>
-                                <td className="py-3 px-3 text-gray-700 text-sm font-medium">{formatBRL(row.receita)}</td>
-                                <td className="py-3 px-3 text-red-500 text-sm">{formatBRL(row.custo)}</td>
-                                <td className="py-3 px-3 text-amber-600 text-sm">{formatBRL(row.comissao)}</td>
-                                <td className={`py-3 px-3 text-sm font-semibold ${row.lucro >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                                  {formatBRL(row.lucro)}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
                   </div>
                 )}
               </>
@@ -920,7 +724,7 @@ export default function DashboardPage() {
             {/* Exames por clínica */}
             {clinicas.length > 0 && (
               <>
-                <SectionDivider label="Exames por Clínica" />
+                <SectionTitle label="🏥 Repasse — clínicas parceiras" color="#4338ca" />
                 <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
                   <div className="h-1 bg-gold-stripe" />
                   <div className="p-6">
@@ -940,7 +744,7 @@ export default function DashboardPage() {
                               <td className="py-3 px-3 text-gray-600 text-sm">{row.total}</td>
                               <td className="py-3 px-3 text-sm">
                                 {row.repasse_pendente > 0
-                                  ? <span className="font-semibold px-2 py-0.5 rounded-full text-xs bg-amber-50 text-amber-700 border border-amber-200">{formatBRL(row.repasse_pendente)}</span>
+                                  ? <span className="font-semibold px-2 py-0.5 rounded-full text-xs bg-indigo-50 text-indigo-700 border border-indigo-200">{formatBRL(row.repasse_pendente)}</span>
                                   : <span className="text-gray-300 text-xs">—</span>}
                               </td>
                               <td className="py-3 px-3 text-sm">
@@ -949,7 +753,7 @@ export default function DashboardPage() {
                                   : <span className="text-gray-300 text-xs">—</span>}
                               </td>
                               <td className="py-3 px-3">
-                                <button onClick={() => setClinicaModal(row)} className="text-xs text-[#8a6e36] hover:underline font-medium">
+                                <button onClick={() => setClinicaModal(row)} className="text-xs text-indigo-700 hover:underline font-medium">
                                   Ver detalhes →
                                 </button>
                               </td>
@@ -960,7 +764,7 @@ export default function DashboardPage() {
                           <tr className="border-t-2 border-gray-200 bg-gray-50">
                             <td className="py-3 px-3 text-xs font-bold text-gray-500 uppercase">Total</td>
                             <td className="py-3 px-3 text-sm font-bold text-gray-700">{clinicas.reduce((s, r) => s + r.total, 0)}</td>
-                            <td className="py-3 px-3 text-sm font-bold text-amber-700">{formatBRL(clinicas.reduce((s, r) => s + r.repasse_pendente, 0))}</td>
+                            <td className="py-3 px-3 text-sm font-bold text-indigo-700">{formatBRL(clinicas.reduce((s, r) => s + r.repasse_pendente, 0))}</td>
                             <td className="py-3 px-3 text-sm font-bold text-blue-700">{formatBRL(clinicas.reduce((s, r) => s + r.recebido, 0))}</td>
                             <td />
                           </tr>
@@ -975,7 +779,7 @@ export default function DashboardPage() {
             {/* Desempenho por usuário */}
             {laudoStats && laudoStats.porVet.length > 0 && (
               <>
-                <SectionDivider label="Desempenho por Usuário" />
+                <SectionTitle label="🩺 Desempenho por veterinário" color="#1d4ed8" />
                 <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
                   <div className="h-1 bg-gold-stripe" />
                   <div className="p-6 overflow-x-auto">
@@ -1028,9 +832,243 @@ export default function DashboardPage() {
                 </div>
               </>
             )}
+
+            {/* Comissões de laudo a pagar + Extrações devidas — coladas, sem divisória */}
+            {(comissoesLaudo.length > 0 || extracaoVet.length > 0) && (
+              <div className="flex flex-col gap-2">
+                {comissoesLaudo.length > 0 && (
+                  <>
+                    <SectionTitle label="💰 Comissões de laudo a pagar" color="#b45309" />
+                    <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+                      <div className="h-1 bg-gold-stripe" />
+                      <div className="p-6">
+                        <div className="space-y-2">
+                          {comissoesLaudo.map(c => (
+                            <div key={c.usuario_id} className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border border-gray-100 hover:bg-amber-50/30 transition flex-wrap">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold text-[#19202d]">{c.nome}</p>
+                                <p className="text-xs text-gray-400">
+                                  A pagar: <span className="text-amber-600 font-semibold">{formatBRL(c.a_pagar)}</span>
+                                  {c.pago > 0 && <> · Pago: <span className="text-green-600 font-semibold">{formatBRL(c.pago)}</span></>}
+                                </p>
+                              </div>
+                              {c.a_pagar > 0 ? (
+                                <button
+                                  onClick={() => marcarComissaoPaga(c.usuario_id)}
+                                  disabled={marcandoCom === c.usuario_id}
+                                  className="text-xs px-3 py-1.5 rounded-lg font-semibold bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 disabled:opacity-50 whitespace-nowrap">
+                                  {marcandoCom === c.usuario_id ? '...' : `Marcar pago (${c.qtd_a_pagar})`}
+                                </button>
+                              ) : c.pago > 0 ? (
+                                <button
+                                  onClick={() => marcarComissaoPaga(c.usuario_id, true)}
+                                  disabled={marcandoCom === c.usuario_id}
+                                  className="text-xs px-3 py-1.5 rounded-lg text-gray-400 border border-gray-100 hover:bg-gray-50 disabled:opacity-50 whitespace-nowrap">
+                                  {marcandoCom === c.usuario_id ? '...' : '✓ Pago · desfazer'}
+                                </button>
+                              ) : null}
+                            </div>
+                          ))}
+                        </div>
+                        <p className="text-[11px] text-gray-400 mt-3">Confirma a comissão dos laudos deste usuário no período selecionado ({fmtRange}).</p>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {extracaoVet.length > 0 && (
+                  <>
+                    <SectionTitle label="🩸 Extrações devidas" color="#b45309" />
+                    <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+                      <div className="h-1 bg-gold-stripe" />
+                      <div className="p-6">
+                        <div className="flex items-center justify-between mb-4">
+                          <span className="text-xs text-gray-400">{fmtRange}</span>
+                          <Link href="/admin/extracoes" className="text-xs text-[#8a6e36] hover:underline">Gerenciar →</Link>
+                        </div>
+                        <div className="space-y-2">
+                          {extracaoVet.map(e => (
+                            <div key={e.vet_id} className="flex items-center justify-between px-3 py-2.5 rounded-lg border border-gray-100">
+                              <p className="text-sm font-semibold text-[#19202d]">{e.nome} <span className="text-xs text-gray-400 font-normal">· {e.qtd} extração{e.qtd > 1 ? 'ões' : ''}</span></p>
+                              <span className="text-sm font-bold text-amber-600">{formatBRL(e.devido)}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <p className="text-[11px] text-gray-400 mt-3">Comissões de extração ainda não pagas. Confirme o pagamento em Extrações.</p>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Financeiro & laudos — detalhado */}
+            {resumo && laudoStats && (
+              <>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">Financeiro &amp; laudos — detalhado</p>
+                  <button onClick={() => setShowDetalheFinanceiro(v => !v)} className="text-xs text-[#8a6e36] hover:underline font-semibold">
+                    {showDetalheFinanceiro ? 'Ocultar detalhes ⌃' : 'Ver detalhes ⌄'}
+                  </button>
+                </div>
+
+                {showDetalheFinanceiro && (
+                  <div className="flex flex-col gap-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                      <StatCard label="Total de laudos" value={String(laudoStats.total)} />
+                      <StatCard label="Custo total"     value={formatBRL(laudoStats.custo)}    color="text-red-500" />
+                      <StatCard label="Comissões"       value={formatBRL(laudoStats.comissao)} color="text-amber-600" sub="a pagar" />
+                      <StatCard
+                        label="Lucro BioPet (est.)"
+                        value={formatBRL(resumo.total_recebido - laudoStats.custo - laudoStats.comissao)}
+                        color={(resumo.total_recebido - laudoStats.custo - laudoStats.comissao) >= 0 ? 'text-green-600' : 'text-red-500'}
+                        sub="recebido − custo − comissão"
+                      />
+                    </div>
+
+                    {(resumo.total_antecipados > 0 || resumo.total_gratuitos > 0 || resumo.total_descontos > 0) && (
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        {resumo.total_antecipados > 0 && (
+                          <StatCard
+                            label="Antecipados (futuros já pagos)"
+                            value={formatBRL(resumo.valor_antecipados)}
+                            sub={`${resumo.total_antecipados} agendamento${resumo.total_antecipados > 1 ? 's' : ''} futuros já pagos`}
+                            color="text-violet-600"
+                          />
+                        )}
+                        {resumo.total_gratuitos > 0 && (
+                          <StatCard
+                            label="Gratuitos no período"
+                            value={String(resumo.total_gratuitos)}
+                            sub={`Valor dispensado: ${formatBRL(resumo.valor_gratuitos)}`}
+                          />
+                        )}
+                        {resumo.total_descontos > 0 && (
+                          <StatCard
+                            label="Descontos concedidos"
+                            value={formatBRL(resumo.total_descontos)}
+                            sub="Total descontado no período (já refletido na receita)"
+                            color="text-amber-600"
+                          />
+                        )}
+                      </div>
+                    )}
+
+                    {/* Breakdown por forma de pagamento */}
+                    <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+                      <div className="h-1 bg-gold-stripe" />
+                      <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        <div>
+                          <p className="text-xs font-bold text-green-600 uppercase tracking-wide mb-3">Recebido por forma</p>
+                          <div className="space-y-2.5">
+                            {([
+                              { label: 'Pix / dinheiro presencial', value: resumo.breakdown.pix_presencial_rec },
+                              { label: 'Pix link',                  value: resumo.breakdown.pix_link_rec },
+                              { label: 'Cartão presencial',         value: resumo.breakdown.cartao_presencial_rec },
+                              { label: 'Cartão link',               value: resumo.breakdown.cartao_link_rec },
+                              { label: 'Clínica (pago_clinica)',    value: resumo.breakdown.clinica_rec },
+                            ] as { label: string; value: number }[]).filter(r => r.value > 0).map(({ label, value }) => (
+                              <div key={label} className="flex items-center justify-between text-sm">
+                                <span className="text-gray-600">{label}</span>
+                                <span className="font-semibold text-green-700">{formatBRL(value)}</span>
+                              </div>
+                            ))}
+                            {[
+                              resumo.breakdown.pix_presencial_rec, resumo.breakdown.pix_link_rec,
+                              resumo.breakdown.cartao_presencial_rec, resumo.breakdown.cartao_link_rec,
+                              resumo.breakdown.clinica_rec,
+                            ].every(v => v === 0) && (
+                              <p className="text-xs text-gray-400">Nenhum recebimento no período.</p>
+                            )}
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-amber-600 uppercase tracking-wide mb-3">A receber por origem</p>
+                          <div className="space-y-2.5">
+                            {([
+                              { label: 'Presencial (a confirmar)', value: resumo.breakdown.a_receber_presencial },
+                              { label: 'Link (aguardando pag.)',   value: resumo.breakdown.a_receber_link },
+                              { label: 'Clínica (repasse devido)', value: resumo.breakdown.a_receber_clinica },
+                            ] as { label: string; value: number }[]).map(({ label, value }) => (
+                              value > 0 ? (
+                                <div key={label} className="flex items-center justify-between text-sm">
+                                  <span className="text-gray-600">{label}</span>
+                                  <span className="font-semibold text-amber-700">{formatBRL(value)}</span>
+                                </div>
+                              ) : null
+                            ))}
+                            {resumo.breakdown.a_receber_presencial === 0 && resumo.breakdown.a_receber_link === 0 && resumo.breakdown.a_receber_clinica === 0 && (
+                              <p className="text-xs text-green-600 font-medium">Tudo recebido no período.</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Gráfico receita por dia (com nº de agendamentos no rótulo) */}
+                    <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+                      <div className="h-1 bg-gold-stripe" />
+                      <div className="p-6">
+                        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                          <h3 className="text-sm font-bold text-[#19202d] uppercase tracking-wide">Receita por Dia</h3>
+                          <span className="text-[11px] text-gray-400">barras = receita · (n) = nº de agendamentos</span>
+                        </div>
+                        <BarChart data={resumo.porDia.map(d => ({ data: d.data, valor: d.receita, info: d.quantidade }))} brl />
+                      </div>
+                    </div>
+
+                    {laudoStats.porTipo.length > 0 && (
+                      <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+                        <div className="h-1 bg-gold-stripe" />
+                        <div className="p-6">
+                          <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-sm font-bold text-[#19202d] uppercase tracking-wide">Por Tipo de Exame</h3>
+                            <Link href="/admin/comissoes" className="text-xs text-[#8a6e36] hover:underline">Editar preços →</Link>
+                          </div>
+                          <div className="overflow-x-auto">
+                            <table className="w-full">
+                              <thead>
+                                <tr className="border-b">
+                                  {['Tipo', 'Qtd', '%', 'Receita', 'Custo', 'Comissão', 'Lucro'].map(h => (
+                                    <th key={h} className="text-left py-2 px-3 text-xs font-bold text-gray-400 uppercase tracking-wide">{h}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-50">
+                                {laudoStats.porTipo.map(row => (
+                                  <tr key={row.tipo_exame} className="hover:bg-amber-50/20 transition">
+                                    <td className="py-3 px-3 font-medium text-[#19202d] text-sm">{row.tipo_exame}</td>
+                                <td className="py-3 px-3 text-gray-600 text-sm">{row.quantidade}</td>
+                                <td className="py-3 px-3">
+                                  <div className="flex items-center gap-1.5">
+                                    <div className="w-12 bg-gray-100 rounded-full h-1.5">
+                                      <div className="bg-[#c4a35a] h-1.5 rounded-full" style={{ width: `${row.percentual}%` }} />
+                                    </div>
+                                    <span className="text-xs text-gray-500">{row.percentual}%</span>
+                                  </div>
+                                </td>
+                                <td className="py-3 px-3 text-gray-700 text-sm font-medium">{formatBRL(row.receita)}</td>
+                                <td className="py-3 px-3 text-red-500 text-sm">{formatBRL(row.custo)}</td>
+                                <td className="py-3 px-3 text-amber-600 text-sm">{formatBRL(row.comissao)}</td>
+                                <td className={`py-3 px-3 text-sm font-semibold ${row.lucro >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                                  {formatBRL(row.lucro)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                  </div>
+                )}
+              </>
+            )}
           </>
         )}
       </main>
+
 
       {vetModal && (
         <VetModal
