@@ -176,9 +176,11 @@ function PendentesFuturosPanel({ items, onClose, onConfirmar, onRecusar }: {
             const pessoa = f.tutores?.nome ?? f.clinicas?.nome ?? 'Não informado'
             return (
               <div key={f.id} className="border border-[#eef0f3] rounded-lg p-3">
-                <p className="text-[11px] font-bold text-amber-700 uppercase mb-1">{dataLabel} · {formatHora(f.data_hora)}</p>
-                <p className="text-sm font-bold text-[#19202d]">{f.pets?.nome ?? '—'}</p>
-                <p className="text-xs text-gray-400 mb-2">{pessoa} · {f.tipo_exame}</p>
+                <div className="flex flex-col gap-0.5 mb-2.5">
+                  <p className="text-[11px] font-bold text-amber-700 uppercase tracking-wide">{dataLabel} · {formatHora(f.data_hora)}</p>
+                  <p className="text-sm font-bold text-[#19202d] leading-snug">{f.pets?.nome ?? '—'}</p>
+                  <p className="text-xs text-gray-400 leading-snug">{pessoa} · {f.tipo_exame}</p>
+                </div>
                 <div className="flex gap-2">
                   <button onClick={() => onConfirmar(f.id)}
                     className="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1.5 rounded-lg transition">
@@ -1508,6 +1510,8 @@ export default function AgendaPage() {
 
   function selectDate(d: string) {
     setSelectedDate(d)
+    setFiltroPend('todos')
+    setSearch('')
     const date = new Date(`${d}T12:00:00`)
     const sun  = getSunday(date)
     if (toDateStr(sun) !== toDateStr(weekStart)) setWeekStart(sun)
@@ -1564,7 +1568,7 @@ export default function AgendaPage() {
 
   function chipClasses(active: boolean) {
     return active
-      ? 'border-[#fde68a] bg-[#fef9c3]'
+      ? 'border-amber-300 bg-[#fef9c3] ring-2 ring-amber-300 ring-offset-1'
       : 'border-[#eef0f3] bg-white hover:bg-gray-50'
   }
 
@@ -1651,19 +1655,25 @@ export default function AgendaPage() {
               <button onClick={() => setFiltroPend(p => p === 'confirmacao' ? 'todos' : 'confirmacao')}
                 className={`text-left px-3 py-2.5 rounded-lg border transition ${chipClasses(filtroPend === 'confirmacao')}`}>
                 <p className={`text-xl font-extrabold leading-none ${filtroPend === 'confirmacao' ? 'text-amber-700' : 'text-[#19202d]'}`}>{countConfirmacao}</p>
-                <p className="text-[11px] font-semibold text-gray-500 mt-1">Aguardando confirmação</p>
+                <p className={`text-[11px] mt-1 ${filtroPend === 'confirmacao' ? 'font-extrabold text-amber-700' : 'font-semibold text-gray-500'}`}>
+                  {filtroPend === 'confirmacao' && '✓ '}Aguardando confirmação
+                </p>
               </button>
               <button onClick={() => setFiltroPend(p => p === 'pagamento' ? 'todos' : 'pagamento')}
                 className={`text-left px-3 py-2.5 rounded-lg border transition ${chipClasses(filtroPend === 'pagamento')}`}>
                 <p className={`text-xl font-extrabold leading-none ${filtroPend === 'pagamento' ? 'text-amber-700' : 'text-[#19202d]'}`}>{countPagamento}</p>
-                <p className="text-[11px] font-semibold text-gray-500 mt-1">Pagamento pendente</p>
+                <p className={`text-[11px] mt-1 ${filtroPend === 'pagamento' ? 'font-extrabold text-amber-700' : 'font-semibold text-gray-500'}`}>
+                  {filtroPend === 'pagamento' && '✓ '}Pagamento pendente
+                </p>
               </button>
               <button onClick={() => setFiltroPend(p => p === 'laudo' ? 'todos' : 'laudo')}
                 className={`text-left px-3 py-2.5 rounded-lg border transition ${
-                  filtroPend === 'laudo' ? 'border-orange-200 bg-orange-50' : 'border-[#eef0f3] bg-white hover:bg-gray-50'
+                  filtroPend === 'laudo' ? 'border-orange-300 bg-orange-50 ring-2 ring-orange-300 ring-offset-1' : 'border-[#eef0f3] bg-white hover:bg-gray-50'
                 }`}>
                 <p className={`text-xl font-extrabold leading-none ${filtroPend === 'laudo' ? 'text-orange-600' : 'text-[#19202d]'}`}>{countLaudo}</p>
-                <p className="text-[11px] font-semibold text-gray-500 mt-1">Laudo faltando</p>
+                <p className={`text-[11px] mt-1 ${filtroPend === 'laudo' ? 'font-extrabold text-orange-600' : 'font-semibold text-gray-500'}`}>
+                  {filtroPend === 'laudo' && '✓ '}Laudo faltando
+                </p>
               </button>
               <button onClick={() => setFiltroPend('todos')}
                 className={`text-left px-3 py-2.5 rounded-lg border transition ${
