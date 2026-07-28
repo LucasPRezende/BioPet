@@ -73,6 +73,7 @@ interface Agendamento {
   tutores:               Tutor | null
   pets:                  Pet | null
   system_users:          { nome: string } | null
+  pagamento_confirmado_por: { nome: string } | null
   clinicas:              { nome: string } | null
   laudos:                { id: number; token: string; tipo_exame?: string | null }[] | null
   agendamento_exames?:   AgExame[] | null
@@ -94,13 +95,6 @@ const STATUS_COLORS: Record<string, string> = {
   'concluído':      'bg-green-100 text-green-700 border-green-200',
   'cancelado':      'bg-red-100 text-red-600 border-red-200',
 }
-const STATUS_TRANSITIONS: Record<string, string[]> = {
-  'pendente':       ['pendente'],
-  'agendado':       ['agendado', 'em atendimento', 'concluído'],
-  'em atendimento': ['agendado', 'em atendimento', 'concluído'],
-  'concluído':      ['concluído'],
-  'cancelado':      ['cancelado'],
-}
 const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 const MESES_CURTO = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
 const MESES_LONGO = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro']
@@ -110,10 +104,100 @@ function getSunday(d: Date): Date { const r = new Date(d); r.setDate(r.getDate()
 function formatHora(iso: string): string {
   return iso.includes('T') ? iso.split('T')[1].substring(0, 5) : iso.substring(0, 5)
 }
+function formatDataCurta(iso: string): string {
+  const [y, m, d] = iso.split('T')[0].split('-').map(Number)
+  const date = new Date(y, m - 1, d)
+  return `${DIAS_SEMANA[date.getDay()]}, ${d} ${MESES_CURTO[m - 1]}`
+}
+function formatTelefone(tel: string): string {
+  const digits = tel.replace(/\D/g, '').replace(/^55/, '')
+  if (digits.length === 11) return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`
+  if (digits.length === 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`
+  return tel
+}
 function formatBRL(n: number | null): string {
   if (n == null) return '—'
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
+
+// ── Pendências (resumo do dia / chips / painel de pendências futuras) ──────────
+
+interface PendenteFuturo {
+  id:         number
+  data_hora:  string
+  tipo_exame: string
+  tutores:    { nome: string | null } | null
+  pets:       { nome: string } | null
+  clinicas:   { nome: string } | null
+}
+
+function pendConfirmacao(ag: Agendamento): boolean {
+  return ag.status === 'pendente'
+}
+function pendPagamento(ag: Agendamento): boolean {
+  return ag.status_pagamento === 'a_receber' || ag.status_pagamento === 'estorno_pendente'
+}
+function pendLaudo(ag: Agendamento): boolean {
+  if (ag.status === 'cancelado' || ag.status === 'pendente') return false
+  const totalEsp = (ag.agendamento_exames ?? []).length || (ag.laudos?.length ?? 0)
+  const totalEmi = ag.laudos?.length ?? 0
+  return totalEsp > totalEmi
+}
+
+// ── PendentesFuturosPanel ───────────────────────────────────────────────────────
+
+function PendentesFuturosPanel({ items, onClose, onConfirmar, onRecusar }: {
+  items:       PendenteFuturo[]
+  onClose:     () => void
+  onConfirmar: (id: number) => void
+  onRecusar:   (id: number) => void
+}) {
+  const hoje0 = new Date(); hoje0.setHours(0, 0, 0, 0)
+
+  return (
+    <>
+      <div onClick={onClose} className="fixed inset-0 bg-black/40 z-[55]" />
+      <div className="fixed top-0 right-0 bottom-0 w-[340px] max-w-[92vw] bg-white z-[56] shadow-2xl flex flex-col">
+        <div className="bg-[#19202d] px-4.5 py-4 flex items-center justify-between shrink-0">
+          <div>
+            <p className="text-white font-bold text-sm">Pendências futuras</p>
+            <p className="text-gray-400 text-[11px] mt-0.5">Confirmações que ainda faltam, em qualquer dia</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl leading-none">×</button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-3.5 flex flex-col gap-2.5">
+          {items.length === 0 ? (
+            <p className="text-center text-gray-400 text-sm py-10">Nenhuma pendência futura 🎉</p>
+          ) : items.map(f => {
+            const d = new Date(f.data_hora)
+            const d0 = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+            const diffDays = Math.round((d0.getTime() - hoje0.getTime()) / 86_400_000)
+            const dataLabel = diffDays === 1 ? 'Amanhã' : `${DIAS_SEMANA[d.getDay()]}, ${d.getDate()} ${MESES_CURTO[d.getMonth()]}`
+            const pessoa = f.tutores?.nome ?? f.clinicas?.nome ?? 'Não informado'
+            return (
+              <div key={f.id} className="border border-[#eef0f3] rounded-lg p-3">
+                <p className="text-[11px] font-bold text-amber-700 uppercase mb-1">{dataLabel} · {formatHora(f.data_hora)}</p>
+                <p className="text-sm font-bold text-[#19202d]">{f.pets?.nome ?? '—'}</p>
+                <p className="text-xs text-gray-400 mb-2">{pessoa} · {f.tipo_exame}</p>
+                <div className="flex gap-2">
+                  <button onClick={() => onConfirmar(f.id)}
+                    className="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1.5 rounded-lg transition">
+                    ✅ Confirmar
+                  </button>
+                  <button onClick={() => onRecusar(f.id)}
+                    className="flex-1 bg-white border border-red-200 text-red-600 text-xs font-bold py-1.5 rounded-lg hover:bg-red-50 transition">
+                    ❌ Recusar
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </>
+  )
+}
+
 // ── Helpers de UI ──────────────────────────────────────────────────────────────
 
 function SimNaoBtn({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
@@ -839,6 +923,7 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
   const [confirmingPag, setConfirmingPag] = useState(false)
   const [editandoLaudo, setEditandoLaudo] = useState<{ laudo: { id: number; token: string }; petNome: string } | null>(null)
   const [renotifStatus, setRenotifStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
+  const [resolvingEstorno, setResolvingEstorno] = useState(false)
 
   useEffect(() => { setStatus(ag.status) }, [ag.status])
 
@@ -898,14 +983,12 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
   const descontoTotal = (ag.agendamento_exames ?? []).reduce((s, e) => s + Number(e.desconto ?? 0), 0)
   const examesDisplay = examesComVal
 
-  async function handleStatusChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    const s = e.target.value; setStatus(s)
-    const novoPagStatusDropdown = s === 'cancelado'
-      ? (statusPag === 'pago' ? 'estorno_pendente' : 'cancelado')
-      : undefined
-    const body: Record<string, unknown> = { status: s, ...(novoPagStatusDropdown ? { status_pagamento: novoPagStatusDropdown } : {}) }
-    await fetch(`/api/agendamentos/${ag.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-    onUpdated(ag.id, { status: s, ...(novoPagStatusDropdown ? { status_pagamento: novoPagStatusDropdown } : {}) })
+  async function handleConcluir() {
+    setStatus('concluído')
+    await fetch(`/api/agendamentos/${ag.id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'concluído' }),
+    })
+    onUpdated(ag.id, { status: 'concluído' })
   }
   async function handleConfirmar() {
     setConfirming(true)
@@ -922,7 +1005,10 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
     setRefusing(false)
   }
   async function handleCancelar() {
-    const ok = window.confirm('Cancelar este agendamento? Esta ação não pode ser desfeita.')
+    const avisoEstorno = (statusPag === 'pago' || statusPag === 'pago_clinica')
+      ? '\n\nO pagamento já foi confirmado — será necessário registrar o estorno ao cliente.'
+      : ''
+    const ok = window.confirm(`Cancelar este agendamento? Esta ação não pode ser desfeita.${avisoEstorno}`)
     if (!ok) return
     const novoPagStatus = statusPag === 'pago' ? 'estorno_pendente' : 'cancelado'
     const res = await fetch(`/api/agendamentos/${ag.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'cancelado', status_pagamento: novoPagStatus }) })
@@ -931,7 +1017,10 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
   async function handleConfirmarPagamento() {
     setConfirmingPag(true)
     const res = await fetch(`/api/admin/agendamentos/${ag.id}/confirmar-pagamento`, { method: 'POST' })
-    if (res.ok) { const { status_pagamento } = await res.json(); onUpdated(ag.id, { status_pagamento }) }
+    if (res.ok) {
+      const { status_pagamento, pagamento_confirmado_por } = await res.json()
+      onUpdated(ag.id, { status_pagamento, pagamento_confirmado_por })
+    }
     setConfirmingPag(false)
   }
   async function handleReenviarLink() {
@@ -948,6 +1037,14 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
       setRenotifStatus('error')
     }
   }
+  async function handleResolverEstorno() {
+    setResolvingEstorno(true)
+    const res = await fetch(`/api/agendamentos/${ag.id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status_pagamento: 'estornado' }),
+    })
+    if (res.ok) onUpdated(ag.id, { status_pagamento: 'estornado' })
+    setResolvingEstorno(false)
+  }
 
   const LABEL = 'text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2'
   const SECTION = 'space-y-1.5'
@@ -958,33 +1055,69 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
         <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] flex flex-col">
 
           {/* Header */}
-          <div className="bg-[#19202d] px-5 py-4 flex items-center justify-between rounded-t-2xl shrink-0">
-            <div>
+          <div className="bg-[#19202d] px-5 py-4 rounded-t-2xl shrink-0">
+            <div className="flex items-start justify-between gap-3">
               <p className="text-white font-bold">{ag.pets?.nome ?? '—'}</p>
-              <p className="text-gray-400 text-xs mt-0.5">
-                {[ag.pets?.especie, ag.pets?.raca].filter(Boolean).join(' · ')}
-                {ag.pets?.especie || ag.pets?.raca ? ' · ' : ''}#{ag.id}
-              </p>
+              <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl leading-none shrink-0">×</button>
             </div>
-            <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl leading-none">×</button>
+            <p className="text-gray-400 text-xs mt-0.5">
+              {[ag.pets?.especie, ag.pets?.raca].filter(Boolean).join(' · ')}
+              {ag.pets?.especie || ag.pets?.raca ? ' · ' : ''}#{ag.id}
+            </p>
+            <p className="text-[#c4a35a] text-xs font-semibold mt-2">
+              {formatDataCurta(ag.data_hora)} · {formatHora(ag.data_hora)}
+              {ag.duracao_minutos ? ` · ${ag.duracao_minutos}min` : ''}
+            </p>
+            <p className="text-gray-400 text-xs mt-0.5">
+              {ag.tutores?.nome ?? 'Resp. legal não informado'}
+              {ag.tutores?.telefone ? ` · ${formatTelefone(ag.tutores.telefone)}` : ''}
+              {ag.system_users ? ` · Agendado por ${ag.system_users.nome}` : ''}
+              {ag.clinicas ? ` · ${ag.clinicas.nome}` : ''}
+            </p>
           </div>
 
           {/* Scrollable body */}
           <div className="overflow-y-auto flex-1 p-5 space-y-5">
 
-            {/* Horário + tutor */}
-            <div className="flex items-start gap-4">
-              <div className="shrink-0 bg-[#19202d] text-white rounded-xl px-3 py-2.5 text-center min-w-[64px]">
-                <p className="text-xl font-bold leading-none">{formatHora(ag.data_hora)}</p>
-                {ag.duracao_minutos && <p className="text-[10px] text-gray-400 mt-0.5">{ag.duracao_minutos}min</p>}
+            {/* Precisa de ação */}
+            {(pendConfirmacao(ag) || statusPag === 'a_receber' || statusPag === 'estorno_pendente') && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 space-y-2.5">
+                <p className="text-[11px] font-extrabold text-amber-700 uppercase tracking-wide">Precisa de ação</p>
+                {pendConfirmacao(ag) && (
+                  <div className="flex items-center justify-between gap-2.5 flex-wrap">
+                    <span className="text-sm text-amber-900">Aguardando confirmação do agendamento</span>
+                    <div className="flex gap-2">
+                      <button onClick={handleConfirmar} disabled={confirming || refusing}
+                        className="bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition disabled:opacity-50">
+                        {confirming ? '...' : '✅ Confirmar'}
+                      </button>
+                      <button onClick={handleRecusar} disabled={confirming || refusing}
+                        className="bg-white border border-red-200 text-red-600 text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-red-50 transition disabled:opacity-50">
+                        {refusing ? '...' : '❌ Recusar'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {statusPag === 'a_receber' && (
+                  <div className="flex items-center justify-between gap-2.5 flex-wrap">
+                    <span className="text-sm text-amber-900">Pagamento ainda não recebido</span>
+                    <button onClick={handleConfirmarPagamento} disabled={confirmingPag}
+                      className="bg-[#19202d] hover:bg-[#232d3f] text-white text-xs font-bold px-3 py-1.5 rounded-lg transition disabled:opacity-50">
+                      {confirmingPag ? '...' : ag.pagamento_responsavel === 'clinica' ? '💰 Clínica pagou' : '💰 Marcar pago'}
+                    </button>
+                  </div>
+                )}
+                {statusPag === 'estorno_pendente' && (
+                  <div className="flex items-center justify-between gap-2.5 flex-wrap">
+                    <span className="text-sm text-amber-900">Estorno pendente ao cliente</span>
+                    <button onClick={handleResolverEstorno} disabled={resolvingEstorno}
+                      className="bg-[#19202d] hover:bg-[#232d3f] text-white text-xs font-bold px-3 py-1.5 rounded-lg transition disabled:opacity-50">
+                      {resolvingEstorno ? '...' : 'Resolver estorno'}
+                    </button>
+                  </div>
+                )}
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-[#19202d]">{ag.tutores?.nome ?? 'Resp. legal não informado'}</p>
-                {ag.tutores?.telefone && <p className="text-xs text-gray-400 mt-0.5">{ag.tutores.telefone}</p>}
-                {ag.system_users && <p className="text-xs text-gray-400">por {ag.system_users.nome}</p>}
-                {ag.clinicas && <p className="text-xs text-blue-600 font-semibold mt-0.5">🏥 {ag.clinicas.nome}</p>}
-              </div>
-            </div>
+            )}
 
             {/* Badges */}
             <div className="flex flex-wrap gap-1.5">
@@ -1079,14 +1212,17 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
             {/* Pagamento */}
             {ag.forma_pagamento && ag.forma_pagamento !== 'a confirmar' && (() => {
               const semLink = ag.forma_pagamento === 'gratuito' || ag.pagamento_responsavel === 'clinica'
-              const porLink = !semLink && ag.entrega_pagamento === 'link'
+              // Confirmação manual pelo admin substitui o rótulo "por link" — na prática
+              // significa que o tutor pagou no local, não pelo link que tinha sido enviado.
+              const confirmadoManual = !!ag.pagamento_confirmado_por
+              const porLink = !semLink && !confirmadoManual && ag.entrega_pagamento === 'link'
               return (
                 <div>
                   <p className={LABEL}>Pagamento</p>
                   <p className="text-sm text-gray-600 capitalize">
                     {ag.forma_pagamento}
-                    {!semLink && ag.entrega_pagamento && (
-                      <span className="text-gray-400 normal-case"> · {ag.entrega_pagamento === 'presencial' ? 'presencial' : 'por link'}</span>
+                    {!semLink && (
+                      <span className="text-gray-400 normal-case"> · {confirmadoManual || ag.entrega_pagamento === 'presencial' ? 'presencial' : 'por link'}</span>
                     )}
                   </p>
                   {porLink && (
@@ -1096,66 +1232,54 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
                         : <span className="text-gray-400">link de pagamento pendente</span>}
                     </p>
                   )}
+                  {confirmadoManual && (
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      Pago no local — confirmado por {ag.pagamento_confirmado_por!.nome}
+                    </p>
+                  )}
                 </div>
               )
             })()}
 
-            {/* Recibo (disponível quando pago) */}
-            {(statusPag === 'pago' || statusPag === 'pago_clinica') && !!ag.valor && Number(ag.valor) > 0 && (
-              <a href={`/api/agendamentos/${ag.id}/recibo`}
-                className="flex items-center justify-center gap-2 w-full border border-[#8a6e36]/30 bg-amber-50 hover:bg-amber-100 text-[#8a6e36] text-sm font-semibold px-3 py-2 rounded-lg transition">
-                🧾 Baixar recibo (PDF)
-              </a>
-            )}
-
-            {/* Ações de status */}
+            {/* Status */}
             <div>
-              <p className={LABEL}>Alterar status</p>
+              <p className={LABEL}>Status</p>
               <div className="flex flex-wrap gap-2">
-                <select value={status} onChange={handleStatusChange}
-                  className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-[#8a6e36] cursor-pointer">
-                  {(STATUS_TRANSITIONS[status] ?? Object.keys(STATUS_LABELS)).map(v => (
-                    <option key={v} value={v}>{STATUS_LABELS[v]}</option>
-                  ))}
-                </select>
-                {status !== 'cancelado' && status !== 'concluído' && (
+                {status !== 'concluído' && status !== 'cancelado' && status !== 'pendente' && (
+                  <button onClick={handleConcluir}
+                    className="bg-green-600 hover:bg-green-700 text-white text-sm font-bold px-3 py-1.5 rounded-lg transition">
+                    ✓ Marcar como concluído
+                  </button>
+                )}
+                {status !== 'cancelado' && (
                   <button onClick={handleCancelar}
                     className="border border-red-200 hover:bg-red-50 text-red-500 text-sm font-semibold px-3 py-1.5 rounded-lg transition">
                     Cancelar agendamento
                   </button>
                 )}
               </div>
+              <p className="text-xs text-gray-400 mt-1.5">
+                O sistema marca como concluído automaticamente quando o pagamento é confirmado e os laudos são emitidos.
+              </p>
+            </div>
 
-              {status === 'pendente' && (
-                <div className="flex gap-2 mt-2">
-                  <button onClick={handleConfirmar} disabled={confirming || refusing}
-                    className="flex-1 bg-green-600 hover:bg-green-700 text-white text-sm font-bold px-3 py-2 rounded-lg transition disabled:opacity-50">
-                    {confirming ? '...' : '✅ Confirmar'}
+            {/* Ações */}
+            <div>
+              <p className={LABEL}>Ações</p>
+              <div className="flex flex-col gap-2">
+                {(statusPag === 'pago' || statusPag === 'pago_clinica') && !!ag.valor && Number(ag.valor) > 0 && (
+                  <a href={`/api/agendamentos/${ag.id}/recibo`}
+                    className="flex items-center justify-center gap-2 w-full border border-[#8a6e36]/30 bg-amber-50 hover:bg-amber-100 text-[#8a6e36] text-sm font-semibold px-3 py-2 rounded-lg transition">
+                    🧾 Baixar recibo (PDF)
+                  </a>
+                )}
+                {statusPag === 'a_receber' && !!ag.mp_init_point && status !== 'cancelado' && (
+                  <button onClick={handleReenviarLink} disabled={reenviarLink}
+                    className="border border-yellow-300 bg-yellow-50 hover:bg-yellow-100 text-yellow-700 text-sm font-semibold px-3 py-2 rounded-lg transition disabled:opacity-50">
+                    {reenviarLink ? '...' : '🔔 Reenviar link'}
                   </button>
-                  <button onClick={handleRecusar} disabled={confirming || refusing}
-                    className="flex-1 bg-red-500 hover:bg-red-600 text-white text-sm font-bold px-3 py-2 rounded-lg transition disabled:opacity-50">
-                    {refusing ? '...' : '❌ Recusar'}
-                  </button>
-                </div>
-              )}
-
-              {statusPag === 'a_receber' && !!ag.valor && status !== 'cancelado' && (
-                <div className="flex gap-2 mt-2">
-                  <button onClick={handleConfirmarPagamento} disabled={confirmingPag}
-                    className="flex-1 bg-green-600 hover:bg-green-700 text-white text-sm font-bold px-3 py-2 rounded-lg transition disabled:opacity-50">
-                    {confirmingPag ? '...' : ag.pagamento_responsavel === 'clinica' ? '💰 Clínica pagou' : '💰 Confirmar recebimento'}
-                  </button>
-                  {ag.mp_init_point && (
-                    <button onClick={handleReenviarLink} disabled={reenviarLink}
-                      className="border border-yellow-300 bg-yellow-50 hover:bg-yellow-100 text-yellow-700 text-sm font-semibold px-3 py-2 rounded-lg transition disabled:opacity-50">
-                      {reenviarLink ? '...' : '🔔 Reenviar link'}
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {status !== 'cancelado' && (
-                <div className="mt-2">
+                )}
+                {status !== 'cancelado' && (
                   <button onClick={handleRenotificar} disabled={renotifStatus === 'sending'}
                     className={`w-full text-sm font-semibold px-3 py-2 rounded-lg transition border ${
                       renotifStatus === 'sent'
@@ -1169,8 +1293,8 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
                       : renotifStatus === 'error' ? '⚠ Erro ao notificar — tentar de novo'
                       : '🔔 Renotificar'}
                   </button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
 
             {/* Laudos */}
@@ -1287,6 +1411,10 @@ export default function AgendaPage() {
   const [detalhesAg,   setDetalhesAg]   = useState<Agendamento | null>(null)
   const [editingAg,    setEditingAg]    = useState<Agendamento | null>(null)
   const [laudosPermitidos, setLaudosPermitidos] = useState<string[] | null>(null)
+  const [search,       setSearch]       = useState('')
+  const [filtroPend,   setFiltroPend]   = useState<'todos' | 'confirmacao' | 'pagamento' | 'laudo'>('todos')
+  const [pendentesFuturos, setPendentesFuturos] = useState<PendenteFuturo[]>([])
+  const [showFuturoPanel, setShowFuturoPanel]   = useState(false)
   const abrirIdRef = useRef<number | null>(null)
 
   const fetchDias = useCallback(async () => {
@@ -1319,6 +1447,15 @@ export default function AgendaPage() {
     if (!silent) setLoading(false)
   }, [selectedDate, router])
 
+  const hiddenFuturosRef = useRef<Set<number>>(new Set())
+  const fetchPendentesFuturos = useCallback(async () => {
+    const res = await fetch('/api/agendamentos/pendentes-futuros')
+    if (res.ok) {
+      const rows: PendenteFuturo[] = await res.json()
+      setPendentesFuturos(rows.filter(f => !hiddenFuturosRef.current.has(f.id)))
+    }
+  }, [])
+
   useEffect(() => {
     fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(u => {
       if (!u) return
@@ -1331,9 +1468,21 @@ export default function AgendaPage() {
   useEffect(() => { fetchDias() }, [fetchDias])
   useEffect(() => {
     fetchAgendamentos()
-    const interval = setInterval(() => fetchAgendamentos(true), 30_000)
+    fetchPendentesFuturos()
+    const interval = setInterval(() => { fetchAgendamentos(true); fetchPendentesFuturos() }, 30_000)
     return () => clearInterval(interval)
-  }, [fetchAgendamentos])
+  }, [fetchAgendamentos, fetchPendentesFuturos])
+
+  async function confirmarFuturo(id: number) {
+    hiddenFuturosRef.current.add(id)
+    setPendentesFuturos(prev => prev.filter(f => f.id !== id))
+    await fetch(`/api/admin/agendamentos/${id}/confirmar`, { method: 'POST' })
+  }
+  async function recusarFuturo(id: number) {
+    hiddenFuturosRef.current.add(id)
+    setPendentesFuturos(prev => prev.filter(f => f.id !== id))
+    await fetch(`/api/admin/agendamentos/${id}/recusar`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ motivo: null }) })
+  }
 
   // Abre direto um agendamento via ?data=YYYY-MM-DD&abrir=ID (vindo do dashboard)
   useEffect(() => {
@@ -1393,6 +1542,32 @@ export default function AgendaPage() {
   const fmtData = `${DIAS_SEMANA[selectedDateObj.getDay()]}, ${selectedDateObj.getDate()} de ${MESES_LONGO[selectedDateObj.getMonth()]} de ${selectedDateObj.getFullYear()}`
   const totalDia = agendamentos.length
 
+  // Pendências futuras: exclui o dia selecionado (já visível na lista abaixo)
+  const pendentesFuturosOutrosDias = pendentesFuturos.filter(f => toDateStr(new Date(f.data_hora)) !== selectedDate)
+
+  const countConfirmacao = agendamentos.filter(a => pendConfirmacao(getAg(a))).length
+  const countPagamento   = agendamentos.filter(a => pendPagamento(getAg(a))).length
+  const countLaudo       = agendamentos.filter(a => pendLaudo(getAg(a))).length
+
+  const qDia = search.trim().toLowerCase()
+  const agendamentosFiltrados = agendamentos.filter(rawAg => {
+    const ag = getAg(rawAg)
+    if (filtroPend === 'confirmacao' && !pendConfirmacao(ag)) return false
+    if (filtroPend === 'pagamento'   && !pendPagamento(ag))   return false
+    if (filtroPend === 'laudo'       && !pendLaudo(ag))       return false
+    if (qDia) {
+      const texto = `${ag.pets?.nome ?? ''} ${ag.tutores?.nome ?? ''} ${ag.tutores?.telefone ?? ''} ${ag.clinicas?.nome ?? ''}`.toLowerCase()
+      if (!texto.includes(qDia)) return false
+    }
+    return true
+  })
+
+  function chipClasses(active: boolean) {
+    return active
+      ? 'border-[#fde68a] bg-[#fef9c3]'
+      : 'border-[#eef0f3] bg-white hover:bg-gray-50'
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-4">
@@ -1434,6 +1609,18 @@ export default function AgendaPage() {
           </div>
         </div>
 
+        {/* Banner de pendências futuras */}
+        {pendentesFuturosOutrosDias.length > 0 && (
+          <button onClick={() => setShowFuturoPanel(true)}
+            className="flex items-center gap-2.5 w-full bg-[#fff8ec] border border-[#f3e3c2] rounded-xl px-3.5 py-2.5 text-left hover:bg-[#fdf3e0] transition">
+            <span className="text-base">🔔</span>
+            <span className="text-sm font-semibold text-amber-900 flex-1">
+              {pendentesFuturosOutrosDias.length} agendamento{pendentesFuturosOutrosDias.length > 1 ? 's' : ''} em dias futuros aguardando confirmação
+            </span>
+            <span className="text-xs text-amber-700 font-bold">Ver →</span>
+          </button>
+        )}
+
         {/* Cabeçalho do dia */}
         <div className="flex items-center justify-between px-1">
           <div>
@@ -1457,6 +1644,45 @@ export default function AgendaPage() {
           </div>
         </div>
 
+        {/* Resumo do dia + filtros rápidos */}
+        {!loading && totalDia > 0 && (
+          <div className="space-y-2.5">
+            <div className="grid grid-cols-4 gap-2">
+              <button onClick={() => setFiltroPend(p => p === 'confirmacao' ? 'todos' : 'confirmacao')}
+                className={`text-left px-3 py-2.5 rounded-lg border transition ${chipClasses(filtroPend === 'confirmacao')}`}>
+                <p className={`text-xl font-extrabold leading-none ${filtroPend === 'confirmacao' ? 'text-amber-700' : 'text-[#19202d]'}`}>{countConfirmacao}</p>
+                <p className="text-[11px] font-semibold text-gray-500 mt-1">Aguardando confirmação</p>
+              </button>
+              <button onClick={() => setFiltroPend(p => p === 'pagamento' ? 'todos' : 'pagamento')}
+                className={`text-left px-3 py-2.5 rounded-lg border transition ${chipClasses(filtroPend === 'pagamento')}`}>
+                <p className={`text-xl font-extrabold leading-none ${filtroPend === 'pagamento' ? 'text-amber-700' : 'text-[#19202d]'}`}>{countPagamento}</p>
+                <p className="text-[11px] font-semibold text-gray-500 mt-1">Pagamento pendente</p>
+              </button>
+              <button onClick={() => setFiltroPend(p => p === 'laudo' ? 'todos' : 'laudo')}
+                className={`text-left px-3 py-2.5 rounded-lg border transition ${
+                  filtroPend === 'laudo' ? 'border-orange-200 bg-orange-50' : 'border-[#eef0f3] bg-white hover:bg-gray-50'
+                }`}>
+                <p className={`text-xl font-extrabold leading-none ${filtroPend === 'laudo' ? 'text-orange-600' : 'text-[#19202d]'}`}>{countLaudo}</p>
+                <p className="text-[11px] font-semibold text-gray-500 mt-1">Laudo faltando</p>
+              </button>
+              <button onClick={() => setFiltroPend('todos')}
+                className={`text-left px-3 py-2.5 rounded-lg border transition ${
+                  filtroPend === 'todos' ? 'border-[#e5e7eb] bg-[#eef0f3]' : 'border-[#eef0f3] bg-white hover:bg-gray-50'
+                }`}>
+                <p className="text-xl font-extrabold leading-none text-[#19202d]">{totalDia}</p>
+                <p className="text-[11px] font-semibold text-gray-500 mt-1">Total do dia</p>
+              </button>
+            </div>
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Buscar por pet, tutor, telefone ou clínica…"
+              className="w-full px-3.5 py-2 rounded-lg border border-gray-200 bg-white text-sm text-[#19202d] outline-none focus:ring-2 focus:ring-[#8a6e36]"
+            />
+          </div>
+        )}
+
         {/* Lista de agendamentos */}
         {loading ? (
           <div className="text-center py-12 text-gray-400">Carregando...</div>
@@ -1469,9 +1695,17 @@ export default function AgendaPage() {
               <p className="text-xs mt-1">Os agendamentos feitos pelo WhatsApp aparecem aqui automaticamente</p>
             </div>
           </div>
+        ) : agendamentosFiltrados.length === 0 ? (
+          <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+            <div className="h-1 bg-gold-stripe" />
+            <div className="text-center py-12 text-gray-400">
+              <p className="text-3xl mb-2">📅</p>
+              <p className="font-medium text-sm">Nenhum resultado para esse filtro/busca</p>
+            </div>
+          </div>
         ) : (
           <div className="space-y-2">
-            {[...agendamentos]
+            {[...agendamentosFiltrados]
               .sort((a, b) => {
                 const aPend = (statusMap[a.id] ?? a.status) === 'pendente' ? 0 : 1
                 const bPend = (statusMap[b.id] ?? b.status) === 'pendente' ? 0 : 1
@@ -1509,6 +1743,8 @@ export default function AgendaPage() {
                           </span>
                           {ag.encaixe    && <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-400">Encaixe</span>}
                           {ag.is_revisao && <span className="text-xs px-2 py-0.5 rounded-full bg-violet-100 text-violet-700">🔄</span>}
+                          {ag.sedacao_necessaria && <span className="text-xs">💉</span>}
+                          {ag.pet_internado && <span className="text-xs">🏥</span>}
                         </div>
 
                         {/* Exames como pills */}
@@ -1529,32 +1765,28 @@ export default function AgendaPage() {
                           {ag.tutores?.nome ?? 'Tutor não informado'}
                           {ag.clinicas ? ` · ${ag.clinicas.nome}` : ''}
                         </p>
+
+                        {/* Chips de pendência */}
+                        {(pendConfirmacao(ag) || pendPagamento(ag) || pendLaudo(ag)) && (
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {pendConfirmacao(ag) && (
+                              <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-[#fef9c3] text-[#a16207]">⏳ Aguarda confirmação</span>
+                            )}
+                            {ag.status_pagamento === 'a_receber' && (
+                              <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-[#fef9c3] text-[#a16207]">💰 A receber</span>
+                            )}
+                            {ag.status_pagamento === 'estorno_pendente' && (
+                              <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-[#fee2e2] text-[#dc2626]">🔴 Estorno pendente</span>
+                            )}
+                            {pendLaudo(ag) && (
+                              <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-[#ffedd5] text-[#c2410c]">📄 Laudo pendente</span>
+                            )}
+                          </div>
+                        )}
                       </div>
 
-                      {/* Indicadores + chevron */}
-                      <div className="flex flex-col items-end gap-1 shrink-0 ml-1">
-                        {(() => {
-                          const totalEsp = exames.length || (ag.laudos?.length ?? 0) || 0
-                          const totalEmi = ag.laudos?.length ?? 0
-                          if (totalEsp === 0 && totalEmi === 0) return null
-                          const faltam = Math.max(0, totalEsp - totalEmi)
-                          if (faltam === 0 && totalEmi > 0) return (
-                            <span className="text-[11px] text-green-600 font-semibold whitespace-nowrap">
-                              📄 {totalEmi}/{totalEsp} ✓
-                            </span>
-                          )
-                          if (totalEmi > 0) return (
-                            <span className="text-[11px] text-amber-600 font-semibold whitespace-nowrap">
-                              📄 {totalEmi}/{totalEsp} — falta {faltam}
-                            </span>
-                          )
-                          return null
-                        })()}
-                        {ag.status_pagamento === 'pago' && <span className="text-[11px] text-green-500">🟢</span>}
-                        {ag.status_pagamento === 'a_receber' && <span className="text-[11px] text-yellow-500">🟡</span>}
-                        {ag.sedacao_necessaria && <span className="text-[11px]">💉</span>}
-                        <span className="text-gray-300 text-xl leading-none">›</span>
-                      </div>
+                      {/* Chevron */}
+                      <span className="text-gray-300 text-xl leading-none shrink-0 ml-1">›</span>
                     </div>
                   </div>
                 )
@@ -1562,6 +1794,15 @@ export default function AgendaPage() {
           </div>
         )}
       </main>
+
+      {showFuturoPanel && (
+        <PendentesFuturosPanel
+          items={pendentesFuturosOutrosDias}
+          onClose={() => setShowFuturoPanel(false)}
+          onConfirmar={confirmarFuturo}
+          onRecusar={recusarFuturo}
+        />
+      )}
 
       {novoModal && (
         <NovoAgendamentoModal

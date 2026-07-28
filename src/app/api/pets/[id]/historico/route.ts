@@ -33,7 +33,7 @@ export async function GET(
     tipo_evento === 'laudo' ? Promise.resolve({ data: [] }) :
     supabase
       .from('agendamentos')
-      .select('id, data_hora, tipo_exame, status, valor, forma_pagamento, pagamento_responsavel, status_pagamento, system_users(nome), laudos(id, token)')
+      .select('id, data_hora, tipo_exame, status, valor, forma_pagamento, pagamento_responsavel, status_pagamento, system_users:system_users!system_user_id(nome), laudos(id, token)')
       .eq('pet_id', petId)
       .order('data_hora', { ascending: false }),
   ])
