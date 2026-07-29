@@ -63,8 +63,15 @@ function iconeNotificacao(n: Notificacao): string {
   return '🔴'
 }
 
+// `criado_em` vem do Postgres como TIMESTAMP sem timezone (ex.: "2026-07-29T17:47:59"),
+// já em UTC — mas sem o "Z", o Date() do JS interpreta como horário local, adiantando
+// o relógio em 3h (UTC-3). Força a leitura como UTC antes de converter pro fuso do navegador.
+function parseUtc(iso: string): Date {
+  return new Date(/Z|[+-]\d\d:\d\d$/.test(iso) ? iso : `${iso}Z`)
+}
+
 function tempoAtras(iso: string) {
-  const diff = Date.now() - new Date(iso).getTime()
+  const diff = Date.now() - parseUtc(iso).getTime()
   const min  = Math.floor(diff / 60_000)
   const h    = Math.floor(min / 60)
   const d    = Math.floor(h / 24)
@@ -75,7 +82,7 @@ function tempoAtras(iso: string) {
 }
 
 function horaExata(iso: string) {
-  return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  return parseUtc(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })
 }
 
 function dayKey(iso: string, nowMs: number): string {
