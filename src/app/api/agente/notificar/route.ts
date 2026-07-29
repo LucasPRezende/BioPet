@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { verifyAgentKey } from '@/lib/agent-auth'
 import { sendWhatsAppText } from '@/lib/evolution'
+import { sendPushToAdmins } from '@/lib/webpush'
 import { marcarAtendimentoHumano } from '@/lib/agente/conversa'
 
 const TIPOS_QUE_ENVIAM_WHATSAPP = new Set([
@@ -93,6 +94,14 @@ export async function POST(request: NextRequest) {
     ].filter(Boolean) as string[]
 
     await Promise.all(admins.map(num => sendWhatsAppText(num, mensagem)))
+
+    await sendPushToAdmins({
+      title: tipoEfetivo === 'agendamento_clinica' ? '🏥 Novo agendamento' : '⚠️ Atendimento necessário',
+      body:  tipoEfetivo === 'agendamento_clinica'
+        ? [nome_tutor, mensagem_cliente].filter(Boolean).join(' — ')
+        : `${motivoLabel} — ${nome_tutor ?? telFormatado}`,
+      url: '/admin/notificacoes',
+    })
   }
 
   return NextResponse.json({ sucesso: true })

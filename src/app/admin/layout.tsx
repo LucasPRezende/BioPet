@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { usePathname } from 'next/navigation'
 import Sidebar from '@/components/Sidebar'
+import PushNotifications from '@/components/PushNotifications'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -29,6 +30,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </button>
           <span className="text-white font-bold text-base mt-1">BioPet</span>
         </div>
+
+        <PushNotifications />
 
         {/* Page content */}
         <main className="flex-1 overflow-y-auto">
