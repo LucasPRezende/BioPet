@@ -88,6 +88,34 @@ export function isHorarioEspecial(
   return inicioMin + totalDuracao > toMin(horarioFim)
 }
 
+/**
+ * Horas ÚTEIS decorridas entre duas datas: fins de semana e feriados contam
+ * ZERO, dias úteis contam as 24h corridas (não restringe a horário comercial
+ * dentro do dia). Usado para SLAs tipo "laudo sai em até 48h úteis" — o prazo
+ * "pausa" no fim de semana/feriado e retoma no próximo dia útil.
+ */
+export function horasUteisDesde(inicioISO: string, agora: Date, feriados: string[]): number {
+  const inicio = new Date(inicioISO)
+  if (agora <= inicio) return 0
+
+  let totalMs = 0
+  let cursor = new Date(inicio)
+
+  while (cursor < agora) {
+    const fimDoDia = new Date(cursor)
+    fimDoDia.setHours(24, 0, 0, 0)
+    const fimTrecho = fimDoDia < agora ? fimDoDia : agora
+
+    const diaSemana = cursor.getDay()
+    const iso = toISO(cursor)
+    const ehUtil = diaSemana !== 0 && diaSemana !== 6 && !feriados.includes(iso)
+    if (ehUtil) totalMs += fimTrecho.getTime() - cursor.getTime()
+    cursor = fimTrecho
+  }
+
+  return totalMs / 3_600_000
+}
+
 export type MotivoEspecial = 'feriado' | 'fimdesemana' | 'antes' | 'depois' | null
 
 export function motivoHorarioEspecial(

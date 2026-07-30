@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
 
 const TIPOS_REQUER_ATENCAO = new Set([
-  'ia_travou', 'pergunta_laudo', 'pergunta_tecnica', 'erro_tecnico', 'laudo_urgente',
+  'ia_travou', 'pergunta_laudo', 'pergunta_tecnica', 'erro_tecnico', 'laudo_urgente', 'laudo_atrasado',
 ])
 
 const TIPOS_AGENDAMENTO = new Set([

@@ -23,6 +23,7 @@ const MOTIVO_LABEL: Record<string, string> = {
   ia_travou:           'IA travou',
   erro_tecnico:        'Erro técnico',
   laudo_urgente:       'Laudo urgente (taxa R$60)',
+  laudo_atrasado:      'Laudo atrasado (sem cobrar)',
   agendamento:         'Novo agendamento',
   agendamento_clinica: 'Agendamento (clínica)',
   remarcacao:          'Remarcação',
@@ -35,6 +36,7 @@ const MOTIVO_COLOR: Record<string, string> = {
   ia_travou:           'bg-orange-100 text-orange-700',
   erro_tecnico:        'bg-red-100 text-red-700',
   laudo_urgente:       'bg-pink-100 text-pink-700',
+  laudo_atrasado:      'bg-red-100 text-red-700',
   agendamento:         'bg-green-100 text-green-700',
   agendamento_clinica: 'bg-teal-100 text-teal-700',
   remarcacao:          'bg-purple-100 text-purple-700',
@@ -42,7 +44,7 @@ const MOTIVO_COLOR: Record<string, string> = {
 }
 
 const TIPOS_REQUER_ATENCAO = new Set([
-  'ia_travou', 'pergunta_laudo', 'pergunta_tecnica', 'erro_tecnico', 'laudo_urgente',
+  'ia_travou', 'pergunta_laudo', 'pergunta_tecnica', 'erro_tecnico', 'laudo_urgente', 'laudo_atrasado',
 ])
 
 const TIPOS_AGENDAMENTO = new Set([

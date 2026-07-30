@@ -7,11 +7,11 @@ import { marcarAtendimentoHumano } from '@/lib/agente/conversa'
 
 const TIPOS_QUE_ENVIAM_WHATSAPP = new Set([
   'ia_travou', 'pergunta_laudo', 'pergunta_tecnica', 'erro_tecnico',
-  'agendamento_clinica', 'laudo_urgente',
+  'agendamento_clinica', 'laudo_urgente', 'laudo_atrasado',
 ])
 
 const TIPOS_QUE_BLOQUEIAM_IA = new Set([
-  'ia_travou', 'pergunta_laudo', 'pergunta_tecnica', 'erro_tecnico', 'laudo_urgente',
+  'ia_travou', 'pergunta_laudo', 'pergunta_tecnica', 'erro_tecnico', 'laudo_urgente', 'laudo_atrasado',
 ])
 
 const MOTIVO_LABEL: Record<string, string> = {
@@ -19,6 +19,7 @@ const MOTIVO_LABEL: Record<string, string> = {
   pergunta_tecnica: 'Dúvida técnica',
   ia_travou:        'IA travou',
   laudo_urgente:    'Laudo urgente (taxa R$60)',
+  laudo_atrasado:   'Laudo atrasado (sem cobrar)',
   erro_tecnico:     'Erro técnico',
 }
 
