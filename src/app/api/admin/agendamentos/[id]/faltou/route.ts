@@ -86,13 +86,14 @@ export async function POST(
       ag.is_revisao
         ? `Não identificamos o comparecimento no horário da sua revisão, então marcamos como não compareceu em nosso sistema.`
         : `Não identificamos o comparecimento no horário agendado, então marcamos como não compareceu em nosso sistema.`,
-      perdeuRevisao
-        ? (ag.is_revisao
-            ? `Como a revisão gratuita é condicionada ao comparecimento, esse direito já foi utilizado e não será possível reagendar uma nova revisão sem custo.`
-            : `Como a revisão gratuita é condicionada ao comparecimento, esse direito não poderá mais ser utilizado para este exame.`)
+      // O aviso de "perdeu o direito" só faz sentido pra quem faltou na PRÓPRIA
+      // revisão (já era a chance gratuita). Faltar no exame original não leva
+      // essa observação — o exame em si ainda pode ser remarcado normalmente.
+      ag.is_revisao
+        ? `Como a revisão gratuita é condicionada ao comparecimento, esse direito já foi utilizado e não será possível reagendar uma nova revisão sem custo.`
         : null,
       ``,
-      perdeuRevisao && ag.is_revisao
+      ag.is_revisao
         ? `Dúvidas? É só chamar! 🐾`
         : `Se quiser reagendar, é só chamar! 🐾`,
     ].filter(Boolean).join('\n')

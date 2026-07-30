@@ -1289,23 +1289,23 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
               </p>
             </div>
 
-            {/* Ações */}
-            <div>
-              <p className={LABEL}>Ações</p>
-              <div className="flex flex-col gap-2">
-                {(statusPag === 'pago' || statusPag === 'pago_clinica') && !!ag.valor && Number(ag.valor) > 0 && (
-                  <a href={`/api/agendamentos/${ag.id}/recibo`}
-                    className="flex items-center justify-center gap-2 w-full border border-[#8a6e36]/30 bg-amber-50 hover:bg-amber-100 text-[#8a6e36] text-sm font-semibold px-3 py-2 rounded-lg transition">
-                    🧾 Baixar recibo (PDF)
-                  </a>
-                )}
-                {statusPag === 'a_receber' && !!ag.mp_init_point && status !== 'cancelado' && (
-                  <button onClick={handleReenviarLink} disabled={reenviarLink}
-                    className="border border-yellow-300 bg-yellow-50 hover:bg-yellow-100 text-yellow-700 text-sm font-semibold px-3 py-2 rounded-lg transition disabled:opacity-50">
-                    {reenviarLink ? '...' : '🔔 Reenviar link'}
-                  </button>
-                )}
-                {status !== 'cancelado' && (
+            {/* Ações — não fazem sentido pra um agendamento que já foi fechado */}
+            {status !== 'cancelado' && status !== 'faltou' && (
+              <div>
+                <p className={LABEL}>Ações</p>
+                <div className="flex flex-col gap-2">
+                  {(statusPag === 'pago' || statusPag === 'pago_clinica') && !!ag.valor && Number(ag.valor) > 0 && (
+                    <a href={`/api/agendamentos/${ag.id}/recibo`}
+                      className="flex items-center justify-center gap-2 w-full border border-[#8a6e36]/30 bg-amber-50 hover:bg-amber-100 text-[#8a6e36] text-sm font-semibold px-3 py-2 rounded-lg transition">
+                      🧾 Baixar recibo (PDF)
+                    </a>
+                  )}
+                  {statusPag === 'a_receber' && !!ag.mp_init_point && (
+                    <button onClick={handleReenviarLink} disabled={reenviarLink}
+                      className="border border-yellow-300 bg-yellow-50 hover:bg-yellow-100 text-yellow-700 text-sm font-semibold px-3 py-2 rounded-lg transition disabled:opacity-50">
+                      {reenviarLink ? '...' : '🔔 Reenviar link'}
+                    </button>
+                  )}
                   <button onClick={handleRenotificar} disabled={renotifStatus === 'sending'}
                     className={`w-full text-sm font-semibold px-3 py-2 rounded-lg transition border ${
                       renotifStatus === 'sent'
@@ -1319,9 +1319,9 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
                       : renotifStatus === 'error' ? '⚠ Erro ao notificar — tentar de novo'
                       : '🔔 Renotificar'}
                   </button>
-                )}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Laudos */}
             <div>
