@@ -213,8 +213,8 @@ export const TOOLS: Anthropic.Tool[] = [
         motivo: {
           type: 'string',
           description:
-            "Categoria: 'pergunta_laudo' (dúvida sobre resultado/laudo), 'pergunta_tecnica' (dúvida clínica/técnica), 'erro_tecnico' (algo falhou) ou 'ia_travou' (não entendeu / fora do escopo).",
-          enum: ['pergunta_laudo', 'pergunta_tecnica', 'erro_tecnico', 'ia_travou'],
+            "Categoria: 'pergunta_laudo' (dúvida sobre resultado/laudo), 'pergunta_tecnica' (dúvida clínica/técnica), 'erro_tecnico' (algo falhou), 'ia_travou' (não entendeu / fora do escopo) ou 'laudo_urgente' (cliente confirmou que precisa do laudo com urgência, ciente da taxa extra).",
+          enum: ['pergunta_laudo', 'pergunta_tecnica', 'erro_tecnico', 'ia_travou', 'laudo_urgente'],
         },
         resumo: { type: 'string', description: 'Resumo curto do que o cliente pediu/disse.' },
       },
@@ -331,7 +331,7 @@ async function transferirHumano(
     .or(`telefone.eq.${telNorm},telefone.eq.${digits}`)
     .maybeSingle()
 
-  const tipo = ['pergunta_laudo', 'pergunta_tecnica', 'erro_tecnico', 'ia_travou'].includes(motivo ?? '')
+  const tipo = ['pergunta_laudo', 'pergunta_tecnica', 'erro_tecnico', 'ia_travou', 'laudo_urgente'].includes(motivo ?? '')
     ? motivo
     : 'ia_travou'
 
@@ -420,6 +420,7 @@ export function systemEstavel(): string {
     '- REVISÃO SÓ EXISTE COM ORIGINAL NO SISTEMA — confirme ANTES de prometer nada: só dá pra agendar revisão quando há uma entrada real em "revisoes_disponiveis" (exame que o PRÓPRIO cliente fez na BioPet, registrado no sistema, com um agendamento_original_id de verdade). Se revisoes_disponiveis está VAZIO — cliente novo/não cadastrado, identificar_tutor retornou tutor null, exame feito em outra clínica (ex.: Clive), exame antigo/anterior ao sistema, ou o cliente só mandou um laudo/PDF — então NÃO EXISTE revisão pra agendar por aqui. NESSE caso, JAMAIS diga "é gratuita, vou agendar", NÃO pergunte data/horário, NÃO monte resumo, NÃO cadastre pet só pra isso, NUNCA chute um agendamento_original_id. Um laudo em PDF NÃO cria o vínculo — receber o laudo não é o mesmo que ter o exame original no sistema.',
     '- REVISÃO INDISPONÍVEL — reconheça e OFEREÇA 2 opções (não continue no fluxo de revisão): quando não há revisão elegível (revisoes_disponiveis vazio, prazo vencido, exame não localizado), diga com clareza que não localizou o exame anterior pra registrar a revisão gratuita por aqui, e pergunte o que o cliente prefere: (a) marcar um EXAME NOVO — aí segue o fluxo normal de agendamento e cota o preço CHEIO via consultar_precos (NUNCA invente desconto/"mais barato porque era revisão" — desconto é decisão da clínica, não sua); ou (b) falar com um ATENDENTE pra verificar se a revisão se aplica ao caso — aí use transferir_humano (motivo pergunta_tecnica). Deixe o cliente escolher; não decida por ele nem force uma das opções.',
     '- LAUDO: para enviar um laudo, use listar_laudos, confirme com o cliente qual ele quer (pet/exame/data) e use enviar_laudo com o id. O laudo vai como PDF — NUNCA mande link (os links exigem login).',
+    '- LAUDO AINDA NÃO DISPONÍVEL — antes de escalar, ofereça prazo x urgência: se o cliente pedir o DOCUMENTO do laudo e o exame não aparecer em listar_laudos, ou aparecer com tem_arquivo:false, NÃO trate como erro técnico nem escale de cara. Informe que os laudos são emitidos em até 48h após o exame e pergunte se o cliente pode aguardar esse prazo ou precisa com urgência. Se precisar com urgência, avise que a emissão prioritária tem uma taxa adicional de R$ 60,00 e confirme se ele topa antes de agir. Se o cliente aceitar esperar o prazo normal (ou desistir da urgência): encerre educadamente SEM usar transferir_humano — não há nada a fazer agora. Se o cliente confirmar que precisa da urgência: use transferir_humano com motivo "laudo_urgente", resumindo pet/exame e que o cliente confirmou a urgência com a taxa de R$60. Isso é diferente de "pergunta_laudo", que é para dúvida sobre o CONTEÚDO/resultado do laudo, não sobre receber o documento.',
     '- PEDIR PARA FALAR COM UMA PESSOA: só use transferir_humano se o cliente CONFIRMAR que quer falar com um atendente/pessoa. Apenas MENCIONAR um nome (ex.: "Dra Luciana", "Luciana") NÃO é pedido de transferência — "Luciana" é o nome da responsável e muitos clientes usam como referência. "Quero agendar uma ultra com a Dra Luciana" é um pedido de AGENDAMENTO (a Luciana pode ser a veterinária): siga o fluxo normal e, se fizer sentido, trate o nome como veterinário (listar_veterinarios). Só em algo ambíguo como "falar com a Luciana", confirme antes: pergunte se a pessoa quer mesmo falar com um atendente; só transfira se ela disser que sim.',
     '- Em caso de erro ao executar uma ação, não invente — informe que houve um problema e use transferir_humano (motivo erro_tecnico).',
     '',
