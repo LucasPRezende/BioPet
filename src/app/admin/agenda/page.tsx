@@ -1010,11 +1010,18 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
     setRefusing(false)
   }
   async function handleFaltou() {
-    const ok = window.confirm(`Marcar que ${ag.pets?.nome ?? 'o pet'} faltou? O tutor será avisado por WhatsApp.`)
+    const avisoEstorno = (statusPag === 'pago' || statusPag === 'pago_clinica')
+      ? '\n\nO pagamento já foi confirmado — será necessário registrar o estorno ao cliente.'
+      : ''
+    const ok = window.confirm(`Marcar que ${ag.pets?.nome ?? 'o pet'} faltou? O tutor será avisado por WhatsApp.${avisoEstorno}`)
     if (!ok) return
     setMarkingFaltou(true)
     const res = await fetch(`/api/admin/agendamentos/${ag.id}/faltou`, { method: 'POST' })
-    if (res.ok) { setStatus('faltou'); onUpdated(ag.id, { status: 'faltou' }) }
+    if (res.ok) {
+      const { status_pagamento } = await res.json()
+      setStatus('faltou')
+      onUpdated(ag.id, { status: 'faltou', status_pagamento })
+    }
     setMarkingFaltou(false)
   }
   async function handleCancelar() {

@@ -32,7 +32,7 @@ export async function POST(
   const agId = Number(params.id)
   const { data: ag } = await supabase
     .from('agendamentos')
-    .select('id, status, tipo_exame, data_hora, is_revisao, tutores(nome, telefone), pets(nome)')
+    .select('id, status, status_pagamento, tipo_exame, data_hora, is_revisao, tutores(nome, telefone), pets(nome)')
     .eq('id', agId)
     .single()
 
@@ -41,9 +41,13 @@ export async function POST(
     return NextResponse.json({ error: 'Só é possível marcar falta em agendamentos agendados ou em atendimento.' }, { status: 400 })
   }
 
+  // Mesmo tratamento do cancelamento: se já foi pago, vira estorno pendente em
+  // vez de simplesmente fechar — alguém precisa devolver o dinheiro ao tutor.
+  const novoStatusPagamento = ag.status_pagamento === 'pago' ? 'estorno_pendente' : 'cancelado'
+
   const { error } = await supabase
     .from('agendamentos')
-    .update({ status: 'faltou' })
+    .update({ status: 'faltou', status_pagamento: novoStatusPagamento })
     .eq('id', agId)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -95,5 +99,5 @@ export async function POST(
     await sendWhatsAppText(tel, msg)
   }
 
-  return NextResponse.json({ sucesso: true, perdeu_revisao: perdeuRevisao })
+  return NextResponse.json({ sucesso: true, perdeu_revisao: perdeuRevisao, status_pagamento: novoStatusPagamento })
 }
