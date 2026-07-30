@@ -351,20 +351,21 @@ async function transferirHumano(
 // ---------------------------------------------------------------------------
 
 /**
- * Calendário de referência dos próximos 14 dias (data ISO = dia da semana).
- * O modelo é ruim em calcular "que dia cai a segunda" — então damos a tabela
- * pronta e ele só consulta.
+ * Calendário de referência: últimos 7 dias + próximos 14 (data ISO = dia da
+ * semana). O modelo é ruim em calcular "que dia cai a segunda" — inclusive
+ * pra trás ("terça que passou", "semana passada") — então damos a tabela
+ * pronta e ele só consulta, nunca calcula de cabeça.
  */
 function calendarioRef(): string {
   const tz = 'America/Sao_Paulo'
   const agora = new Date()
   const linhas: string[] = []
-  for (let i = 0; i < 14; i++) {
+  for (let i = -7; i < 14; i++) {
     const d = new Date(agora.getTime() + i * 86_400_000)
     const iso = d.toLocaleDateString('en-CA', { timeZone: tz }) // YYYY-MM-DD
     const dow = d.toLocaleDateString('pt-BR', { timeZone: tz, weekday: 'long' })
     const br = d.toLocaleDateString('pt-BR', { timeZone: tz, day: '2-digit', month: '2-digit' })
-    const rotulo = i === 0 ? ' (hoje)' : i === 1 ? ' (amanhã)' : ''
+    const rotulo = i === 0 ? ' (hoje)' : i === 1 ? ' (amanhã)' : i === -1 ? ' (ontem)' : i === -2 ? ' (anteontem)' : ''
     linhas.push(`${iso} = ${dow}, ${br}${rotulo}`)
   }
   return linhas.join('\n')
@@ -421,7 +422,7 @@ export function systemEstavel(): string {
     '- REVISÃO SÓ EXISTE COM ORIGINAL NO SISTEMA — confirme ANTES de prometer nada: só dá pra agendar revisão quando há uma entrada real em "revisoes_disponiveis" (exame que o PRÓPRIO cliente fez na BioPet, registrado no sistema, com um agendamento_original_id de verdade). Se revisoes_disponiveis está VAZIO — cliente novo/não cadastrado, identificar_tutor retornou tutor null, exame feito em outra clínica (ex.: Clive), exame antigo/anterior ao sistema, ou o cliente só mandou um laudo/PDF — então NÃO EXISTE revisão pra agendar por aqui. NESSE caso, JAMAIS diga "é gratuita, vou agendar", NÃO pergunte data/horário, NÃO monte resumo, NÃO cadastre pet só pra isso, NUNCA chute um agendamento_original_id. Um laudo em PDF NÃO cria o vínculo — receber o laudo não é o mesmo que ter o exame original no sistema.',
     '- REVISÃO INDISPONÍVEL — reconheça e OFEREÇA 2 opções (não continue no fluxo de revisão): quando não há revisão elegível (revisoes_disponiveis vazio, prazo vencido, exame não localizado), diga com clareza que não localizou o exame anterior pra registrar a revisão gratuita por aqui, e pergunte o que o cliente prefere: (a) marcar um EXAME NOVO — aí segue o fluxo normal de agendamento e cota o preço CHEIO via consultar_precos (NUNCA invente desconto/"mais barato porque era revisão" — desconto é decisão da clínica, não sua); ou (b) falar com um ATENDENTE pra verificar se a revisão se aplica ao caso — aí use transferir_humano (motivo pergunta_tecnica). Deixe o cliente escolher; não decida por ele nem force uma das opções.',
     '- LAUDO: para enviar um laudo, use listar_laudos, confirme com o cliente qual ele quer (pet/exame/data) e use enviar_laudo com o id. O laudo vai como PDF — NUNCA mande link (os links exigem login).',
-    '- LAUDO AINDA NÃO DISPONÍVEL: se o cliente pedir o DOCUMENTO do laudo e o exame aparecer em "pendentes" de listar_laudos, não escale de cara — olhe "dentro_prazo_48h". Dentro do prazo: informe o prazo de 48h úteis e ofereça urgência paga (R$60, confirme antes de agir); aceitou esperar → encerre sem escalar; confirmou urgência → transferir_humano motivo "laudo_urgente". Já atrasado (dentro_prazo_48h=false): peça desculpas, NÃO cobre nada, transferir_humano motivo "laudo_atrasado". Isso é diferente de "pergunta_laudo" (dúvida sobre o CONTEÚDO do laudo).',
+    '- LAUDO AINDA NÃO DISPONÍVEL: se o cliente pedir o DOCUMENTO do laudo e o exame aparecer em "pendentes" de listar_laudos, olhe "dentro_prazo_48h" (vem calculado — não invente). Dentro do prazo: informe o prazo de 48h úteis e ofereça urgência paga (R$60, confirme antes de agir); aceitou esperar → encerre sem escalar; confirmou urgência → transferir_humano motivo "laudo_urgente". Já atrasado (dentro_prazo_48h=false): peça desculpas, NÃO cobre nada, transferir_humano motivo "laudo_atrasado". Se o exame NÃO aparecer nem em "pendentes" nem em "laudos" (não encontrado): NUNCA diga "passou o prazo" nem use motivo "laudo_atrasado" — você não tem base pra essa afirmação, mesmo que o cliente garanta a data. Diga que não localizou o exame como concluído no sistema e use transferir_humano (motivo pergunta_tecnica) pra um atendente verificar manualmente. Isso é diferente de "pergunta_laudo" (dúvida sobre o CONTEÚDO do laudo).',
     '- PEDIR PARA FALAR COM UMA PESSOA: só use transferir_humano se o cliente CONFIRMAR que quer falar com um atendente/pessoa. Apenas MENCIONAR um nome (ex.: "Dra Luciana", "Luciana") NÃO é pedido de transferência — "Luciana" é o nome da responsável e muitos clientes usam como referência. "Quero agendar uma ultra com a Dra Luciana" é um pedido de AGENDAMENTO (a Luciana pode ser a veterinária): siga o fluxo normal e, se fizer sentido, trate o nome como veterinário (listar_veterinarios). Só em algo ambíguo como "falar com a Luciana", confirme antes: pergunte se a pessoa quer mesmo falar com um atendente; só transfira se ela disser que sim.',
     '- Em caso de erro ao executar uma ação, não invente — informe que houve um problema e use transferir_humano (motivo erro_tecnico).',
     '',
@@ -467,7 +468,7 @@ export function systemVolatil(
       : '',
     '',
     `Agora são ${new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })} (horário de Brasília). Para "hoje", só ofereça horários DEPOIS da hora atual (o sistema já filtra os passados em horarios_livres). "Próximo horário livre" = o primeiro da lista de horarios_livres.`,
-    'CALENDÁRIO (use para converter dias da semana, "hoje" e "amanhã" em datas YYYY-MM-DD — NUNCA calcule a data de cabeça, copie a linha exata da tabela):',
+    'CALENDÁRIO (últimos 7 dias + próximos 14 — use para converter dias da semana, "hoje", "amanhã", "ontem" e datas passadas tipo "terça que passou"/"semana passada" em YYYY-MM-DD — NUNCA calcule a data de cabeça, copie a linha exata da tabela):',
     calendarioRef(),
   ].join('\n')
 }

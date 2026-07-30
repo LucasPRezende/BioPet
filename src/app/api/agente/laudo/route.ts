@@ -29,18 +29,26 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ tem_laudo: false, laudos: [], pendentes: [] })
   }
 
-  const [{ data: laudos, error }, { data: concluidos }, { data: feriadosRows }] = await Promise.all([
+  const agora = new Date()
+
+  const [{ data: laudos, error }, { data: realizados }, { data: feriadosRows }] = await Promise.all([
     supabase
       .from('laudos')
       .select('id, tipo_exame, criado_em, filename, agendamento_id, pets(nome)')
       .eq('tutor_id', tutor.id)
       .order('criado_em', { ascending: false })
       .limit(5),
+    // O agendamento só vira "concluído" quando TODOS os laudos já foram
+    // emitidos (ver /api/laudos/gerar) — ou seja, nunca existe um
+    // "concluído" sem laudo. O exame que JÁ ACONTECEU mas ainda não tem
+    // laudo continua com status "agendado"/"em atendimento" (não cancelado,
+    // não faltou) e data_hora no passado.
     supabase
       .from('agendamentos')
       .select('id, tipo_exame, data_hora, pets(nome)')
       .eq('tutor_id', tutor.id)
-      .eq('status', 'concluído')
+      .in('status', ['agendado', 'em atendimento'])
+      .lt('data_hora', agora.toISOString())
       .order('data_hora', { ascending: false })
       .limit(10),
     supabase.from('feriados').select('data'),
@@ -63,20 +71,19 @@ export async function GET(request: NextRequest) {
     }
   })
 
-  // Exames concluídos SEM laudo emitido ainda: calcula aqui (não no modelo) se
-  // já passou do prazo de 48h ÚTEIS — para o agente saber se é "dentro do
-  // prazo normal" (pode oferecer urgência paga) ou "atraso nosso" (não cobrar
-  // nada). Fim de semana/feriado não conta: o prazo pausa e retoma no
-  // próximo dia útil (mesma fonte de feriados usada nas revisões/horário
-  // especial).
+  // Exames já REALIZADOS (data_hora passada) sem laudo emitido: calcula aqui
+  // (não no modelo) se já passou do prazo de 48h ÚTEIS — para o agente saber
+  // se é "dentro do prazo normal" (pode oferecer urgência paga) ou "atraso
+  // nosso" (não cobrar nada). Fim de semana/feriado não conta: o prazo pausa
+  // e retoma no próximo dia útil (mesma fonte de feriados usada nas
+  // revisões/horário especial).
   const agendamentoIdsComLaudo = new Set((laudos ?? []).map(l => l.agendamento_id).filter(Boolean))
-  const agora = new Date()
   const y = agora.getFullYear()
   const feriados = Array.from(new Set([
     ...(feriadosRows ?? []).map((f: { data: string }) => f.data),
     ...[y - 1, y, y + 1].flatMap(gerarFeriadosPorAno).map(f => f.data),
   ]))
-  const pendentes = (concluidos ?? [])
+  const pendentes = (realizados ?? [])
     .filter(ag => !agendamentoIdsComLaudo.has(ag.id))
     .map(ag => {
       const pets = ag.pets as { nome: string }[] | { nome: string } | null
