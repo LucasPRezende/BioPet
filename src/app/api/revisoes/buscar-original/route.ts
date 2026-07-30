@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
     .select('agendamento_original_id')
     .in('agendamento_original_id', agIds)
     .eq('is_revisao', true)
-    .in('status', ['agendado', 'em atendimento', 'concluído'])
+    .in('status', ['agendado', 'em atendimento', 'concluído', 'faltou'])
 
   const contadorRevisoes: Record<number, number> = {}
   for (const r of revisoesAtivas ?? []) {
@@ -82,10 +82,20 @@ export async function GET(request: NextRequest) {
     const prazo_ok       = agora <= prazoLimite
     const revisoes_ativas = contadorRevisoes[ag.id] ?? 0
     const limite_ok      = revisoes_ativas < cfg.max_revisoes
-    const pode_agendar   = prazo_ok && limite_ok
+    // Não exige 'concluído' — o laudo costuma sair depois do exame, e o tutor
+    // pode querer marcar a revisão nesse meio-tempo. Só bloqueia se o exame
+    // não aconteceu de fato (faltou, foi cancelado, ou ainda é no futuro).
+    const compareceu_ok  = ag.status !== 'faltou' && ag.status !== 'cancelado' && dataOriginal <= agora
+    const pode_agendar   = prazo_ok && limite_ok && compareceu_ok
 
     let motivo_bloqueio: string | null = null
-    if (!prazo_ok) {
+    if (!compareceu_ok) {
+      motivo_bloqueio = ag.status === 'faltou'
+        ? 'Tutor faltou ao exame original — perdeu o direito à revisão gratuita'
+        : ag.status === 'cancelado'
+        ? 'Agendamento original foi cancelado'
+        : 'Exame original ainda não aconteceu'
+    } else if (!prazo_ok) {
       motivo_bloqueio = `Prazo expirado em ${prazoLimite.toLocaleDateString('pt-BR')}`
     } else if (!limite_ok) {
       motivo_bloqueio = revisoes_ativas === 1

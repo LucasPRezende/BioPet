@@ -87,6 +87,7 @@ const STATUS_LABELS: Record<string, string> = {
   'em atendimento': 'Em atendimento',
   'concluído':      'Concluído',
   'cancelado':      'Cancelado',
+  'faltou':         'Faltou',
 }
 const STATUS_COLORS: Record<string, string> = {
   'pendente':       'bg-yellow-100 text-yellow-700 border-yellow-200',
@@ -94,6 +95,7 @@ const STATUS_COLORS: Record<string, string> = {
   'em atendimento': 'bg-amber-100 text-amber-700 border-amber-200',
   'concluído':      'bg-green-100 text-green-700 border-green-200',
   'cancelado':      'bg-red-100 text-red-600 border-red-200',
+  'faltou':         'bg-slate-200 text-slate-600 border-slate-300',
 }
 const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 const MESES_CURTO = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
@@ -921,6 +923,7 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
   const [status,        setStatus]        = useState(ag.status)
   const [confirming,    setConfirming]    = useState(false)
   const [refusing,      setRefusing]      = useState(false)
+  const [markingFaltou, setMarkingFaltou] = useState(false)
   const [reenviarLink,  setReenviarLink]  = useState(false)
   const [confirmingPag, setConfirmingPag] = useState(false)
   const [editandoLaudo, setEditandoLaudo] = useState<{ laudo: { id: number; token: string }; petNome: string } | null>(null)
@@ -1005,6 +1008,14 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
     const res = await fetch(`/api/admin/agendamentos/${ag.id}/recusar`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ motivo: motivo.trim() || null }) })
     if (res.ok) { setStatus('cancelado'); onUpdated(ag.id, { status: 'cancelado' }) }
     setRefusing(false)
+  }
+  async function handleFaltou() {
+    const ok = window.confirm(`Marcar que ${ag.pets?.nome ?? 'o pet'} faltou? O tutor será avisado por WhatsApp.`)
+    if (!ok) return
+    setMarkingFaltou(true)
+    const res = await fetch(`/api/admin/agendamentos/${ag.id}/faltou`, { method: 'POST' })
+    if (res.ok) { setStatus('faltou'); onUpdated(ag.id, { status: 'faltou' }) }
+    setMarkingFaltou(false)
   }
   async function handleCancelar() {
     const avisoEstorno = (statusPag === 'pago' || statusPag === 'pago_clinica')
@@ -1247,10 +1258,16 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
             <div>
               <p className={LABEL}>Status</p>
               <div className="flex flex-wrap gap-2">
-                {status !== 'concluído' && status !== 'cancelado' && status !== 'pendente' && (
+                {status !== 'concluído' && status !== 'cancelado' && status !== 'pendente' && status !== 'faltou' && (
                   <button onClick={handleConcluir}
                     className="bg-green-600 hover:bg-green-700 text-white text-sm font-bold px-3 py-1.5 rounded-lg transition">
                     ✓ Marcar como concluído
+                  </button>
+                )}
+                {status !== 'concluído' && status !== 'cancelado' && status !== 'pendente' && status !== 'faltou' && (
+                  <button onClick={handleFaltou} disabled={markingFaltou}
+                    className="bg-slate-500 hover:bg-slate-600 text-white text-sm font-bold px-3 py-1.5 rounded-lg transition disabled:opacity-50">
+                    {markingFaltou ? '...' : '🚫 Faltou'}
                   </button>
                 )}
                 {status !== 'cancelado' && (
@@ -1326,7 +1343,7 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
               )}
 
               {/* Um botão de emitir por exame individual */}
-              {status !== 'cancelado' && status !== 'pendente' && !(ag.is_revisao && !ag.laudo_revisao_solicitado) && (
+              {status !== 'cancelado' && status !== 'pendente' && status !== 'faltou' && !(ag.is_revisao && !ag.laudo_revisao_solicitado) && (
                 <div className="space-y-2">
                   {examesParaLaudo.length > 0 ? examesParaLaudo.map((exame, i) => {
                     const tipo   = exame.tipo_exame
@@ -1364,7 +1381,7 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
                 </div>
               )}
 
-              {(!ag.laudos?.length && (status === 'cancelado' || status === 'pendente')) && (
+              {(!ag.laudos?.length && (status === 'cancelado' || status === 'pendente' || status === 'faltou')) && (
                 <p className="text-xs text-gray-400">Nenhum laudo emitido.</p>
               )}
             </div>

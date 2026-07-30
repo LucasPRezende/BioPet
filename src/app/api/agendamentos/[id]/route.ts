@@ -60,7 +60,7 @@ export async function PATCH(
     notificar,
   } = body ?? {}
 
-  const STATUSES = ['pendente', 'agendado', 'em atendimento', 'concluído', 'cancelado']
+  const STATUSES = ['pendente', 'agendado', 'em atendimento', 'concluído', 'cancelado', 'faltou']
 
   const update: Record<string, unknown> = {}
   if (status !== undefined) {

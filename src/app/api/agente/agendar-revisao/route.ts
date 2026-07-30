@@ -33,13 +33,27 @@ export async function POST(request: NextRequest) {
 
   const { data: original, error: errOrig } = await supabase
     .from('agendamentos')
-    .select('id, tipo_exame, data_hora, tutor_id, pet_id, veterinario_id, duracao_minutos, tutores(nome, telefone)')
+    .select('id, tipo_exame, data_hora, status, tutor_id, pet_id, veterinario_id, duracao_minutos, tutores(nome, telefone)')
     .eq('id', agendamento_original_id)
     .eq('is_revisao', false)
     .maybeSingle()
 
   if (errOrig || !original) {
     return NextResponse.json({ error: 'Agendamento original não encontrado.' }, { status: 404 })
+  }
+
+  // Só há direito a revisão se o exame de fato aconteceu: não vale para quem
+  // faltou, teve o agendamento cancelado, ou ainda nem chegou na data.
+  if (original.status === 'faltou' || original.status === 'cancelado') {
+    return NextResponse.json({
+      error: original.status === 'faltou'
+        ? 'O tutor faltou ao exame original — o direito à revisão gratuita foi perdido.'
+        : 'Agendamento original foi cancelado — não há direito a revisão.',
+      precisa_atendente: true,
+    }, { status: 422 })
+  }
+  if (new Date(original.data_hora) > new Date()) {
+    return NextResponse.json({ error: 'O exame original ainda não aconteceu.', precisa_atendente: true }, { status: 422 })
   }
 
   // Posse: o agendamento original tem que ser do tutor desta conversa. O

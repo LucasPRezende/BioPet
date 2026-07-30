@@ -117,6 +117,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: `O exame "${original.tipo_exame}" não permite revisão.` }, { status: 422 })
   }
 
+  // 2b. Só perde o direito se o tutor NÃO compareceu ao exame original (faltou
+  // ou foi cancelado), ou se o exame ainda nem aconteceu. Não exige 'concluído'
+  // — o laudo costuma sair depois do exame, e o tutor pode querer marcar a
+  // revisão nesse meio-tempo.
+  if (original.status === 'faltou' || original.status === 'cancelado') {
+    return NextResponse.json({
+      error: original.status === 'faltou'
+        ? 'O tutor faltou ao exame original — o direito à revisão gratuita foi perdido.'
+        : 'Agendamento original foi cancelado — não há direito a revisão.',
+    }, { status: 422 })
+  }
+  if (new Date(original.data_hora) > new Date()) {
+    return NextResponse.json({ error: 'O exame original ainda não aconteceu.' }, { status: 422 })
+  }
+
   // 3. Valida prazo
   const dataOriginal = new Date(original.data_hora)
   const prazoLimite  = new Date(dataOriginal.getTime() + config.prazo_dias * 24 * 60 * 60 * 1000)
@@ -132,7 +147,7 @@ export async function POST(request: NextRequest) {
     .select('id', { count: 'exact', head: true })
     .eq('agendamento_original_id', agendamento_original_id)
     .eq('is_revisao', true)
-    .in('status', ['agendado', 'em atendimento', 'concluído'])
+    .in('status', ['agendado', 'em atendimento', 'concluído', 'faltou'])
 
   const revisoesFeit = totalRevisoes ?? 0
   if (revisoesFeit >= config.max_revisoes) {

@@ -36,17 +36,24 @@ export async function buscarRevisoesDisponiveis(petIds: number[]): Promise<Revis
 
   const { data: ags } = await supabase
     .from('agendamentos')
-    .select('id, tipo_exame, data_hora, duracao_minutos, pets(nome)')
+    .select('id, tipo_exame, data_hora, duracao_minutos, status, pets(nome)')
     .in('pet_id', petIds)
     .eq('is_revisao', false)
-    .eq('status', 'concluído')
     .order('data_hora', { ascending: false })
     .limit(20)
 
   const getTipoPermitido = (tipoExame: string): string | null =>
     tipoExame.split(',').map((t: string) => t.trim()).find((t: string) => tiposPermitidos.includes(t)) ?? null
 
-  const elegiveis = (ags ?? []).filter(ag => getTipoPermitido(ag.tipo_exame) !== null)
+  // Não exige status 'concluído' — o laudo costuma sair depois do exame, e o
+  // tutor pode querer marcar a revisão nesse meio-tempo. Só exclui o que não
+  // aconteceu de fato (faltou/cancelado) ou ainda vai acontecer (data futura).
+  const agora = new Date()
+  const elegiveis = (ags ?? []).filter(ag =>
+    getTipoPermitido(ag.tipo_exame) !== null &&
+    ag.status !== 'cancelado' && ag.status !== 'faltou' &&
+    new Date(ag.data_hora) <= agora,
+  )
   if (elegiveis.length === 0) return []
 
   const agIds = elegiveis.map(a => a.id)
@@ -55,7 +62,7 @@ export async function buscarRevisoesDisponiveis(petIds: number[]): Promise<Revis
     .select('agendamento_original_id')
     .in('agendamento_original_id', agIds)
     .eq('is_revisao', true)
-    .in('status', ['agendado', 'em atendimento', 'concluído'])
+    .in('status', ['agendado', 'em atendimento', 'concluído', 'faltou'])
 
   const contador: Record<number, number> = {}
   for (const r of revisoesAtivas ?? []) {
