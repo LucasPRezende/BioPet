@@ -724,7 +724,15 @@ export default function DashboardPage() {
             {/* Exames por clínica */}
             {clinicas.length > 0 && (
               <>
-                <SectionTitle label="🏥 Repasse — clínicas parceiras" color="#4338ca" />
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <SectionTitle label="🏥 Repasse — clínicas parceiras" color="#4338ca" />
+                  <button
+                    onClick={() => router.push(`/admin/relatorio/repasse?inicio=${inicio}&fim=${fim}`)}
+                    className="text-xs font-bold px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition"
+                  >
+                    📄 Gerar relatório do período
+                  </button>
+                </div>
                 <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
                   <div className="h-1 bg-gold-stripe" />
                   <div className="p-6">
