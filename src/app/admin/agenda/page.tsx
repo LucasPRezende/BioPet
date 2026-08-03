@@ -1038,8 +1038,8 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
     setConfirmingPag(true)
     const res = await fetch(`/api/admin/agendamentos/${ag.id}/confirmar-pagamento`, { method: 'POST' })
     if (res.ok) {
-      const { status_pagamento, pagamento_confirmado_por } = await res.json()
-      onUpdated(ag.id, { status_pagamento, pagamento_confirmado_por })
+      const { status_pagamento, pagamento_confirmado_por, entrega_pagamento } = await res.json()
+      onUpdated(ag.id, { status_pagamento, pagamento_confirmado_por, entrega_pagamento })
     }
     setConfirmingPag(false)
   }
@@ -1232,29 +1232,30 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
             {/* Pagamento */}
             {ag.forma_pagamento && ag.forma_pagamento !== 'a confirmar' && (() => {
               const semLink = ag.forma_pagamento === 'gratuito' || ag.pagamento_responsavel === 'clinica'
-              // Confirmação manual pelo admin substitui o rótulo "por link" — na prática
-              // significa que o tutor pagou no local, não pelo link que tinha sido enviado.
               const confirmadoManual = !!ag.pagamento_confirmado_por
-              const porLink = !semLink && !confirmadoManual && ag.entrega_pagamento === 'link'
+              const pago = ag.status_pagamento === 'pago' || ag.status_pagamento === 'pago_clinica'
+              const porLink = !semLink && ag.entrega_pagamento === 'link'
               return (
                 <div>
                   <p className={LABEL}>Pagamento</p>
                   <p className="text-sm text-gray-600 capitalize">
                     {ag.forma_pagamento}
                     {!semLink && (
-                      <span className="text-gray-400 normal-case"> · {confirmadoManual || ag.entrega_pagamento === 'presencial' ? 'presencial' : 'por link'}</span>
+                      <span className="text-gray-400 normal-case"> · {ag.entrega_pagamento === 'presencial' ? 'presencial' : 'por link'}</span>
                     )}
                   </p>
                   {porLink && (
                     <p className="text-xs mt-0.5">
-                      {ag.mp_init_point
+                      {pago
+                        ? <span className="text-green-600 font-medium">✅ Pagamento por link confirmado</span>
+                        : ag.mp_init_point
                         ? <span className="text-green-600 font-medium">🔗 Link de pagamento enviado</span>
                         : <span className="text-gray-400">link de pagamento pendente</span>}
                     </p>
                   )}
                   {confirmadoManual && (
                     <p className="text-xs text-gray-400 mt-0.5">
-                      Pago no local — confirmado por {ag.pagamento_confirmado_por!.nome}
+                      {porLink ? 'Confirmado manualmente' : 'Pago no local — confirmado'} por {ag.pagamento_confirmado_por!.nome}
                     </p>
                   )}
                 </div>

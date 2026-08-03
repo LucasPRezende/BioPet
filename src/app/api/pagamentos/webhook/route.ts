@@ -108,9 +108,12 @@ export async function POST(request: NextRequest) {
         const { error: updateError } = await supabase
           .from('agendamentos')
           .update({
-            status_pagamento: 'pago',
-            mp_payment_id:    String(payment.id),
-            pago_em:          new Date().toISOString(),
+            status_pagamento:  'pago',
+            mp_payment_id:     String(payment.id),
+            pago_em:           new Date().toISOString(),
+            // O MP só confirma pagamento feito pelo link — reflete isso mesmo que o
+            // agendamento tenha sido criado como "presencial" e o link enviado depois.
+            entrega_pagamento: 'link',
           })
           .eq('id', agendamentoId)
 

@@ -35,6 +35,9 @@ export async function POST(
     status_pagamento: novoStatus,
     pago_em: now,
     pagamento_confirmado_por: session.userId,
+    // Confirmação manual só existe pra quem não passou pelo webhook do MP —
+    // na prática, o tutor recebeu o link mas preferiu pagar presencial.
+    entrega_pagamento: 'presencial',
     ...(isRepasseClinica ? { repasse_confirmado: true, repasse_em: now } : {}),
   }
 
@@ -73,5 +76,6 @@ export async function POST(
     sucesso: true,
     status_pagamento: novoStatus,
     pagamento_confirmado_por: admin ? { nome: admin.nome } : null,
+    entrega_pagamento: 'presencial',
   })
 }
