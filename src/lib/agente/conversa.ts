@@ -13,7 +13,7 @@ import { supabase } from '@/lib/supabase'
 import { normalizeTelefone } from '@/lib/telefone'
 
 /** Minutos de inatividade até a conversa expirar (reinicia o histórico). */
-const TTL_MINUTOS = 60
+const TTL_MINUTOS = 360
 
 export interface MensagemRecebida {
   /** True quando há uma mensagem de texto de usuário para processar. */
