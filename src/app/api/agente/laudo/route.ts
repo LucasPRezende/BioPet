@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { verifyAgentKey } from '@/lib/agent-auth'
 import { normalizeTelefone } from '@/lib/telefone'
 import { gerarFeriadosPorAno, horasUteisDesde } from '@/lib/feriados'
+import { agoraLocalISO } from '@/lib/agendamento-helpers'
 
 export async function GET(request: NextRequest) {
   if (!verifyAgentKey(request)) {
@@ -29,7 +30,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ tem_laudo: false, laudos: [], pendentes: [] })
   }
 
-  const agora = new Date()
+  // data_hora é naive (horário de Brasília, sem timezone). "agora" precisa
+  // estar no MESMO formato (não `new Date()`/UTC real), senão comparações e
+  // o cálculo de horasUteisDesde tratam exames dentro de ~3h no futuro como
+  // se já tivessem acontecido (ver agoraLocalISO).
+  const agoraISO = agoraLocalISO()
+  const agora = new Date(agoraISO)
 
   const [{ data: laudos, error }, { data: realizados }, { data: feriadosRows }] = await Promise.all([
     supabase
@@ -48,7 +54,7 @@ export async function GET(request: NextRequest) {
       .select('id, tipo_exame, data_hora, pets(nome)')
       .eq('tutor_id', tutor.id)
       .in('status', ['agendado', 'em atendimento'])
-      .lt('data_hora', agora.toISOString())
+      .lt('data_hora', agoraISO)
       .order('data_hora', { ascending: false })
       .limit(10),
     supabase.from('feriados').select('data'),

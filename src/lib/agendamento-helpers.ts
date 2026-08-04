@@ -35,6 +35,23 @@ export interface TesteRapidoInput {
 
 export { normalizeTelefone } from './telefone'
 
+/**
+ * "Agora" no MESMO formato naive (sem timezone) usado em `data_hora`
+ * (horário de Brasília, sem offset). NUNCA compare `data_hora` direto contra
+ * `new Date().toISOString()` (UTC real) — a coluna é `timestamp` sem
+ * timezone, então o Postgres/JS comparam os dois valores como se fossem o
+ * mesmo fuso, e Brasília é UTC-3: qualquer agendamento dentro de ~3h já
+ * passaria a contar como "no passado" incorretamente. Use esta função pra
+ * gerar o "agora" em filtros `.gt('data_hora', ...)` / `.lt('data_hora', ...)`.
+ */
+export function agoraLocalISO(): string {
+  const tz = 'America/Sao_Paulo'
+  const agora = new Date()
+  const data = agora.toLocaleDateString('en-CA', { timeZone: tz }) // YYYY-MM-DD
+  const hora = agora.toLocaleTimeString('en-GB', { timeZone: tz, hour12: false }) // HH:MM:SS
+  return `${data}T${hora}`
+}
+
 // Retorna o id do agendamento conflitante, ou null se não houver conflito.
 export async function verificarConflito(
   dataHora: string,

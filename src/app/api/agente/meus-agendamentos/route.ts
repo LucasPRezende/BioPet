@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { verifyAgentKey } from '@/lib/agent-auth'
 import { normalizeTelefone } from '@/lib/telefone'
+import { agoraLocalISO } from '@/lib/agendamento-helpers'
 
 const DIAS = [
   'domingo', 'segunda-feira', 'terça-feira', 'quarta-feira',
@@ -46,8 +47,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ agendamentos: [] })
   }
 
-  // Busca agendamentos futuros com status ativo
-  const agora = new Date().toISOString()
+  // Busca agendamentos futuros com status ativo. data_hora é naive (horário
+  // de Brasília sem timezone) — comparar contra ISO em UTC faria agendamentos
+  // dentro de ~3h somem da lista (ver agoraLocalISO).
+  const agora = agoraLocalISO()
   const { data: rows, error } = await supabase
     .from('agendamentos')
     .select('id, tipo_exame, data_hora, status, valor, forma_pagamento, pets(nome)')
