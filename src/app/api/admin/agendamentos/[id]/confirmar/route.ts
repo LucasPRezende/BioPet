@@ -83,7 +83,7 @@ export async function POST(
   // Busca exames da tabela agendamento_exames (para listar no WhatsApp)
   const { data: examesRows } = await supabase
     .from('agendamento_exames')
-    .select('tipo_exame')
+    .select('tipo_exame, desconto')
     .eq('agendamento_id', agId)
 
   // Busca sub-exames de bioquímica (se houver)
@@ -110,7 +110,8 @@ export async function POST(
     const partes: string[] = []
     for (const e of examesRows) {
       if (e.tipo_exame === 'Bioquímica' && bioRows && bioRows.length > 0) {
-        const bioTotal = bioRows.reduce((sum, b) => sum + Number(isPix ? b.valor_pix : b.valor_cartao), 0)
+        const bioBruto = bioRows.reduce((sum, b) => sum + Number(isPix ? b.valor_pix : b.valor_cartao), 0)
+        const bioTotal = Math.max(0, bioBruto - Number(e.desconto ?? 0))
         const bioLinhas = bioRows.map(b => {
           const nome = Array.isArray(b.bioquimica_exames)
             ? b.bioquimica_exames[0]?.nome
@@ -120,7 +121,8 @@ export async function POST(
         }).join('\n')
         partes.push(`Bioquímica:\n${bioLinhas}\n  Total: ${brl(bioTotal)}`)
       } else if (e.tipo_exame === 'Teste Rápido' && testeRows && testeRows.length > 0) {
-        const testeTotal = testeRows.reduce((sum, t) => sum + Number(isPix ? t.valor_pix : t.valor_cartao), 0)
+        const testeBruto = testeRows.reduce((sum, t) => sum + Number(isPix ? t.valor_pix : t.valor_cartao), 0)
+        const testeTotal = Math.max(0, testeBruto - Number(e.desconto ?? 0))
         const testeLinhas = testeRows.map(t => {
           const nome = Array.isArray(t.testes_rapidos)
             ? t.testes_rapidos[0]?.nome

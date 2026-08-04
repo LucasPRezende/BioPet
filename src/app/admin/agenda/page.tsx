@@ -976,8 +976,9 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
   const examesComVal = exames.map(ex => {
     const isBio   = ex.tipo_exame === 'Bioquímica' && bioRows.length > 0
     const isTeste = ex.tipo_exame === 'Teste Rápido' && testeRows.length > 0
-    const val   = isBio   ? Math.max(0, bioRows.reduce((s, b) => s + Number(isPix ? b.valor_pix : b.valor_cartao), 0) - comBio)
-                : isTeste ? Math.max(0, testeRows.reduce((s, t) => s + Number(isPix ? t.valor_pix : t.valor_cartao), 0) - comTeste)
+    const desc  = Number(ex.desconto ?? 0)
+    const val   = isBio   ? Math.max(0, bioRows.reduce((s, b) => s + Number(isPix ? b.valor_pix : b.valor_cartao), 0) - comBio - desc)
+                : isTeste ? Math.max(0, testeRows.reduce((s, t) => s + Number(isPix ? t.valor_pix : t.valor_cartao), 0) - comTeste - desc)
                 : (ex.valor ?? 0)
     totalExames += val
     return { ...ex, val, isBio, isTeste }
