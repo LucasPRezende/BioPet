@@ -206,7 +206,7 @@ export const TOOLS: Anthropic.Tool[] = [
   {
     name: 'transferir_humano',
     description:
-      'Aciona um atendente humano e PAUSA o bot por um período. Use quando: não entender o pedido, receber uma pergunta estranha/fora do escopo (ex.: dúvida clínica, reclamação, algo técnico), ocorrer um erro, ou o cliente pedir uma pessoa. As admins são avisadas com o resumo.',
+      'Aciona um atendente humano e PAUSA o bot por um período. Use quando: não entender o pedido, receber uma pergunta estranha/fora do escopo (ex.: dúvida clínica, reclamação, algo técnico), ocorrer um erro, o cliente pedir uma pessoa, ou o cliente disser que um agendamento/confirmação que recebeu não é dele (mesmo que você ache o registro no sistema, um atendente confere se o cadastro está certo — não afirme sozinha que é dele ou que foi engano). As admins são avisadas com o resumo.',
     input_schema: {
       type: 'object',
       properties: {
