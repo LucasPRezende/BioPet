@@ -706,7 +706,11 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
               placeholder="000.000.000-00"
               className={INPUT + (cpfSomenteLeitura ? ' bg-gray-50 text-gray-500 cursor-not-allowed' : '')} />
             {cpfSomenteLeitura ? (
-              <p className="text-xs text-gray-400 mt-1">CPF já cadastrado. Para alterar, edite em Resp. Legais.</p>
+              <p className="text-xs text-gray-400 mt-1">
+                {modo === 'clinica'
+                  ? 'CPF já cadastrado para este responsável.'
+                  : 'CPF já cadastrado. Para alterar, edite em Resp. Legais.'}
+              </p>
             ) : cpfTutor.replace(/\D/g,'').length === 11 && !validarCPF(cpfTutor) && (
               <p className="text-xs text-red-500 mt-1">CPF inválido — verifique os dígitos.</p>
             )}
