@@ -194,6 +194,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
   const [notificar,       setNotificar]       = useState(true)
   const [petSelecionado,  setPetSelecionado]  = useState<PetOpt | null>(null)
   const [novoPet,         setNovoPet]         = useState(false)
+  const [cpfSomenteLeitura, setCpfSomenteLeitura] = useState(false)
   const [petNome,          setPetNome]          = useState('')
   const [petEspecie,       setPetEspecie]       = useState('')
   const [petRaca,          setPetRaca]          = useState('')
@@ -403,7 +404,10 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
     setTelefone(t.telefone)
     setTutorNome(t.nome ?? '')
     setCpfTutor(t.cpf ? formatCPFInput(t.cpf) : '')
+    setCpfSomenteLeitura(!!t.cpf)
     setPetsDisponiveis(t.pets ?? [])
+    setPetSelecionado(null)
+    setNovoPet(false)
     setBuscaResultados([])
     setTutorNovo(false)
   }
@@ -414,6 +418,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
     setBuscaResultados([])
     setTutorNovo(true)
     setNovoPet(true)
+    setCpfSomenteLeitura(false)
     if (digits.length >= 8) setTelefone(q)
     else if (q) setTutorNome(q)
   }
@@ -423,7 +428,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
     const q      = buscaQuery.trim()
     const digits = q.replace(/\D/g, '')
     const tel    = normalizeTelefone(q)
-    setBuscando(true); setTutorInfo(null); setPetsDisponiveis([]); setPetSelecionado(null); setTutorNovo(false)
+    setBuscando(true); setTutorInfo(null); setPetsDisponiveis([]); setPetSelecionado(null); setTutorNovo(false); setCpfSomenteLeitura(false)
 
     if (modo === 'clinica') {
       const res = await fetch(`/api/clinica/buscar-tutor?q=${encodeURIComponent(q)}`)
@@ -472,7 +477,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
   function validarStep1(): string | null {
     if (!telefone.trim()) return 'Informe o telefone do responsável legal.'
     if (tutorNovo && !tutorNome.trim()) return 'Informe o nome do responsável legal.'
-    if (cpfTutor.replace(/\D/g, '').length === 11 && !validarCPF(cpfTutor)) return 'CPF inválido — verifique os dígitos.'
+    if (!cpfSomenteLeitura && cpfTutor.replace(/\D/g, '').length === 11 && !validarCPF(cpfTutor)) return 'CPF inválido — verifique os dígitos.'
     if (!petSelecionado && !novoPet) return 'Selecione ou cadastre um pet.'
     if (novoPet && !petNome.trim()) return 'Informe o nome do pet.'
     return null
@@ -582,7 +587,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
 
   function resetar() {
     setConcluido(false); setStep(1)
-    setBuscaQuery(''); setTelefone(''); setTutorInfo(null); setTutorNovo(false); setTutorNome(''); setCpfTutor(''); setBuscaResultados([])
+    setBuscaQuery(''); setTelefone(''); setTutorInfo(null); setTutorNovo(false); setTutorNome(''); setCpfTutor(''); setCpfSomenteLeitura(false); setBuscaResultados([])
     setPetSelecionado(null); setNovoPet(false); setPetNome(''); setPetEspecie(''); setPetRaca('')
     setPetPelagem(''); setPetNascimento(''); setPetSexo(''); setPetCastrado(false); setPetTemperamento('')
     setExamesSelecionados([]); setVetId(''); setObservacoes('')
@@ -653,7 +658,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
           {tutorInfo && (
             <p className="text-xs mt-2 px-2.5 py-1.5 rounded-lg bg-green-50 text-green-700 font-medium flex items-center justify-between">
               <span>✓ Resp. legal: {tutorInfo.nome ?? tutorInfo.telefone}</span>
-              <button type="button" onClick={() => { setTutorInfo(null); setBuscaQuery(''); setTelefone(''); setPetsDisponiveis([]); setPetSelecionado(null) }}
+              <button type="button" onClick={() => { setTutorInfo(null); setBuscaQuery(''); setTelefone(''); setPetsDisponiveis([]); setPetSelecionado(null); setNovoPet(false); setCpfTutor(''); setCpfSomenteLeitura(false) }}
                 className="ml-2 text-gray-400 hover:text-red-400 shrink-0">✕</button>
             </p>
           )}
@@ -697,8 +702,12 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
             </label>
             <input type="text" inputMode="numeric" value={cpfTutor}
               onChange={e => setCpfTutor(formatCPFInput(e.target.value))}
-              placeholder="000.000.000-00" className={INPUT} />
-            {cpfTutor.replace(/\D/g,'').length === 11 && !validarCPF(cpfTutor) && (
+              readOnly={cpfSomenteLeitura}
+              placeholder="000.000.000-00"
+              className={INPUT + (cpfSomenteLeitura ? ' bg-gray-50 text-gray-500 cursor-not-allowed' : '')} />
+            {cpfSomenteLeitura ? (
+              <p className="text-xs text-gray-400 mt-1">CPF já cadastrado. Para alterar, edite em Resp. Legais.</p>
+            ) : cpfTutor.replace(/\D/g,'').length === 11 && !validarCPF(cpfTutor) && (
               <p className="text-xs text-red-500 mt-1">CPF inválido — verifique os dígitos.</p>
             )}
           </div>
