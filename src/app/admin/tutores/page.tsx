@@ -24,6 +24,9 @@ const SEXOS = ['Macho', 'Fêmea', 'Não informado']
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', { day:'2-digit', month:'short', year:'numeric' })
 }
+function formatCPFDisplay(cpf: string) {
+  return cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+}
 
 const INPUT = 'w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#8a6e36]'
 
@@ -69,9 +72,11 @@ export default function TutoresPage() {
   const filtrados = useMemo(() => {
     const q = busca.toLowerCase().trim()
     if (!q) return tutores
+    const qDigits = busca.replace(/\D/g, '')
     return tutores.filter(t =>
       t.nome?.toLowerCase().includes(q) ||
       t.telefone.includes(q) ||
+      (qDigits.length >= 3 && !!t.cpf?.includes(qDigits)) ||
       t.pets.some(p => p.nome.toLowerCase().includes(q))
     )
   }, [tutores, busca])
@@ -208,7 +213,7 @@ export default function TutoresPage() {
               type="text"
               value={busca}
               onChange={e => setBusca(e.target.value)}
-              placeholder="Buscar por nome, telefone ou nome do pet..."
+              placeholder="Buscar por nome, telefone, CPF ou nome do pet..."
               className="flex-1 border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#8a6e36]"
             />
             <button
@@ -254,6 +259,7 @@ export default function TutoresPage() {
                           {tutor.nome ?? <span className="text-gray-400 font-normal italic">Sem nome</span>}
                         </p>
                         <p className="text-sm text-gray-500 mt-0.5">{tutor.telefone}</p>
+                        {tutor.cpf && <p className="text-xs text-gray-400 mt-0.5">CPF {formatCPFDisplay(tutor.cpf)}</p>}
                         <p className="text-xs text-gray-400 mt-0.5">Cadastrado em {formatDate(tutor.criado_em)}</p>
                       </div>
                     </div>

@@ -40,7 +40,7 @@ interface TesteRapidoExame {
 
 interface VetOpt    { id: number; nome: string }
 interface PetOpt    { id: number; nome: string; especie: string | null; raca: string | null }
-interface TutorInfo { id: number; nome: string | null; telefone: string }
+interface TutorInfo { id: number; nome: string | null; telefone: string; cpf?: string | null }
 
 export interface AgendamentoFormProps {
   modo:       'admin' | 'clinica'
@@ -398,7 +398,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
     return () => clearTimeout(timer)
   }, [buscaQuery, tutorInfo, modo])
 
-  function selecionarTutor(t: TutorInfo & { pets?: PetOpt[]; cpf?: string | null }) {
+  function selecionarTutor(t: TutorInfo & { pets?: PetOpt[] }) {
     setTutorInfo(t)
     setTelefone(t.telefone)
     setTutorNome(t.nome ?? '')
@@ -621,14 +621,14 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
       <>
         <div className="relative">
           <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
-            Resp. legal — Telefone ou Nome <span className="text-red-400">*</span>
+            Resp. legal — Telefone, Nome ou CPF <span className="text-red-400">*</span>
           </label>
           {!tutorInfo && !tutorNovo && (
             <div className="flex gap-2">
               <input type="text" value={buscaQuery}
                 onChange={e => { setBuscaQuery(e.target.value); setTutorInfo(null); setTutorNovo(false); setPetSelecionado(null) }}
                 onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), buscarTutor())}
-                placeholder="(24) 99999-9999 ou nome" className={INPUT} />
+                placeholder="(24) 99999-9999, nome ou CPF" className={INPUT} />
               <button type="button" onClick={buscarTutor} disabled={buscando || !buscaQuery.trim()}
                 className="shrink-0 px-4 py-2 bg-amber-50 border border-[#8a6e36]/30 text-[#8a6e36] rounded-lg text-sm font-semibold hover:bg-amber-100 transition disabled:opacity-50">
                 {buscando ? '...' : 'Buscar'}

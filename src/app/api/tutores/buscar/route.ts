@@ -19,13 +19,15 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from('tutores')
-    .select('id, nome, telefone, pets(id, nome, especie, raca, sexo, data_nascimento)')
+    .select('id, nome, telefone, cpf, pets(id, nome, especie, raca, sexo, data_nascimento)')
     .order('nome')
     .limit(10)
 
   const qSafe = sanitizeOrTerm(q)
   if (telNorm) {
-    query = query.or(`nome.ilike.%${qSafe}%,telefone.ilike.%${digits}%,telefone.ilike.%${telNorm}%`)
+    const orParts = [`nome.ilike.%${qSafe}%`, `telefone.ilike.%${digits}%`, `telefone.ilike.%${telNorm}%`]
+    if (digits.length === 11) orParts.push(`cpf.eq.${digits}`)
+    query = query.or(orParts.join(','))
   } else {
     query = query.ilike('nome', `%${qSafe}%`)
   }
