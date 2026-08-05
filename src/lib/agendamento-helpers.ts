@@ -92,7 +92,8 @@ export async function upsertTutor(telNorm: string, nome?: string, cpf?: string):
     if (nome && !existing.nome) updates.nome = nome
     if (cpf && !existing.cpf)   updates.cpf  = cpf
     if (Object.keys(updates).length > 0) {
-      await supabase.from('tutores').update(updates).eq('id', existing.id)
+      const { error: errUpdate } = await supabase.from('tutores').update(updates).eq('id', existing.id)
+      if (errUpdate) console.error('[upsertTutor] falha ao atualizar tutor', existing.id, errUpdate.message)
     }
     return existing.id
   }

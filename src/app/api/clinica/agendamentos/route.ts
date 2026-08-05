@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json().catch(() => null)
   const {
-    telefone, tutor_nome,
+    telefone, tutor_nome, cpf,
     pet_id, pet_nome, pet_especie, pet_raca,
     exames,                     // [{ tipo_exame, duracao_minutos, valor, horario_especial }]
     tipo_exame,                 // fallback single-exam
@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
   // 1. Busca ou cria tutor
   let tutorId: number
   try {
-    tutorId = await upsertTutor(telNorm, tutor_nome)
+    tutorId = await upsertTutor(telNorm, tutor_nome, cpf ?? undefined)
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Erro ao processar tutor.' }, { status: 500 })
   }
