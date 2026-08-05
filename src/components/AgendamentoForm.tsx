@@ -402,7 +402,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
     setTutorInfo(t)
     setTelefone(t.telefone)
     setTutorNome(t.nome ?? '')
-    setCpfTutor(t.cpf ?? '')
+    setCpfTutor(t.cpf ? formatCPFInput(t.cpf) : '')
     setPetsDisponiveis(t.pets ?? [])
     setBuscaResultados([])
     setTutorNovo(false)
