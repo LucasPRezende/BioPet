@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { verifyAgentKey } from '@/lib/agent-auth'
+import { isHorarioEspecial } from '@/lib/feriados'
 
 const DIAS_SEMANA = [
   'domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado',
@@ -31,13 +32,23 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  // Busca todos agendamentos ativos do dia
-  const { data: agendamentos } = await supabase
-    .from('agendamentos')
-    .select('data_hora, duracao_minutos')
-    .gte('data_hora', `${data}T00:00:00`)
-    .lte('data_hora', `${data}T23:59:59`)
-    .neq('status', 'cancelado')
+  // Busca todos agendamentos ativos do dia + config de horário especial (mesma
+  // fonte usada no cálculo real de preço em calcularEspecial/agendamento-helpers)
+  const [{ data: agendamentos }, { data: feriadosRows }, { data: horarioRows }] = await Promise.all([
+    supabase
+      .from('agendamentos')
+      .select('data_hora, duracao_minutos')
+      .gte('data_hora', `${data}T00:00:00`)
+      .lte('data_hora', `${data}T23:59:59`)
+      .neq('status', 'cancelado'),
+    supabase.from('feriados').select('data'),
+    supabase.from('system_config').select('key, value').in('key', ['horario_especial_inicio', 'horario_especial_fim']),
+  ])
+
+  const feriados = (feriadosRows ?? []).map((f: { data: string }) => f.data)
+  const cfgMap = Object.fromEntries((horarioRows ?? []).map((r: { key: string; value: string }) => [r.key, r.value]))
+  const horarioEspecialInicio = cfgMap['horario_especial_inicio'] ?? '08:00'
+  const horarioEspecialFim    = cfgMap['horario_especial_fim']    ?? '17:00'
 
   // Monta a lista de intervalos ocupados
   const ocupados = (agendamentos ?? []).map(ag => {
@@ -63,7 +74,7 @@ export async function GET(request: NextRequest) {
   const horaSP = agora.toLocaleTimeString('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit' }) // HH:MM
   const ehHoje = data === hojeSP
 
-  const horarios_livres: string[] = []
+  const horarios_livres: { hora: string; especial: boolean }[] = []
   const cursor = new Date(expedienteInicio)
 
   while (cursor < expedienteFim) {
@@ -74,9 +85,14 @@ export async function GET(request: NextRequest) {
       const conflito = ocupados.some(oc => cursor < oc.fim && slotFim > oc.inicio)
       const hh = String(cursor.getHours()).padStart(2, '0')
       const mm = String(cursor.getMinutes()).padStart(2, '0')
-      const passou = ehHoje && `${hh}:${mm}` <= horaSP
+      const horaStr = `${hh}:${mm}`
+      const passou = ehHoje && horaStr <= horaSP
       if (!conflito && !passou) {
-        horarios_livres.push(`${hh}:${mm}`)
+        // Mesma regra usada no cálculo real do preço (agendamento-helpers):
+        // especial quando início+duração ultrapassa o horário configurado em
+        // Feriados — não apenas o horário de início.
+        const especial = isHorarioEspecial(horaStr, duracao, data, feriados, horarioEspecialFim, horarioEspecialInicio)
+        horarios_livres.push({ hora: horaStr, especial })
       }
     }
 
@@ -88,6 +104,7 @@ export async function GET(request: NextRequest) {
     dia_semana: diaDaSemana(data),
     duracao_minutos: duracao,
     expediente: { inicio, fim },
+    horario_comercial: { inicio: horarioEspecialInicio, fim: horarioEspecialFim },
     total_livres: horarios_livres.length,
     horarios_livres,
   })
