@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { verifyAgentKey } from '@/lib/agent-auth'
 import { normalizeTelefone } from '@/lib/telefone'
+import { precificarExames, recalcularTotal, type ExameInput } from '@/lib/agendamento-helpers'
 
 const DIAS = [
   'domingo', 'segunda-feira', 'terça-feira', 'quarta-feira',
@@ -44,7 +45,7 @@ export async function PATCH(request: NextRequest) {
   // Busca agendamento atual + dados do tutor
   const { data: atual, error: fetchError } = await supabase
     .from('agendamentos')
-    .select('id, duracao_minutos, status, tutores(telefone, nome)')
+    .select('id, duracao_minutos, status, forma_pagamento, encaixe, tutores(telefone, nome)')
     .eq('id', id)
     .single()
 
@@ -102,6 +103,42 @@ export async function PATCH(request: NextRequest) {
 
   if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 })
 
+  // Recalcula o valor: mudar de horário pode cruzar a fronteira comercial/
+  // especial (ex.: remarcar de 8h pra 9h muda o preço de R$240 pra R$180).
+  // Sem isso, o valor gravado ficava desatualizado em relação ao que a IA
+  // informa ao cliente.
+  const { data: exames } = await supabase
+    .from('agendamento_exames')
+    .select('tipo_exame, duracao_minutos, valor, desconto, descricao')
+    .eq('agendamento_id', id)
+
+  let valorTotal: number | null = null
+  if (exames && exames.length > 0) {
+    const formaPagamento = (atual.forma_pagamento ?? '').toLowerCase()
+    const gratuito = formaPagamento === 'gratuito'
+    const forma = formaPagamento === 'cartao' ? 'cartao' : 'pix'
+
+    const precificados = await precificarExames(exames as ExameInput[], {
+      forma,
+      gratuito,
+      bio: [],
+      dataHora: nova_data_hora,
+      encaixe: atual.encaixe ?? false,
+    })
+
+    await Promise.all(
+      precificados.map(e =>
+        supabase
+          .from('agendamento_exames')
+          .update({ valor: e.valor, horario_especial: e.horario_especial })
+          .eq('agendamento_id', id)
+          .eq('tipo_exame', e.tipo_exame),
+      ),
+    )
+
+    valorTotal = await recalcularTotal(id)
+  }
+
   // Pega dados do tutor do agendamento
   const tutor = Array.isArray(atual.tutores) ? atual.tutores[0] : atual.tutores as { telefone: string; nome: string } | null
 
@@ -114,5 +151,9 @@ export async function PATCH(request: NextRequest) {
     agendamento_id: id,
   })
 
-  return NextResponse.json({ sucesso: true, data_formatada: formatDataHora(nova_data_hora) })
+  return NextResponse.json({
+    sucesso: true,
+    data_formatada: formatDataHora(nova_data_hora),
+    ...(valorTotal !== null ? { valor_total: valorTotal } : {}),
+  })
 }
