@@ -117,6 +117,34 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  // pet_id é obrigatório e TEM que existir de verdade — não confia num "0"
+  // ou id chutado. Já aconteceu de cadastrar_pet e agendar serem chamados na
+  // mesma rodada (antes do id real do pet voltar), a IA usar pet_id:0 como
+  // placeholder, e "pet_id ? Number(pet_id) : null" tratar 0 como ausente —
+  // criando um agendamento sem pet vinculado, sem erro nenhum (0 nunca bate
+  // na FK porque virava null antes de chegar no banco).
+  if (!pet_id) {
+    return NextResponse.json(
+      { error: 'Campo "pet_id" é obrigatório — chame cadastrar_pet (ou identificar_tutor) e use o id retornado, nunca 0 ou um número chutado.' },
+      { status: 400 },
+    )
+  }
+  const { data: petRow } = await supabase
+    .from('pets')
+    .select('id')
+    .eq('id', Number(pet_id))
+    .eq('tutor_id', Number(tutor_id))
+    .maybeSingle()
+  if (!petRow) {
+    return NextResponse.json(
+      {
+        error: 'precisa_atendente',
+        mensagem: `O pet_id ${pet_id} não existe ou não pertence a este tutor. Chame identificar_tutor ou cadastrar_pet de novo e use o id real antes de agendar.`,
+      },
+      { status: 422 },
+    )
+  }
+
   // Raio-X de mais de um estudo é julgamento clínico — não agendar pela IA.
   if (raioXPrecisaAtendente(listaExames)) {
     return NextResponse.json(

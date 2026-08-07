@@ -119,7 +119,7 @@ export const TOOLS: Anthropic.Tool[] = [
       type: 'object',
       properties: {
         tutor_id: { type: 'number' },
-        pet_id: { type: 'number' },
+        pet_id: { type: 'number', description: 'Id real vindo de cadastrar_pet ou identificar_tutor — NUNCA 0 nem chutado. Se acabou de chamar cadastrar_pet, espere o resultado voltar antes de chamar agendar.' },
         exames: {
           type: 'array',
           description:
@@ -139,7 +139,7 @@ export const TOOLS: Anthropic.Tool[] = [
         veterinario_id: { type: 'number', description: 'Id do veterinário responsável (de listar_veterinarios)' },
         observacoes: { type: 'string', description: 'Observações/características relevantes do agendamento (pedido especial, detalhe do encaminhamento, sedação, etc.)' },
       },
-      required: ['tutor_id', 'data_hora'],
+      required: ['tutor_id', 'pet_id', 'data_hora'],
     },
   },
   {
