@@ -11,6 +11,7 @@ interface Comissao {
   custo_exame:              number
   valor_comissao:           number
   varia_por_horario:        boolean
+  permite_multiplo:         boolean
   preco_pix_comercial:      number | null
   preco_cartao_comercial:   number | null
   preco_pix_fora_horario:   number | null
@@ -49,6 +50,7 @@ type EditRow = {
   custo_exame:               string
   valor_comissao:            string
   varia_por_horario:         boolean
+  permite_multiplo:          boolean
   preco_pix_comercial:       string
   preco_cartao_comercial:    string
   preco_pix_fora_horario:    string
@@ -724,6 +726,7 @@ export default function ComissoesPage() {
       custo_exame:               String(c.custo_exame               ?? 0),
       valor_comissao:            String(c.valor_comissao            ?? 0),
       varia_por_horario:         c.varia_por_horario                ?? false,
+      permite_multiplo:          c.permite_multiplo                 ?? false,
       preco_pix_comercial:       String(c.preco_pix_comercial       ?? 0),
       preco_cartao_comercial:    String(c.preco_cartao_comercial    ?? ''),
       preco_pix_fora_horario:    String(c.preco_pix_fora_horario    ?? ''),
@@ -768,6 +771,7 @@ export default function ComissoesPage() {
         custo_exame:               p(r.custo_exame),
         valor_comissao:            p(r.valor_comissao),
         varia_por_horario:         varia,
+        permite_multiplo:          r.permite_multiplo,
         preco_pix_comercial:       pixCom,
         preco_cartao_comercial:    carCom,
         preco_pix_fora_horario:    varia ? (r.preco_pix_fora_horario    ? p(r.preco_pix_fora_horario)    : null) : pixCom,
@@ -876,6 +880,15 @@ export default function ComissoesPage() {
                             </span>
                           </div>
                           <div className="flex items-center gap-3 shrink-0">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <div
+                                onClick={() => setField(c.id, 'permite_multiplo', !r.permite_multiplo)}
+                                className={`w-9 h-5 rounded-full transition relative ${r.permite_multiplo ? 'bg-[#c4a35a]' : 'bg-gray-200'}`}
+                              >
+                                <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${r.permite_multiplo ? 'left-4' : 'left-0.5'}`} />
+                              </div>
+                              <span className="text-xs font-medium text-gray-500 whitespace-nowrap">Permite mais de um</span>
+                            </label>
                             <label className="flex items-center gap-2 cursor-pointer">
                               <div
                                 onClick={() => setField(c.id, 'varia_por_horario', !r.varia_por_horario)}

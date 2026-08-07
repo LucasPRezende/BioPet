@@ -24,14 +24,14 @@ export async function GET() {
   const { data: comissoesRaw } = await supabase
     .from('comissoes_exame')
     .select(
-      'tipo_exame, duracao_minutos, varia_por_horario, ' +
+      'tipo_exame, duracao_minutos, varia_por_horario, permite_multiplo, ' +
       'preco_pix_comercial, preco_cartao_comercial, ' +
       'preco_pix_fora_horario, preco_cartao_fora_horario'
     )
     .in('tipo_exame', tipos.length > 0 ? tipos : ['__nenhum__'])
 
   const comissoes = (comissoesRaw ?? [] as unknown[]) as unknown as {
-    tipo_exame: string; duracao_minutos: number | null; varia_por_horario: boolean
+    tipo_exame: string; duracao_minutos: number | null; varia_por_horario: boolean; permite_multiplo: boolean
     preco_pix_comercial: number | null; preco_cartao_comercial: number | null
     preco_pix_fora_horario: number | null; preco_cartao_fora_horario: number | null
   }[]
@@ -43,6 +43,7 @@ export async function GET() {
       tipo_exame:           tipo,
       duracao_minutos:      c?.duracao_minutos          ?? 30,
       varia_por_horario:    varia,
+      permite_multiplo:     c?.permite_multiplo ?? false,
       valor_pix:            c?.preco_pix_comercial    ?? null,
       valor_cartao:         c?.preco_cartao_comercial ?? null,
       valor_especial_pix:   varia ? (c?.preco_pix_fora_horario    ?? null) : null,

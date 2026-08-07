@@ -68,6 +68,7 @@ export async function PUT(request: NextRequest) {
     id: number
     custo_exame: number; valor_comissao: number
     varia_por_horario?: boolean
+    permite_multiplo?: boolean
     preco_pix_comercial?: number | null; preco_cartao_comercial?: number | null
     preco_pix_fora_horario?: number | null; preco_cartao_fora_horario?: number | null
     duracao_minutos?: number | null; observacao?: string | null
@@ -88,6 +89,7 @@ export async function PUT(request: NextRequest) {
         custo_exame:               item.custo_exame,
         valor_comissao:            item.valor_comissao,
         varia_por_horario:         item.varia_por_horario         ?? false,
+        permite_multiplo:          item.permite_multiplo          ?? false,
         preco_pix_comercial:       item.preco_pix_comercial       ?? null,
         preco_cartao_comercial:    item.preco_cartao_comercial    ?? null,
         preco_pix_fora_horario:    item.preco_pix_fora_horario    ?? null,

@@ -14,6 +14,7 @@ interface ExameInfo {
   tipo_exame:            string
   duracao_minutos:       number
   varia_por_horario:     boolean
+  permite_multiplo:      boolean
   valor_pix:             number | null
   valor_cartao:          number | null
   valor_especial_pix:    number | null
@@ -207,6 +208,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
   // Step 2 — Exames & Info
   const [examesDisponiveis,    setExamesDisponiveis]    = useState<ExameInfo[]>([])
   const [examesSelecionados,   setExamesSelecionados]   = useState<ExameInfo[]>([])
+  const [examesQuantidade,     setExamesQuantidade]     = useState<Record<string, number>>({})
   const [vets,                 setVets]                 = useState<VetOpt[]>([])
   const [vetId,                setVetId]                = useState('')
   const [observacoes,          setObservacoes]          = useState('')
@@ -258,7 +260,8 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
   const raioXSelecionado = examesSelecionados.some(e => e.tipo_exame.toLowerCase().includes('raio') && !e.tipo_exame.toLowerCase().includes('acréscim'))
   const temBioquimica    = examesSelecionados.some(e => e.tipo_exame === 'Bioquímica')
   const temTesteRapido   = examesSelecionados.some(e => e.tipo_exame === 'Teste Rápido')
-  const totalDuracao     = examesSelecionados.reduce((s, e) => s + e.duracao_minutos, 0)
+  const quantidadeExame  = (tipoExame: string) => examesQuantidade[tipoExame] ?? 1
+  const totalDuracao     = examesSelecionados.reduce((s, e) => s + e.duracao_minutos * quantidadeExame(e.tipo_exame), 0)
                          + (acrescimoExame ? estudosAdicionaisDesc.length * acrescimoExame.duracao_minutos : 0)
   const especial         = isHorarioEspecial(horaSelecionada, totalDuracao, data, feriadoDatas, horarioFim, horarioInicio)
   const motivoEspecial   = especial && data ? motivoHorarioEspecial(horaSelecionada, totalDuracao, data, feriadoDatas, horarioFim, horarioInicio) : null
@@ -303,7 +306,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
   const descontoTotal = podeDescontar
     ? examesSelecionados.reduce((s, e) => s + Math.min(descontos[e.tipo_exame] ?? 0, valorBrutoExame(e)), 0)
     : 0
-  const totalBruto = gratuito ? 0 : examesSelecionados.reduce((s, e) => s + valorBrutoExame(e), 0) + valorAcrescimo
+  const totalBruto = gratuito ? 0 : examesSelecionados.reduce((s, e) => s + valorBrutoExame(e) * quantidadeExame(e.tipo_exame), 0) + valorAcrescimo
   const totalValor = Math.max(0, totalBruto - descontoTotal)
 
   // Detecta admin (desconto é exclusivo de admin no modo admin)
@@ -330,13 +333,14 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
       fetch('/api/clinica/veterinarios').then(r => r.ok ? r.json() : []).then(d => setVets(d ?? []))
     } else {
       fetch('/api/comissoes').then(r => r.ok ? r.json() : []).then((d: {
-        tipo_exame: string; duracao_minutos: number | null; varia_por_horario: boolean
+        tipo_exame: string; duracao_minutos: number | null; varia_por_horario: boolean; permite_multiplo: boolean
         preco_pix_comercial: number | null; preco_cartao_comercial: number | null
         preco_pix_fora_horario: number | null; preco_cartao_fora_horario: number | null
       }[]) => setExamesDisponiveis(d.map(c => ({
         tipo_exame:            c.tipo_exame,
         duracao_minutos:       c.duracao_minutos ?? 30,
         varia_por_horario:     c.varia_por_horario,
+        permite_multiplo:      c.permite_multiplo ?? false,
         valor_pix:             c.preco_pix_comercial    ?? null,
         valor_cartao:          c.preco_cartao_comercial ?? null,
         valor_especial_pix:    c.preco_pix_fora_horario    ?? null,
@@ -459,11 +463,18 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
           setEstudosAdicionaisDesc([])
           setDescricoesPorExame(prev => { const n = { ...prev }; delete n[exame.tipo_exame]; return n })
         }
+        if (exame.permite_multiplo) {
+          setExamesQuantidade(prev => { const n = { ...prev }; delete n[exame.tipo_exame]; return n })
+        }
         return prev.filter(e => e.tipo_exame !== exame.tipo_exame)
       }
       return [...prev, exame]
     })
     setHoraSelecionada('')
+  }
+
+  function alterarQuantidade(tipoExame: string, delta: number) {
+    setExamesQuantidade(prev => ({ ...prev, [tipoExame]: Math.max(1, Math.min(20, (prev[tipoExame] ?? 1) + delta)) }))
   }
 
   function toggleSubExame(id: number) {
@@ -503,15 +514,16 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
 
   function buildPayload() {
     const dataHora = encaixe ? `${data}T00:00:00` : `${data}T${horaSelecionada}:00`
-    const examesPayload = examesSelecionados.map(e => {
+    const examesPayload = examesSelecionados.flatMap(e => {
       const bruto = valorBrutoExame(e)
       const desc  = podeDescontar ? Math.min(descontos[e.tipo_exame] ?? 0, bruto) : 0
-      return {
+      const qtd   = quantidadeExame(e.tipo_exame)
+      return Array.from({ length: qtd }, (_, i) => ({
         tipo_exame: e.tipo_exame, duracao_minutos: e.duracao_minutos,
-        valor: Math.max(0, bruto - desc), desconto: desc,
+        valor: i === 0 ? Math.max(0, bruto - desc) : bruto, desconto: i === 0 ? desc : 0,
         horario_especial: especial,
         descricao: descricoesPorExame[e.tipo_exame]?.trim() || null,
-      }
+      }))
     })
     if (acrescimoExame && estudosAdicionaisDesc.length > 0) {
       for (const desc of estudosAdicionaisDesc) {
@@ -537,7 +549,10 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
       telefone:              telefone.trim(),
       tutor_nome:            tutorNome.trim() || null,
       exames:                examesPayload,
-      tipo_exame:            [...examesSelecionados.map(e => e.tipo_exame), ...(acrescimoExame ? estudosAdicionaisDesc.map(() => acrescimoExame.tipo_exame) : [])].join(', '),
+      tipo_exame:            [
+                                ...examesSelecionados.flatMap(e => Array(quantidadeExame(e.tipo_exame)).fill(e.tipo_exame)),
+                                ...(acrescimoExame ? estudosAdicionaisDesc.map(() => acrescimoExame.tipo_exame) : []),
+                              ].join(', '),
       duracao_minutos:       totalDuracao,
       data_hora:             dataHora,
       veterinario_id:        vetId ? Number(vetId) : null,
@@ -814,6 +829,8 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
                 const isBio = ex.tipo_exame === 'Bioquímica'
                 const isTeste = ex.tipo_exame === 'Teste Rápido'
                 const isRaio = ex.tipo_exame.toLowerCase().includes('raio')
+                const isMultiplo = ex.permite_multiplo && !isBio && !isTeste && !isRaio
+                const qtd = quantidadeExame(ex.tipo_exame)
                 return (
                   <div key={ex.tipo_exame}>
                     <button type="button" onClick={() => toggleExame(ex)}
@@ -871,6 +888,19 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
                             </button>
                           </div>
                         )}
+                      </div>
+                    )}
+
+                    {isMultiplo && sel && (
+                      <div className="mt-2 ml-4 p-3 bg-amber-50 border border-[#8a6e36]/20 rounded-xl flex items-center justify-between">
+                        <span className="text-xs font-semibold text-[#8a6e36]">Quantidade</span>
+                        <div className="flex items-center gap-3">
+                          <button type="button" onClick={() => alterarQuantidade(ex.tipo_exame, -1)} disabled={qtd <= 1}
+                            className="w-7 h-7 rounded-lg border border-[#8a6e36]/40 bg-white text-[#8a6e36] font-bold disabled:opacity-30 hover:bg-amber-100 transition">−</button>
+                          <span className="text-sm font-semibold text-[#19202d] w-4 text-center">{qtd}</span>
+                          <button type="button" onClick={() => alterarQuantidade(ex.tipo_exame, 1)}
+                            className="w-7 h-7 rounded-lg border border-[#8a6e36]/40 bg-white text-[#8a6e36] font-bold hover:bg-amber-100 transition">+</button>
+                        </div>
                       </div>
                     )}
 
@@ -970,11 +1000,14 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
           {examesSelecionados.length > 0 && (
             <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm space-y-1.5">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Resumo</p>
-              {examesSelecionados.map(e => (
-                <div key={e.tipo_exame} className="flex justify-between text-gray-600">
-                  <span>{e.tipo_exame}</span><span className="font-medium">{e.duracao_minutos} min</span>
-                </div>
-              ))}
+              {examesSelecionados.map(e => {
+                const qtd = quantidadeExame(e.tipo_exame)
+                return (
+                  <div key={e.tipo_exame} className="flex justify-between text-gray-600">
+                    <span>{e.tipo_exame}{qtd > 1 ? ` ×${qtd}` : ''}</span><span className="font-medium">{e.duracao_minutos * qtd} min</span>
+                  </div>
+                )
+              })}
               {estudosAdicionaisDesc.length > 0 && acrescimoExame && (
                 <div className="flex justify-between text-blue-600">
                   <span>Raio-X +{estudosAdicionaisDesc.length} estudo{estudosAdicionaisDesc.length > 1 ? 's' : ''} adicional</span>
@@ -998,10 +1031,11 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
                 const bruto  = valorBrutoExame(e)
                 const desc   = Math.min(descontos[e.tipo_exame] ?? 0, bruto)
                 const aberto = descontosAbertos.has(e.tipo_exame) || desc > 0
+                const qtd = quantidadeExame(e.tipo_exame)
                 return (
                   <div key={e.tipo_exame}>
                     <div className="flex items-center justify-between">
-                      <span className="text-gray-700">{e.tipo_exame}</span>
+                      <span className="text-gray-700">{e.tipo_exame}{qtd > 1 ? ` (unid. 1 de ${qtd})` : ''}</span>
                       {desc > 0
                         ? <span className="text-xs"><span className="text-gray-400 line-through">{brl(bruto)}</span> <span className="text-green-700 font-semibold">{brl(bruto - desc)}</span></span>
                         : <span className="text-xs text-gray-400">{brl(bruto)}</span>}
@@ -1280,7 +1314,8 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
                     })}
                   </div>
                 )
-                return <div key={e.tipo_exame} className="flex justify-between text-gray-600"><span>{e.tipo_exame}</span><span className="font-medium">{brl(calcularValorExame(e, formaPagamento, especial))}</span></div>
+                const qtd = quantidadeExame(e.tipo_exame)
+                return <div key={e.tipo_exame} className="flex justify-between text-gray-600"><span>{e.tipo_exame}{qtd > 1 ? ` ×${qtd}` : ''}</span><span className="font-medium">{brl(calcularValorExame(e, formaPagamento, especial) * qtd)}</span></div>
               })}
               <div className="border-t border-gray-200 pt-1.5 flex justify-between font-bold text-[#19202d]">
                 <span>Total ({formaPagamento === 'cartao' ? 'cartão' : 'pix'})</span><span>{brl(totalValor)}</span>
@@ -1301,12 +1336,15 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
             { label: 'Resp. Legal', value: tutorNome || tutorInfo?.nome || telefone },
             { label: 'Telefone',    value: telefone },
             { label: 'Pet',         value: petSelecionado ? `${petSelecionado.nome}${petSelecionado.especie ? ` (${petSelecionado.especie})` : ''}` : `${petNome}${petEspecie ? ` (${petEspecie})` : ''}` },
-            { label: 'Exame(s)',    value: examesSelecionados.map(e =>
-                e.tipo_exame === 'Bioquímica' && bioquimicaSelecionados.length > 0
+            { label: 'Exame(s)',    value: examesSelecionados.map(e => {
+                const qtd = quantidadeExame(e.tipo_exame)
+                const nome = e.tipo_exame === 'Bioquímica' && bioquimicaSelecionados.length > 0
                   ? `Bioquímica (${bioquimicaSelecionados.map(id => bioquimicaExames.find(x => x.id === id)?.nome ?? '').join(', ')})`
                 : e.tipo_exame === 'Teste Rápido' && testeRapidoSelecionados.length > 0
                   ? `Teste Rápido (${testeRapidoSelecionados.map(id => testeRapidoExames.find(x => x.id === id)?.nome ?? '').join(', ')})`
-                : e.tipo_exame).join(', ') },
+                : e.tipo_exame
+                return qtd > 1 ? `${nome} ×${qtd}` : nome
+              }).join(', ') },
             { label: 'Duração',     value: `${totalDuracao} min` },
             { label: 'Data',        value: dataFmt },
             { label: 'Horário',     value: encaixe ? 'Encaixe (sem horário fixo)' : horaSelecionada },
