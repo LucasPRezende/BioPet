@@ -150,3 +150,157 @@ export async function isConectado(): Promise<boolean> {
   const map = await lerConfig()
   return !!map[CONFIG_KEYS.accessToken]
 }
+
+// ─── Cliente da API de fretes (cotação, carrinho, compra, etiqueta) ─────────
+// Endpoints confirmados na doc técnica deles (docs.melhorenvio.com.br/reference).
+
+const USER_AGENT = 'BioPet Vet (contato@biopetvet.com)'
+
+async function apiFetch<T>(path: string, body: unknown): Promise<T> {
+  const token = await getValidAccessToken()
+  const res = await fetch(`${baseUrl()}/api/v2/me${path}`, {
+    method:  'POST',
+    headers: {
+      Authorization:  `Bearer ${token}`,
+      'User-Agent':   USER_AGENT,
+      'Content-Type': 'application/json',
+      Accept:         'application/json',
+    },
+    body: JSON.stringify(body),
+  })
+  const data = await res.json().catch(() => null)
+  if (!res.ok) {
+    throw new Error(`Melhor Envio ${path} falhou (${res.status}): ${JSON.stringify(data)}`)
+  }
+  return data as T
+}
+
+export interface Endereco {
+  cep:        string
+  logradouro: string
+  numero:     string
+  bairro:     string
+  cidade:     string
+  uf:         string
+  telefone?:  string  // exigido por algumas transportadoras (ex: Jadlog) no /cart
+  cnpj?:      string  // documento do remetente/destinatário, exigido no /cart
+}
+
+export interface Pacote {
+  altura_cm: number
+  largura_cm: number
+  comprimento_cm: number
+  peso_kg: number
+}
+
+// Chutes de mercado pra caixa de isopor + gelo + tubos — sem medida real ainda
+// (não bloqueia a Fase 4, ver LABS_PARCEIROS.md seção "Estoque de insumos").
+// Ajustar aqui quando tiver os presets de caixa de verdade.
+export const PRESET_CAIXA_PADRAO: Pacote = {
+  altura_cm: 20, largura_cm: 20, comprimento_cm: 20, peso_kg: 1.5,
+}
+
+export async function enderecoOrigemBioPet(): Promise<Endereco> {
+  const { data } = await supabase
+    .from('system_config').select('value').eq('key', 'biopet_endereco_origem').maybeSingle()
+  if (!data?.value) throw new Error('Endereço de origem da BioPet não configurado (system_config.biopet_endereco_origem).')
+  return JSON.parse(data.value)
+}
+
+export interface OpcaoFrete {
+  id:            number
+  name:          string
+  price:         string | null
+  custom_price:  string | null
+  delivery_time: number | null
+  company:       { id: number; name: string; picture?: string }
+  error?:        string
+}
+
+/** Cotação — retorna as opções de transportadora/preço/prazo pra uma rota. */
+export async function cotarFrete(
+  origem: Endereco, destino: Endereco, pacote: Pacote, valorSegurado: number,
+): Promise<OpcaoFrete[]> {
+  return apiFetch<OpcaoFrete[]>('/shipment/calculate', {
+    from: { postal_code: origem.cep },
+    to:   { postal_code: destino.cep },
+    products: [{
+      id:              'pedido-lab',
+      width:           pacote.largura_cm,
+      height:          pacote.altura_cm,
+      length:          pacote.comprimento_cm,
+      weight:          pacote.peso_kg,
+      insurance_value: valorSegurado,
+      quantity:        1,
+    }],
+    options: { receipt: false, own_hand: false },
+  })
+}
+
+interface ItemCarrinho {
+  id:       string
+  protocol: string
+  price:    number
+}
+
+/** Adiciona o envio escolhido ao carrinho. Retorna o id (UUID) do pedido no carrinho. */
+export async function adicionarAoCarrinho(params: {
+  serviceId: number
+  origem:    Endereco
+  destino:   Endereco
+  pacote:    Pacote
+  valorSegurado: number
+  nomeProduto: string
+}): Promise<ItemCarrinho> {
+  const { serviceId, origem, destino, pacote, valorSegurado, nomeProduto } = params
+  return apiFetch<ItemCarrinho>('/cart', {
+    service: serviceId,
+    from: {
+      name: 'BioPet Vet', document: '', company_document: origem.cnpj ?? '', phone: origem.telefone ?? '',
+      address: origem.logradouro, number: origem.numero, district: origem.bairro,
+      city: origem.cidade, state_abbr: origem.uf, postal_code: origem.cep, country_id: 'BR',
+    },
+    to: {
+      name: nomeProduto, document: '', company_document: destino.cnpj ?? '', phone: destino.telefone ?? '',
+      address: destino.logradouro, number: destino.numero, district: destino.bairro,
+      city: destino.cidade, state_abbr: destino.uf, postal_code: destino.cep, country_id: 'BR',
+    },
+    products: [{ name: nomeProduto, quantity: '1', unitary_value: String(valorSegurado) }],
+    volumes: [{
+      height: pacote.altura_cm, width: pacote.largura_cm,
+      length: pacote.comprimento_cm, weight: pacote.peso_kg,
+    }],
+    options: {
+      insurance_value: valorSegurado, receipt: false, own_hand: false,
+      reverse: false, non_commercial: true,
+    },
+  })
+}
+
+/** Paga os envios do carrinho (debita saldo pré-pago da conta Melhor Envio). */
+export async function comprarFretes(orderIds: string[]): Promise<unknown> {
+  return apiFetch('/shipment/checkout', { orders: orderIds })
+}
+
+/** Gera a etiqueta (assíncrono — dar um intervalo antes de chamar imprimirEtiquetas). */
+export async function gerarEtiquetas(orderIds: string[]): Promise<unknown> {
+  return apiFetch('/shipment/generate', { orders: orderIds })
+}
+
+/** Retorna a URL do PDF da etiqueta pronta pra impressão. */
+export async function imprimirEtiquetas(orderIds: string[]): Promise<string> {
+  const data = await apiFetch<{ url: string }>('/shipment/print', { orders: orderIds, mode: 'public' })
+  return data.url
+}
+
+export interface StatusRastreio {
+  status:      string
+  tracking:    string | null
+  posted_at:   string | null
+  delivered_at: string | null
+  canceled_at: string | null
+}
+
+export async function rastrearEnvios(orderIds: string[]): Promise<Record<string, StatusRastreio>> {
+  return apiFetch<Record<string, StatusRastreio>>('/shipment/tracking', { orders: orderIds })
+}

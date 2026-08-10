@@ -25,6 +25,26 @@ interface TuboFisico {
 }
 interface GrupoTubo { cor_tubo: string | null; tubos: TuboFisico[] }
 
+interface EnvioLab {
+  id:               number
+  laboratorio_id:   number
+  transportadora:   string | null
+  valor_frete:      number | null
+  etiqueta_url:     string | null
+  codigo_rastreio:  string | null
+  status_envio:     string
+  lab_laboratorios: { nome: string } | null
+}
+interface OpcaoFrete {
+  id:            number
+  name:          string
+  price:         string | null
+  custom_price:  string | null
+  delivery_time: number | null
+  company:       { name: string }
+}
+interface CotacaoPorLab { laboratorio_id: number; nome: string; opcoes: OpcaoFrete[]; erro?: string }
+
 interface Pedido {
   id:               number
   tutor_id:         number
@@ -160,19 +180,25 @@ export default function PedidoLabDetalhePage() {
   const [salvandoObs, setSalvandoObs] = useState(false)
   const [grupos,      setGrupos]      = useState<GrupoTubo[]>([])
   const [resumoTubos, setResumoTubos] = useState('')
+  const [envios,      setEnvios]      = useState<EnvioLab[]>([])
+  const [cotacoes,    setCotacoes]    = useState<CotacaoPorLab[] | null>(null)
+  const [cotando,     setCotando]     = useState(false)
+  const [comprando,   setComprando]   = useState<string | null>(null)
 
   const carregar = useCallback(() => {
     setLoading(true)
     Promise.all([
       fetch(`/api/labs/pedidos/${id}`).then(r => r.json()),
       fetch(`/api/labs/pedidos/${id}/tubos`).then(r => r.ok ? r.json() : { grupos: [], resumo: '' }),
+      fetch(`/api/labs/pedidos/${id}/frete`).then(r => r.ok ? r.json() : []),
     ])
-      .then(([d, t]) => {
+      .then(([d, t, f]) => {
         if (d.error) { setErro(d.error); return }
         setPedido(d)
         setObservacoes(d.observacoes ?? '')
         setGrupos(t.grupos ?? [])
         setResumoTubos(t.resumo ?? '')
+        setEnvios(f ?? [])
       })
       .catch(() => setErro('Erro ao carregar pedido.'))
       .finally(() => setLoading(false))
@@ -201,6 +227,30 @@ export default function PedidoLabDetalhePage() {
       body: JSON.stringify({ status_pagamento: novo }),
     })
     if (res.ok) carregar()
+  }
+
+  async function cotar() {
+    if (!pedido) return
+    setCotando(true); setErro('')
+    const res = await fetch(`/api/labs/pedidos/${pedido.id}/frete/cotar`, { method: 'POST' })
+    const data = await res.json()
+    if (res.ok) setCotacoes(data)
+    else setErro(data.error ?? 'Erro ao cotar frete.')
+    setCotando(false)
+  }
+
+  async function comprar(laboratorioId: number, serviceId: number) {
+    if (!pedido) return
+    setComprando(`${laboratorioId}-${serviceId}`); setErro('')
+    const res = await fetch(`/api/labs/pedidos/${pedido.id}/frete/comprar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ laboratorio_id: laboratorioId, service_id: serviceId }),
+    })
+    const data = await res.json()
+    if (res.ok) { setCotacoes(null); carregar() }
+    else setErro(data.error ?? 'Erro ao comprar frete.')
+    setComprando(null)
   }
 
   async function salvarObservacoes() {
@@ -310,6 +360,78 @@ export default function PedidoLabDetalhePage() {
             </div>
           )}
 
+          {/* Frete */}
+          {['coletado', 'enviado', 'concluido'].includes(pedido.status) && (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Frete (Melhor Envio)</p>
+                {pedido.status === 'coletado' && (
+                  <button onClick={cotar} disabled={cotando}
+                    className="text-xs font-semibold text-[#8a6e36] hover:text-[#6f5729] transition disabled:opacity-40">
+                    {cotando ? 'Cotando...' : '🚚 Cotar frete'}
+                  </button>
+                )}
+              </div>
+
+              {envios.length > 0 && (
+                <div className="space-y-1.5 mb-3">
+                  {envios.map(e => (
+                    <div key={e.id} className="flex items-center justify-between text-sm py-1.5 border-b border-gray-50 last:border-0">
+                      <div>
+                        <p className="text-[#19202d] font-medium">{e.lab_laboratorios?.nome ?? '?'} · {e.transportadora ?? '—'}</p>
+                        <p className="text-[11px] text-gray-400 uppercase">
+                          {e.status_envio}{e.codigo_rastreio ? ` · ${e.codigo_rastreio}` : ''}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold text-[#19202d]">{fmtBRL(e.valor_frete)}</p>
+                        {e.etiqueta_url && (
+                          <a href={e.etiqueta_url} target="_blank" rel="noopener noreferrer"
+                            className="text-[11px] text-[#8a6e36] font-semibold hover:underline">
+                            etiqueta ↗
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {cotacoes?.map(c => {
+                const jaComprado = envios.some(e => e.laboratorio_id === c.laboratorio_id)
+                if (jaComprado) return null
+                return (
+                  <div key={c.laboratorio_id} className="mb-3">
+                    <p className="text-xs font-bold text-[#8a6e36] mb-1.5">{c.nome}</p>
+                    {c.erro && <p className="text-xs text-red-500 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-2">{c.erro}</p>}
+                    <div className="space-y-1.5">
+                      {c.opcoes.map(o => (
+                        <div key={o.id} className="flex items-center justify-between text-sm px-3 py-2 rounded-lg border border-gray-200">
+                          <div>
+                            <p className="text-[#19202d] font-medium">{o.company.name} — {o.name}</p>
+                            {o.delivery_time != null && <p className="text-[11px] text-gray-400">{o.delivery_time}d úteis</p>}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-[#19202d]">{fmtBRL(Number(o.custom_price ?? o.price ?? 0))}</span>
+                            <button onClick={() => comprar(c.laboratorio_id, o.id)} disabled={!!comprando}
+                              className="text-xs font-semibold bg-[#19202d] hover:bg-[#232d3f] text-white px-3 py-1.5 rounded-lg transition disabled:opacity-40">
+                              {comprando === `${c.laboratorio_id}-${o.id}` ? 'Comprando...' : 'Comprar'}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      {c.opcoes.length === 0 && !c.erro && <p className="text-xs text-gray-400">Nenhuma opção disponível.</p>}
+                    </div>
+                  </div>
+                )
+              })}
+
+              {envios.length === 0 && !cotacoes && (
+                <p className="text-xs text-gray-400">Nenhum frete cotado ainda.</p>
+              )}
+            </div>
+          )}
+
           {/* Observações */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Observações</p>
@@ -363,9 +485,6 @@ export default function PedidoLabDetalhePage() {
                 className="w-full bg-[#19202d] hover:bg-[#232d3f] text-white font-semibold py-2.5 rounded-lg text-sm transition disabled:opacity-40">
                 Marcar como coletado
               </button>
-            )}
-            {pedido.status === 'coletado' && (
-              <p className="text-xs text-gray-400 text-center py-1">Envio ao lab entra na Fase 4 (frete).</p>
             )}
             {!['cancelado', 'concluido'].includes(pedido.status) && (
               <button onClick={() => { if (confirm('Cancelar este pedido?')) transicionar('cancelado') }} disabled={acaoEmAndamento}
