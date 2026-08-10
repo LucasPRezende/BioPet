@@ -26,7 +26,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Erro ao conectar Melhor Envio.' }, { status: 500 })
   }
 
-  const response = NextResponse.redirect(new URL('/admin/labs/pedidos?frete=conectado', request.url))
+  // Não usar `request.url` aqui: atrás do proxy (Nginx → Node local) ele reflete
+  // o host interno (localhost:PORT), não o domínio público. Mesmo motivo pelo
+  // qual mp-preference.ts/asaas.ts usam NEXT_PUBLIC_URL pros links de retorno.
+  const response = NextResponse.redirect(`${process.env.NEXT_PUBLIC_URL}/admin/labs/pedidos?frete=conectado`)
   response.cookies.delete('me_oauth_state')
   return response
 }
