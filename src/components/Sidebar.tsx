@@ -49,6 +49,8 @@ const NAV: NavGroup[] = [
     items: [
       { icon: '📊', label: 'Dashboard',  href: '/admin/dashboard', adminOnly: true },
       { icon: '💰', label: 'Preços',     href: '/admin/comissoes', adminOnly: true },
+      { icon: '🔬', label: 'Labs Parceiros', href: '/admin/labs',  adminOnly: true },
+      { icon: '📦', label: 'Pedidos Labs',   href: '/admin/labs/pedidos', adminOnly: true },
       { icon: '🩸', label: 'Extrações',  href: '/admin/extracoes'  },
     ],
   },
@@ -97,8 +99,14 @@ export default function Sidebar({ isOpen, onClose }: Props) {
     router.push('/login')
   }
 
+  // Entre hrefs aninhados (ex: /admin/labs e /admin/labs/pedidos), só o mais
+  // específico fica ativo — senão os dois acendem ao mesmo tempo.
+  const melhorMatch = NAV.flatMap(g => g.items.map(i => i.href))
+    .filter(h => pathname === h || pathname.startsWith(h + '/'))
+    .sort((a, b) => b.length - a.length)[0]
+
   function isActive(href: string) {
-    return pathname === href || pathname.startsWith(href + '/')
+    return href === melhorMatch
   }
 
   const isAdmin = user?.role === 'admin'
