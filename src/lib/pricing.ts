@@ -149,3 +149,24 @@ export function formaEfetiva(
   if (pagamentoResponsavel === 'clinica') return 'pix'
   return (formaPagamento ?? '').toLowerCase().includes('cartao') ? 'cartao' : 'pix'
 }
+
+/**
+ * Labs Parceiros (LABS_PARCEIROS.md) — precificação em três camadas: custo,
+ * cliente (venda direta) e parceiro (vet/clínica). `origem 'vet'/'clinica'` →
+ * cobra `preco_parceiro`; `origem 'admin'` (em nome do cliente) → `preco_cliente`.
+ */
+export type TipoCobranca = 'parceiro' | 'cliente'
+
+/**
+ * Preço de um exame de laboratório parceiro para a camada de cobrança dada.
+ * null = sem preço definido — quem chama decide se recusa (ver
+ * `montarItensPedido` em lib/lab-pedidos.ts para a regra completa do pedido:
+ * exame sem preço fechado é recusado no backend, nunca cai silenciosamente
+ * para outro valor).
+ */
+export function precoLabExame(
+  e: { preco_cliente: number | null; preco_parceiro: number | null },
+  tipo: TipoCobranca,
+): number | null {
+  return tipo === 'parceiro' ? e.preco_parceiro : e.preco_cliente
+}
