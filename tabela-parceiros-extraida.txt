@@ -1,0 +1,2369 @@
+
+
+TECSA — Exames Caninos e Felinos (por categoria)
+Fonte: Portfólio TECSA 2026 (Tabela Brasil, 16/03/2026). Valor +40% = custo × 1,40. Coluna "Vet e Clínica Parceira" a preencher.
+CódigoExameCor do TuboQuantidade de MaterialEspécie
+Hematologia  (27 exames)
+43CONTAGEM DE PLAQUETASRoxa0,5 mL de sangue totalCanina, felina e equina1R$ 34,29R$ 48,01
+414Roxa0,5 mL de sangue totalCanina, Felina e Equina2R$ 0,00R$ 0,00
+245CONTAGEM DE RETICULOCITOS PETRoxa0,5 mL de sangue totalCanina, felina e equina1R$ 19,08R$ 26,71
+717Roxa0,5 mL de sangue totalExclusivamente felina2R$ 27,39R$ 38,35
+814Roxa0,5 mL de sangue total1R$ 274,22R$ 383,91
+1158DIMERO - DAzul0,5 mL de plasma citratadoExclusivamente canina2R$ 221,74R$ 310,44
+1159DOENÇA DE VON WILLEBRAND TIPO 1Roxa1,0 mL de sangue totalCanina15R$ 818,53R$ 1.145,94
+40ERITROGRAMA - PETRoxa0,5 mL de sangue totalCanina, felina e equina1R$ 32,32R$ 45,25
+374FATOR REUMATÓIDE CANINOVermelha0,5 mL de soroExclusivamente canina2R$ 47,33R$ 66,26
+1260FATOR VIII - TESTE DE ATIVIDADEAzul (citrato)1,0 de plasmaCanina e felina30R$ 413,34R$ 578,68
+186FIBRINOGENIOAzul0,5 mL de plasma citratadoCanina, felina e equina1R$ 55,23R$ 77,32
+42HEMATÓCRITORoxa0,5 mL de sangue totalCanina, felina e equina1R$ 20,08R$ 28,11
+39HEMOGRAMA COMPLETORoxa0,5 mL de sangue totalCanina, felina e equina0R$ 32,14R$ 45,00
+510HEMOGRAMA COMPLETO - ARARA CANINDÉRoxa0,5 mL de sangue totalArara canindé2R$ 54,63R$ 76,48
+44HEMOGRAMA COMPLETO - FELINORoxa0,5 mL de sangue totalExclusivamente felina0R$ 33,07R$ 46,30
+983Roxa0,5 mL de sangue totalCanina, felina e equina1R$ 37,39R$ 52,35
+132MIELOGRAMARoxaCanina, Felina e Equina6R$ 198,79R$ 278,31
+358PESQUISA DE HEMATOZOÁRIOS / INCLUSÕESRoxaCanina, felina e equina1R$ 29,10R$ 40,74
+346TEMPO DE PROTROMBINA (TP)Azul0,5 mL de plasma citratadoCanina, felina e equina0R$ 54,27R$ 75,98
+1257TEMPO DE TROMBINA (TT)Azul1,0 de plasmaCanina e felina3R$ 164,58R$ 230,41
+347Azul0,5 mL de plasma citratadoCanina, felina e equina0R$ 54,27R$ 75,98
+808Exclusivamente canina0R$ 174,79R$ 244,71
+1100Exclusivamente felina0R$ 213,83R$ 299,36
+11121R$ 395,14R$ 553,20
+713TIPAGEM SANGUÍNEA DE CÃESRoxa0,5 mL de sangue totalExclusivamente canina0R$ 229,80R$ 321,72
+710TIPAGEM SANGUÍNEA DE GATOSRoxa0,5 mL de sangue totalFelina0R$ 235,95R$ 330,33
+Dias 
+Úteis
+Valor de 
+Custo
+Valor +40% 
+Lucro
+Vet e Clínica 
+Parceira
+CONTAGEM DE RETICULOCITOS - PET - SEM 
+ONUS
+CONTAGEM DIFERENCIAL DE RETICULOCITOS 
+FELINO
+COOMBS DIRETO (ANEMIA HEMOLÍTICA 
+IMUNOMEDIADA) – CANINO
+Exclusivamente para 
+canina
+HEMOGRAMA E PROTEÍNA PLASMÁTICA 
+TOTAL
+6 lâminasde esfregaço ou squash com 
+material medular e/ou medula óssea
+3 lâminas de esfregaço sanguíneo ou 
+1mL de sangue total
+TEMPO DE TROMBOPLASTINA PARCIAL 
+ATIVADA (TTPA)
+TESTE DE REACAO CRUZADA PARA 
+TRANSFUSAO EM CÃES
+Vermelha/Amarela ou 
+Roxa
+0,3 mL de soro ou 1,0 mL de sangue total 
+(receptor) + 0,5 mL de sangue total em 
+tubo com EDTA (tampa roxa) (doador)
+TESTE DE REAÇÃO CRUZADA PARA 
+TRANSFUSÃO FELINO
+Vermelha/Amarela ou 
+Roxa
+0,3 mL de soro ou 1,0 mL de sangue total 
+(receptor) + 0,5 mL de sangue total em 
+tubo com EDTA (tampa roxa) (doador)
+TIPAGEM SANGUÍNEA +TESTE DE 
+COMPATIBILIDADE FELINO
+Vermelha/Amarela ou 
+Roxa
+0,3 mL de soro (receptor) + 0,5 mL de 
+sangue total em tubo com EDTA (tampa 
+roxa) (doador)
+Exclusivamente para 
+felina
+
+CódigoExameCor do TuboQuantidade de MaterialEspécie
+Dias 
+Úteis
+Valor de 
+Custo
+Valor +40% 
+Lucro
+Vet e Clínica 
+Parceira
+1256VELOCIDADE DE HEMOSSEDIMENTACAO (VHS)Azul ou Roxa2,0 mL de sangue total3R$ 148,50R$ 207,90
+Bioquímica  (68 exames)
+443ALBUMINAVermelha/Amarela0,5 mL de soroCanina, felina e equina1R$ 25,51R$ 35,71
+112ALT (TGP)Vermelha/Amarela0,5 mL de soroCanina, felina e equina0R$ 26,55R$ 37,17
+94AMILASEVermelha/Amarela0,5 mL de soroCanina, felina e equina1R$ 26,19R$ 36,67
+111AST (TGO)Vermelha/Amarela0,5 mL de soroCanina, felina e equina0R$ 26,55R$ 37,17
+95BILIRRUBINA TOTAL E FRAÇÕESVermelha/Amarela0,5 mL de soroCanina, felina e equina1R$ 25,86R$ 36,20
+1172BROMETO DE POTÁSSIOBranca1,0 mL de soroCanina30R$ 624,58R$ 874,41
+171CLORETO (CLORO)Vermelha/Amarela0,5 mL de soroCanina, felina e equina0R$ 22,85R$ 31,99
+842COBREBranca1,0 mL de soroCanina e felina12R$ 96,81R$ 135,53
+243COLESTEROL TOTALVermelha/Amarela0,5 mL de soroCanina, felina e equina1R$ 28,47R$ 39,86
+97Vermelha/Amarela0,5 mL de soroCanina, felina e equina1R$ 102,82R$ 143,95
+1308COLESTEROL TOTAL, HDL E TRIGLICERÍDESVermelha/Amarela0,5 mL de soroCanina, felina e equina0R$ 57,24R$ 80,14
+99CPK - CREATINOFOSFOQUINASE (CK TOTAL)Vermelha/Amarela0,5 mL de soroCanina, felina e equina1R$ 26,42R$ 36,99
+98CREATININAVermelha/Amarela0,5 mL de soroCanina, felina e equina0R$ 25,02R$ 35,03
+124CURVA GLICÊMICA (ATÉ 6 DETERMINAÇÕES)Cinza0,5 mL de plasma porCanina, felina e equina1R$ 118,26R$ 165,56
+96CÁLCIOVermelha/Amarela0,5 mL de soroCanina, felina e equina0R$ 23,12R$ 32,37
+545CÁLCIO IÔNICOBranca (transporte)0,5 mL de soroCanina, felina e equina0R$ 30,45R$ 42,63
+260DIGOXINA - DOSAGEM DE0,5 mL de soro ou plasma heparinizadoCanina e felina7R$ 69,79R$ 97,71
+1258DOSAGEM DE COBRE EM TECIDOSFrasco/Coletor estéril2,0g de tecidoCanina e felina30R$ 1.480,05R$ 2.072,07
+264ELETROFORESE DE PROTEÍNAS0,5 mL de soro4R$ 63,10R$ 88,34
+977ELETROFORESE DE PROTEÍNAS URINÁRIASAmarela10,0 mL de urinaCanina e felina30R$ 459,00R$ 642,60
+997FENOBARBITAL - 2 DOSAGENSVermelha/Amarela0,5 mL de soro (para cadaCanina, felina e equina1R$ 120,58R$ 168,81
+100FENOBARBITAL - DOSAGEM DEVermelha/Amarela0,5 mL de soroCanina, felina e equina1R$ 73,03R$ 102,24
+1293FERRITINABranca ou Verde1,0 mL de soro/ plasmaCanina30R$ 1.754,79R$ 2.456,71
+273FERRO SÉRICOVermelha/Amarela0,5 mL de soroCanina, felina e equina2R$ 27,13R$ 37,98
+101FOSFATASE ALCALINAVermelha/Amarela0,5 mL de soroCanina, felina e equina0R$ 27,24R$ 38,14
+1099FOSFATASE ALCALINA E FRAÇÕES0,5 mL de soroCanina e felina15R$ 261,65R$ 366,31
+103FRUTOSAMINAVermelha/Amarela0,5 mL de soroCanina, felina e equina1R$ 42,03R$ 58,84
+104GAMA GTVermelha/Amarela0,5 mL de soroCanina, felina e equina1R$ 25,31R$ 35,43
+277Roxa ou Verde0,5 ml de plasma2R$ 42,03R$ 58,84
+105GLICOSECinza0,5 mL de plasmaCanina, felina e equina0R$ 25,31R$ 35,43
+1188GLICOSE - GLICEMIA (SORO)Vermelha/Amarela0,5 mL de soroCanina, felina e equina0R$ 25,31R$ 35,43
+Canina, felina e equina. 
+o
+COLESTEROL TOTAL E FRAÇÕES 
+(TOTAL+LDL+VLDL+HDL)
+Branca ou 
+Vermelha/Amarela ou 
+Verde
+Branca ou 
+Vermelha/Amarela
+Canina, felina, equina e 
+bovina
+Branca ou 
+Vermelha/Amarela
+GLICOHEMOGLOBINA - HEMOGLOBINA 
+GLICOSILADA
+Canina, felina e equina. 
+Método: 
+Colorimetria/Turbidimetr
+ia
+
+CódigoExameCor do TuboQuantidade de MaterialEspécie
+Dias 
+Úteis
+Valor de 
+Custo
+Valor +40% 
+Lucro
+Vet e Clínica 
+Parceira
+1119HAPTOGLOBINA0,5 mL de soro7R$ 50,60R$ 70,84
+381HDL - COLESTEROL FRAÇÃO HDLVermelha/Amarela0,5 mL de soroCanina, felina e equina2R$ 28,47R$ 39,86
+288LDH - DESIDROGENASE LÁTICAVermelha/Amarela0,5 mL de soroCanina, felina e equina2R$ 34,43R$ 48,20
+106LIPASE0,5 mL de soro/plasma heparinizadoCanina, felina e equina3R$ 28,59R$ 40,03
+764Vermelha/Amarela0,5 mL de soroExclusivamente felina1R$ 145,91R$ 204,27
+107LÍPIDES TOTAISVermelha/Amarela0,5 mL de soro1R$ 37,78R$ 52,89
+1120LÍTIO0,5 mL de soroCanina e felina4R$ 44,59R$ 62,43
+388MAGNÉSIOVermelha/Amarela0,5 mL de soroCanina, felina e equina0R$ 22,16R$ 31,02
+451PESQUISA DE SPOROTHRIX SCHENCKIILâmina1 swab ou 01 lâminaCanina e Felina1R$ 49,66R$ 69,52
+108POTÁSSIOVermelha/Amarela0,5 mL de soroCanina, felina e equina0R$ 22,34R$ 31,28
+860PRO BNP CANINO - MARCADOR CARDÍACOVermelha/Amarela0,5 mL de soroExclusivamente canina3R$ 221,74R$ 310,44
+966PRO BNP FELINO - MARCADOR CARDÍACOVermelha/Amarela0,5 mL de soroExclusivamente felina3R$ 270,06R$ 378,08
+535PROTEÍNA C REATIVA CANINOVermelha/Amarela0,5 mL de soroExclusivamente canina2R$ 94,87R$ 132,82
+984PROTEÍNA TOTAL PLASMÁTICARoxa/verde0,5 mL de plasmaCanina, felina e equina1R$ 18,48R$ 25,87
+382PROTEÍNAS TOTAISVermelha/Amarela0,5 mL de soroCanina, felina e equina0R$ 18,48R$ 25,87
+109PROTEÍNAS TOTAIS E FRAÇÕESVermelha/Amarela0,5 mL de soroCanina, felina e equina0R$ 28,07R$ 39,30
+1235RELAÇÃO UREIA/CREATININAVermelha/Amarela0,5 mL de soroCanina, felina e equina0R$ 29,71R$ 41,59
+572Vermelha/Amarela0,5 mL de soroCanina, felina e equina0R$ 29,71R$ 41,59
+909SDMAVermelha/Amarela0,5 mL de soroCanina e felina3R$ 113,61R$ 159,05
+1096SSA - SORO AMILÓIDE A - FELINOVermelha ou Amarela0,5 mL de soro ou plasma heparinizadoExclusivamente felina1R$ 132,19R$ 185,07
+110SÓDIOVermelha/Amarela0,5 mL de soro0R$ 23,15R$ 32,41
+311TRANSFERRINA0,5 mL de soroCanina, felina e equina2R$ 38,20R$ 53,48
+113TRIGLICERÍDEOSVermelha/Amarela0,5 mL de soroCanina, felina e equina1R$ 26,55R$ 37,17
+868Vermelha/Amarela0,5 mL de soroExclusivamente Canina3R$ 166,11R$ 232,55
+1185Branca0,5 mL de soro30R$ 1.900,80R$ 2.661,12
+859Roxa0,5 mL plasmaExclusivamente canina1R$ 329,74R$ 461,64
+114UREIAVermelha/Amarela0,5 mL de soroCanina, felina e equina0R$ 25,02R$ 35,03
+317VITAMINA A - (RETINOL)0,6 mL de soroCanina, felina e equina8R$ 261,18R$ 365,65
+318VITAMINA B12 - CIANOCOBALAMINAVermelha/Amarela0,5 mL de soroCanina, felina e equina1R$ 36,00R$ 50,40
+1382Vermelha/Amarela1,0 mL de soro ou 3,0 mL de sangue totalCanina15R$ 221,30R$ 309,82
+1381VITAMINA D TOTAL E FRACOES - HPLCVermelha/Amarela1,0 mL de soro ou 3,0 mL de sangue totalCanina, felina e equina15R$ 252,68R$ 353,75
+Branca ou 
+Vermelha/Amarela
+Canina. Método: 
+Turbidimetria
+Branca ou 
+Vermelha/tampa 
+amarela ou Verde
+LIPASE IMUNORREATIVA FELINA (LIPASE 
+ESPECÍFICA FELINA)
+Canina, felina e equina. 
+Método: Colorimetria
+Branca ou 
+Vermelha/Amarela
+RELAÇÃO UREIA/CREATININA (CHECK UP 
+GLOBAL)
+Canina, felina e equina. 
+Método: Eletrodo íon 
+seletivo
+Branca ou 
+Vermelha/Amarela
+TRIPSINOGÊNIO (TLI) - TRIPSINA 
+IMUNORREATIVA CANINA
+TRIPSINOGÊNIO (TLI) - TRIPSINA 
+IMUNORREATIVA FELINA
+Exclusivamente para 
+felina
+TROPONINA CANINA I ( MARCADOR CARDÍACO 
+)
+Branca ou 
+Vermelha/Amarela
+VITAMINA D (1,25 DIXIDROXI VITAMINA D) - 
+HPLC
+
+CódigoExameCor do TuboQuantidade de MaterialEspécie
+Dias 
+Úteis
+Valor de 
+Custo
+Valor +40% 
+Lucro
+Vet e Clínica 
+Parceira
+843ZINCOBranca1,0 mL de soroCanina e felina12R$ 78,96R$ 110,54
+216ÁCIDO FÓLICOVermelha/Amarela0,5 mL de soroCanina, felina e equina2R$ 61,11R$ 85,55
+217ÁCIDO LÁTICO - LACTATOCinza0,5 mL de plasma fluoretadoCanina, felina e equina1R$ 31,54R$ 44,16
+197ÁCIDO ÚRICOBranca (transporte)0,4 mL de soro ou plasmaCanina, felina e equina1R$ 26,19R$ 36,67
+980ÁCIDOS BILIARES0,5 mL de soro/plasmaCanina, felina, equina1R$ 109,83R$ 153,76
+979ÁCIDOS BILIARES - JEJUM E PÓS PRANDIAL0,5 mL de soro/plasmaCanina, felina, equina1R$ 180,90R$ 253,26
+Urinálise  (2 exames)
+438PROTEÍNA NA URINATubo estéril (urina)0,5 mL de urinaCanina, felina e equina0R$ 18,48R$ 25,87
+193RELAÇÃO PROTEÍNA CREATININA URINÁRIATubo estéril (urina)0,5 mL urinaCanina, felina e equina1R$ 53,98R$ 75,57
+Imunologia / Sorologia  (46 exames)
+1174Branca1,5 mL de soroCanina e felina30R$ 4.187,70R$ 5.862,78
+253ANTICORPO ANTINUCLEAR (ANA)Vermelha/Amarela0,5 mL de soroCanina e felina4R$ 142,46R$ 199,44
+327BABESIA - IGG - METODO ELISA0,5 mL de soro/plasmaCanina2R$ 68,08R$ 95,31
+632BABESIA - IGM - METODO ELISA0,5 mL de soro/plasmaCanina2R$ 68,08R$ 95,31
+224Vermelha/Amarela0,5 mL de soroCanina5R$ 37,80R$ 52,92
+76BRUCELOSE CANINAVermelha/Amarela0,5 mL de soroCanina4R$ 48,48R$ 67,87
+239CINOMOSE + PARVOVIROSE - IGMCanina1R$ 155,62R$ 217,87
+537CINOMOSE - PESQUISA DO ANTÍGENO VIRALCanina1R$ 100,69R$ 140,97
+670Canina1R$ 151,56R$ 212,18
+361Felina1R$ 135,21R$ 189,29
+357DIROFILARIOSECanina1R$ 135,05R$ 189,07
+84Canina1R$ 255,80R$ 358,12
+256DOENÇA DE LYMECanina1R$ 262,65R$ 367,71
+858Canina1R$ 84,81R$ 118,73
+667EHRLICHIA - IGG ELISA0,5 mL de soro/plasmaCanina2R$ 83,22R$ 116,51
+Vermelha/Amarela ou 
+Roxa
+Vermelha/Amarela ou 
+Roxa
+ANTICORPO ANTI-RECEPTOR DE 
+ACETILCOLINA - RIE
+Vermelha/Amarela ou 
+Roxa
+Vermelha/Amarela ou 
+Roxa
+BORDETELLA BRONCHISEPTICA(TOSSE DOS 
+CANIS) - SOROLOGIA RIFI
+Branca ou 
+Vermelha/Amarela ou 
+Roxa
+0,5 mL de soro/plasma ou 1,5 mL de 
+sangue total em tubo com EDTA
+Roxa ou 
+Vermelha/Amarela ou 
+Branca
+0,5 mL de soro ou 1,5 mL de sangue 
+total, swab com material visível, 1,0 mL 
+de urina ou 0,6 mL de líquor
+CINOMOSE IGG + PARVOVIROSE IGG + 
+HEPATITE INFECCIOSA CANINA
+Branca ou 
+Vermelha/Amarela ou 
+Roxa
+0,5 mL de soro e 1,0 mL de sangue total 
+em tubo com EDTA
+CORONAVIRUS FELINO - DOT ELISA 
+(PERITONITE INFECCIOSA FELINA -
+Branca ou 
+Vermelha/Amarela ou 
+Roxa
+0,5 mL de soro/plasma ou 1,5 mL de 
+sangue total em tubo com EDTA
+Branca ou 
+Vermelha/Amarela ou 
+Roxa
+0,5 mL de soro/plasma ou 1,5 mL de 
+sangue total em tubo com EDTA
+DIROFILARIOSE + DOENÇA LYME + EHRLICHIA 
++ ANAPLASMA
+Branca ou 
+Vermelha/Amarela ou 
+Roxa
+0,5 mL de soro/plasma ou 1,5 mL de 
+sangue total em tubo com EDTA
+Branca ou 
+Vermelha/Amarela ou 
+Roxa
+0,5 mL de soro/plasma ou 1,5 mL de 
+sangue total em tubo com EDTA
+EHRLICHIA + ANAPLASMA - METODO: 
+IMUNOCROMATOGRAFIA
+Vermelha/Amarela ou 
+Roxa
+0,5 mL de soro/plasma ou 2,0 mL de 
+sangue total em EDTA
+Vermelha/Amarela ou 
+Roxa
+
+CódigoExameCor do TuboQuantidade de MaterialEspécie
+Dias 
+Úteis
+Valor de 
+Custo
+Valor +40% 
+Lucro
+Vet e Clínica 
+Parceira
+666EHRLICHIA - IGM ELISA0,5 mL de soro/plasmaCanina2R$ 83,22R$ 116,51
+328EHRLICHIA CANIS - IGG SEMI-QUANTITATIVOCanina1R$ 92,93R$ 130,10
+1130ESPOROTRICOSE - SOROLOGIA - TITULAÇÃO0,5 mL de soroFelina5R$ 258,30R$ 361,62
+274FIV - IMUNODEFICIÊNCIA FELINAFelina1R$ 160,35R$ 224,49
+271Felina1R$ 218,70R$ 306,18
+371FeLV - LEUCEMIA FELINAFelina1R$ 160,35R$ 224,49
+865Canina1R$ 52,57R$ 73,60
+677LEISHMANIOSE CANINA - METODO: ELISA0,5 mL de soro1R$ 29,80R$ 41,72
+6110,5 mL de soroCanina2R$ 50,90R$ 71,26
+290LEISHMANIOSE FELINA - ELISA + RIFIVermelha/Amarela0,5 mL de soroFelina4R$ 67,56R$ 94,58
+553Vermelha/Amarela0,5 mL de soroFelina4R$ 108,30R$ 151,62
+866Vermelha/Amarela0,5 mL de soroCanina1R$ 67,94R$ 95,12
+232Vermelha/Amarela0,5 mL de soroCanina8R$ 129,10R$ 180,74
+302NEOSPORA CANINUM - METODO IFIVermelha/Amarela0,5 mL de soroCanina e felina5R$ 67,48R$ 94,47
+1097RoxaFelina1R$ 259,90R$ 363,86
+Vermelha/Amarela ou 
+Roxa
+Branca ou 
+Vermelha/Amarela ou 
+Roxa
+0,5 mL de soro/plasma ou 1,5 mL de 
+sangue total em tubo com EDTA
+Branca ou 
+Vermelha/Amarela
+Branca ou 
+Vermelha/Amarela ou 
+Roxa
+0,5 mL de soro/plasma ou 1,5 mL de 
+sangue total em tubo com EDTA
+FIV / FELV - LEUCEMIA E IMUNODEFICIENCIA 
+FELINA -
+Branca ou 
+Vermelha/Amarela ou 
+Roxa
+0,5 mL de soro/plasma ou 1,5 mL de 
+sangue total em tubo com EDTA
+Branca ou 
+Vermelha/Amarela ou 
+Roxa
+0,5 mL de soro/plasma ou 1,5 mL de 
+sangue total em tubo com EDTA
+LEISHMANIA INFANTUM - METODO: 
+IMUNOCROMATOGRAFIA
+Vermelha/Amarela ou 
+Roxa
+0,5 mL de soro/plasma ou 2,0 mL de 
+sangue total em EDTA
+Branca ou 
+Vermelha/Amarela
+Canina. IMUNOLOGIA 
+LEISHMANIOSE 
+CANINA - METODO: 
+ELISA + RIFI COM 
+DILUICAO TOTAL 
+(PLENA) Preparo de 
+Paciente: 
+Recomendado jejum de 
+8 horas Amostra(s) e 
+recipiente(s) para 
+acondicionamento: Soro 
+em tubo de transporte, 
+sangue em tubo com 
+ativador de coágulo ou 
+com gel separador 
+(Tampa 
+vermelha/amarela). 
+Quantidade(s) 
+necessária(s): 0,5 mL 
+de soro
+LEISHMANIOSE CANINA DILUIÇÃO TOTAL 
+(INCLUSÃO)
+Branca ou 
+Vermelha/Amarela
+LEISHMANIOSE FELINA - METODO: ELISA + RIFI 
+COM DILUICAO TOTAL
+LEISHMANIOSE VISCERAL CANINA - 
+SOROLOGIA PADRAO LACEN/FUNED
+MARCADOR SOROLÓGICO PARA TUMOR DE 
+MAMA (CEA)
+PAINEL RETROVIROSES FELINAS (FIV E FELV) - 
+RNA VIRAL E DNA PROVIRAL - REAL
+No mínimo 0,5 mL de sangue total em 
+EDTA ou medula óssea em tubo com 
+EDTA (tampa roxa)
+
+CódigoExameCor do TuboQuantidade de MaterialEspécie
+Dias 
+Úteis
+Valor de 
+Custo
+Valor +40% 
+Lucro
+Vet e Clínica 
+Parceira
+672Frasco/Coletor estéril5g de fezesFelina1R$ 185,58R$ 259,81
+5780,5 mL de soro ou 1,5 mL de sangue totalCanina1R$ 176,98R$ 247,77
+359Frasco/Coletor estéril1g de fezesCanina, bovina e suína3R$ 69,50R$ 97,30
+12301,0 mL de soroCanina e felina7R$ 1.461,33R$ 2.045,86
+688TESTE ALERGICO ALERGIA A MALASSEZIAVermelha/Amarela0,5 mL de soroCanina e felina7R$ 35,75R$ 50,05
+684Vermelha/Amarela0,5 mL de soroCanina e felina7R$ 122,18R$ 171,05
+686Vermelha/Amarela1,0 mL de soroCanina, Felina e Equina7R$ 634,53R$ 888,34
+971Vermelha/Amarela1,0 mL de soroCanina7R$ 631,81R$ 884,53
+1090Vermelha/Amarela1,0 mL de soroFelina7R$ 648,74R$ 908,24
+9451,0 mL de soroCanina e felina7R$ 993,70R$ 1.391,18
+305TOXOPLASMOSE + CLAMIDIOSE FELINASFelina4R$ 161,55R$ 226,17
+307TOXOPLASMOSE CANINAVermelha/Amarela0,5 mL de soroCanina4R$ 54,79R$ 76,71
+82TOXOPLASMOSE FELINAVermelha/Amarela0,5 mL de soroFelina4R$ 54,79R$ 76,71
+709TRYPANOSOMA CRUZI - SOROLOGIA (CANINA)Vermelha/Amarela0,5 mL de soroCanina5R$ 60,70R$ 84,98
+995Vermelha/Amarela0,5 mL de soroCanina2R$ 75,15R$ 105,21
+995Vermelha/Amarela0,5 mL de soro2R$ 75,15R$ 105,21
+Hormônios  (37 exames)
+218Roxa0,5 mL de plasmaCanina e felina5R$ 83,02R$ 116,23
+1182ALDOSTERONA BASAL + PÓS-ACTH - RIEBrancaCanina e felina8R$ 789,54R$ 1.105,36
+1176ALDOSTERONA BASAL - RIEBranca0,5 mL de soroCanina e felina8R$ 527,98R$ 739,17
+807ANTICORPO ANTI-TIREOGLOBULINA - CLIA0,5 mL de soroCanina e felina6R$ 142,82R$ 199,95
+1334Vermelha/AmarelaCanina, felina e equina1R$ 112,07R$ 156,90
+631Vermelha/AmarelaCanina, felina e equina1R$ 112,07R$ 156,90
+630Vermelha/AmarelaCanina, felina e equina2R$ 151,89R$ 212,65
+620Vermelha/AmarelaCanina, felina e equina2R$ 151,89R$ 212,65
+205Vermelha/AmarelaCanina, felina e equina1R$ 106,73R$ 149,42
+156Vermelha/AmarelaCanina, felina e equina1R$ 168,09R$ 235,33
+PANLEUCOPENIA FELINA - METODO: 
+IMUNOCROMATOGRAFIA
+RELAXINA CANINA - DIAGNÓSTICO 
+SOROLÓGICO DE GESTAÇÃO CANINA
+Branca ou 
+Vermelha/Amarela
+ROTAVIRUS - METODO: 
+IMUNOCROMATOGRAFIA
+SOROLOGIA DE RAIVA - VIAGEM 
+INTERNACIONAL JAPãO
+Branca ou 
+Vermelha/Amarela
+TESTE ALERGICO ALERGIA A PICADA (SALIVA) 
+DE PULGA
+TESTE ALERGICO PAINEL C/ 24 ALERGENOS 
+AMBIENTAIS
+TESTE DE REAÇÃO ALIMENTAR CANINO (FOOD 
+REACTION TEST HESKA)
+TESTE DE REAÇÃO ALIMENTAR FELINO (FOOD 
+REACTION TEST HESKA)
+TITULAÇÃO DE ANTICORPOS 
+NEUTRALIZANTES PARA RAIVA
+Branca ou 
+Vermelha/Amarela
+Vermelha/Amarela ou 
+Roxa
+0,5 mL de soro/plasma ou 1,5 mL de 
+sangue total em tubo com EDTA
+VIAGEM INTERNACIONAL - LEISHMANIOSE 
+(ELISA + RIFI)
+VIAGEM INTERNACIONAL - LEISHMANIOSE - 
+ELISA + RIFI
+Canina. 
+PARASITOLOGIA
+ACTH - HORMÔNIO ADRENOCORTICOTRÓFICO 
+- CLIA
+0,5 mL de soro em cada tubo (basal e 
+pós-ACTH)
+Branca ou 
+Vermelha/Amarela
+CORTISOL 2 DOSAGENS - BASAL E POS 
+TRILOSTANO - CLIA
+0,5 mL de soro em cada tubo (basal e 
+pós)
+CORTISOL 2 DOSAGENS - BASAL E PÓS 
+ESTÍMULO COM
+0,5 mL de soro em cada tubo (basal e 
+pós)
+CORTISOL 2 DOSAGENS - BASAL E PÓS 
+ESTÍMULO COM ACTH - RIE
+0,5 mL de soro em cada tubo (basal e 
+pós)
+CORTISOL 2 DOSAGENS - BASAL E PÓS 
+SUPRESSÃO COM
+0,5 mL de soro em cada tubo (basal e 
+pós supressão)
+CORTISOL 2 DOSAGENS - BASAL E PÓS 
+SUPRESSÃO COM
+0,5 mL de soro em cada tubo (basal e 
+pós supressão)
+CORTISOL 3 DOSAGENS - BASAL, 4 E 8 HORAS 
+PÓS SUPRESSÃO COM
+0,5 mL de soro em cada tubo (basal + 
+pós supressão 4 e 8 horas)
+
+CódigoExameCor do TuboQuantidade de MaterialEspécie
+Dias 
+Úteis
+Valor de 
+Custo
+Valor +40% 
+Lucro
+Vet e Clínica 
+Parceira
+621Vermelha/AmarelaCanina, felina e equina2R$ 215,24R$ 301,34
+68CORTISOL BASAL - CLIAVermelha/Amarela0,5 mL de soroCanina, felina e equina1R$ 62,25R$ 87,15
+619CORTISOL BASAL - RIEVermelha/Amarela0,5 mL de soroCanina, felina e equina2R$ 78,63R$ 110,08
+1329CORTISOL POS - ACTH - CLIAVermelha/Amarela0,5 mL de soroCanina, felina e equina1R$ 62,25R$ 87,15
+1328CORTISOL POS - ACTH - RIEVermelha/Amarela0,5 mL de soroCanina, felina e equina2R$ 78,63R$ 110,08
+1338CORTISOL POS DEXAMETASONA - CLIAVermelha/Amarela0,5 mL de soroCanina, felina e equina0R$ 62,25R$ 87,15
+1337CORTISOL POS DEXAMETASONA - RIEVermelha/Amarela0,5 mL de soroCanina, felina e equina2R$ 78,63R$ 110,08
+70ESTRADIOL - CLIAVermelha/Amarela0,5 mL de soroCanina, felina e equina1R$ 63,45R$ 88,83
+705IGF1 - SOMATOMEDINA C - CLIABranca (transporte)0,5 mL de soroCanina e felina1R$ 131,91R$ 184,67
+1000INSULINA ENDÓGENA CANINAVermelha0,5 mL de soroCanina5R$ 95,23R$ 133,32
+1001INSULINA ENDÓGENA FELINAVermelha0,5 mL de soroFelina5R$ 97,77R$ 136,88
+1292PARATORMÔNIO (PTH) E CÁLCIO IÔNICO - CLIABranca1,5 mL de soroCanina, felina e equina30R$ 2.071,59R$ 2.900,23
+765Canina3R$ 185,86R$ 260,20
+855PROGESTERONA - 17 HIDROXI - BASAL - CLIA0,5 mL de soroCanina1R$ 92,94R$ 130,12
+69PROGESTERONA - CLIAVermelha/Amarela0,5 mL de soroCanina, felina e equina1R$ 68,06R$ 95,28
+1173Roxa1,0 mL de plasmaCanina e felina2R$ 2.059,20R$ 2.882,88
+634RELAÇÃO CORTISOL CREATININA URINÁRIATubo estéril (urina)0,5mL urinaCanina, felina e equina2R$ 81,97R$ 114,76
+66T3 TOTAL - CLIAVermelha/Amarela0,5 mL de soroCanina, felina e equina1R$ 59,08R$ 82,71
+74T4 LIVRE - CLIAVermelha/Amarela0,5 mL de soroCanina, felina e equina1R$ 59,08R$ 82,71
+626T4 LIVRE - PÓS-DIÁLISE - RIE0,5 mL de soro ou plasma em EDTACanina, felina e equina3R$ 211,16R$ 295,62
+73T4 LIVRE - RIE0,5 mL de soro ou plasma em EDTACanina, felina e equina2R$ 81,14R$ 113,60
+164T4 TOTAL - CLIAVermelha/Amarela0,5 mL de soroCanina, felina e equina3R$ 59,08R$ 82,71
+636T4 TOTAL PÓS-LEVOTIROXINA - CLIAVermelha/Amarela0,5 mL de soroCanina, felina e equina1R$ 59,08R$ 82,71
+637T4 TOTAL PÓS-LEVOTIROXINA - RIE0,5 mL de soro ou plasma em EDTACanina, felina e equina2R$ 85,59R$ 119,83
+147T4 TOTAL- RIE0,5 mL de soro ou plasma em EDTACanina, felina e equina2R$ 81,14R$ 113,60
+154TESTOSTERONA - CLIAVermelha/Amarela0,5 mL de soroCanina, felina e equina1R$ 76,68R$ 107,35
+845Vermelha/Amarela0,5 mL de soroCanina, felina e equina1R$ 62,70R$ 87,78
+Parasitologia  (6 exames)
+1171COPROLÓGICO FUNCIONALFrasco/Coletor estéril5g de fezesCanina e felina2R$ 81,25R$ 113,75
+191Frasco c/ formol10g de fezesCanina, Felina e Equina1R$ 39,86R$ 55,80
+1327Frasco/Coletor estéril10 g de fezesCanina e felina1R$ 109,60R$ 153,44
+63Frasco/Coletor estéril10g de fezesCanina, Felina e Equina1R$ 33,64R$ 47,10
+CORTISOL 3 DOSAGENS - BASAL, 4 E 8 HORAS 
+PÓS SUPRESSÃO COM
+0,5 mL de soro em cada tubo (basal + 
+pós supressão 4 e 8 horas)
+PROGESTERONA - 17 HIDROXI - BASAL + PÓS 
+ACTH - CLIA
+Branca ou 
+Vermelha/Amarela
+0,5 mL de soro em cada tubo (basal e 
+pós)
+Branca ou 
+Vermelha/Amarela
+PROTEÍNA RELACIONADA AO PARATORMÔNIO 
+- PTHRP - RIE
+Vermelha/Amarela ou 
+Roxa
+Vermelha/Amarela ou 
+Roxa
+Vermelha/Amarela ou 
+Roxa
+Vermelha/Amarela ou 
+Roxa
+TSH - HORMÔNIO ESTIMULANTE DA TIREOIDE - 
+CLIA
+EXAME PARASITOLÓGICO DE FEZES - MIF - 
+PET E MAMÍFEROS
+EXAME PARASITOLÓGICO DE FEZES - OVOS E 
+ANTÍGENO
+EXAME PARASITOLÓGICO DE FEZES - PET E 
+MAMÍFEROS
+
+CódigoExameCor do TuboQuantidade de MaterialEspécie
+Dias 
+Úteis
+Valor de 
+Custo
+Valor +40% 
+Lucro
+Vet e Clínica 
+Parceira
+1076Coletor de fezes2,0g de fezes em cada frascoCanina, Felina e Equina1R$ 33,64R$ 47,10
+1169Roxa2,0 mL de sangue totalCanina1R$ 56,98R$ 79,77
+Microbiologia  (4 exames)
+1314INDICE DE DISBIOSE FELINOFrasco/Coletor estéril5g fezes (sólidas, pastosas ou líquidas)Felina25R$ 1.330,47R$ 1.862,66
+1311PAINEL DISBIOSE CANINAFrasco/Coletor estéril5g fezes (sólidas, pastosas ou líquidas)Canina10R$ 886,53R$ 1.241,14
+1312PAINEL DISBIOSE FELINOFrasco/Coletor estéril5g fezes (sólidas, pastosas ou líquidas)Felina10R$ 886,53R$ 1.241,14
+1313ÍNDICE DE DISBIOSE CANINAFrasco/Coletor estéril5g fezes (sólidas, pastosas ou líquidas)Canina25R$ 1.330,47R$ 1.862,66
+Anatomia Patológica / Citologia  (22 exames)
+1272LâminaCanina e felina7R$ 487,60R$ 682,64
+1192CITOMETRIA DE FLUXO 1RoxaCanina e felina7R$ 831,95R$ 1.164,73
+1191CITOMETRIA DE FLUXO 2Roxa0,5 mL de medula em tubo com EDTACanina e felina7R$ 1.262,26R$ 1.767,16
+1083DERMATOHISTOPATOLÓGICOFrasco c/ formolCanina e felina8R$ 129,10R$ 180,74
+1237IMUNOISTOQUIMICA - PAINEL ADRENALBloco de parafinaCaninos e felinos16R$ 545,06R$ 763,08
+1279Bloco de parafinaCanina e felina16R$ 545,06R$ 763,08
+1349IMUNOISTOQUÍMICA - 1 MARCADORBloco de parafinaCanina e felina16R$ 191,49R$ 268,09
+PARASITOLÓGICO PARAGIARDIA - MÉTODO 
+FAUST
+PESQUISA DE MICROFILÁRIA - MÉTODO 
+KNOTT MODIFICADO
+CITOLOGIA + PARR: DIAGNÓSTICO 
+CITOMOLECULAR DE LINFOMAS
+5,0 mL de líquido cavitário e/ou 3 lâminas 
+com material visível
+2,0 mL de sangue total em tubo com 
+EDTA ou 2,0 mL de efusões
+Enviar 3 a 5 fragmentos representativos 
+da lesão, coletados preferencialmente por 
+punch. As superfícies de corte devem 
+compreender, sempre que possível, uma 
+parte da lesão e outra do tecido normal 
+adjacente
+Bloco de parafina previamente 
+selecionado do fragmento de tecido a ser 
+analisado e respectiva lâmina HE, laudo 
+histopatológico do caso, histórico clínico, 
+localização e evolução da lesão. 
+Indicação: Visa identificar a histogênese 
+e fatores prognósticos para os casos de 
+tumores adrenais, de acordo com 
+informações comprovadas em literatura
+IMUNOISTOQUIMICA - PAINEL PREDITIVO 
+KINASES
+Bloco de parafina previamente 
+selecionado do fragmento de tecido a ser 
+analisado e respectiva lâmina HE, laudo 
+histopatológico do caso, histórico clínico, 
+localização e evolução da lesão
+Bloco de parafina previamente 
+selecionado do fragmento de tecido a ser 
+analisado e respectiva lâmina HE, laudo 
+histopatológico do caso, histórico clínico, 
+localização e evolução da lesão. 
+Determinar o marcador a ser utilizado na 
+requisição (ex: C-Kit, CD3, CD20, Ki-67, 
+entre outros; consulte a disponibilidade)
+
+CódigoExameCor do TuboQuantidade de MaterialEspécie
+Dias 
+Úteis
+Valor de 
+Custo
+Valor +40% 
+Lucro
+Vet e Clínica 
+Parceira
+648Bloco de parafinaCanina e felina16R$ 663,06R$ 928,28
+1371Bloco de parafinaCanina e felina16R$ 1.555,43R$ 2.177,60
+1368Bloco de parafinaCanina e felina16R$ 999,91R$ 1.399,87
+IMUNOISTOQUÍMICA - PAINEL DIAGNÓSTICO 
+ATÉ 6 MARCADORES
+Bloco de parafina previamente 
+selecionado do fragmento de tecido a ser 
+analisado e respectiva lâmina HE, laudo 
+histopatológico do caso, histórico clínico 
+e evolução da lesão. O exame visa 
+identificar a histogênese de neoplasias 
+morfologicamente pouco diferenciadas. 
+Nesse painel, nossa equipe de 
+patologistas seleciona marcadores de 
+acordo com o direcionamento clínico e 
+morfológico. Eventualmente, se esse 
+número de marcadores não for suficiente 
+para concluir a histogênese, outros 
+marcadores podem ser sugeridos para 
+serem adicionados à investigação (um 
+código 1349 por marcador adicional)
+IMUNOISTOQUÍMICA - PAINEL DIAGNÓSTICO 
+DE 10 A 14 MARCADORES
+Bloco de parafina previamente 
+selecionado do fragmento de tecido a ser 
+analisado e respectiva lâmina HE, laudo 
+histopatológico do caso, histórico clínico 
+e evolução da lesão. O exame visa 
+identificar a histogênese de neoplasias 
+morfologicamente pouco diferenciadas. 
+Nesse painel, nossa equipe de 
+patologistas seleciona marcadores de 
+acordo com o direcionamento clínico e 
+morfológico. Eventualmente, se esse 
+número de marcadores não for suficiente 
+para concluir a histogênese, outros 
+marcadores podem ser sugeridos para 
+serem adicionados à investigação (um 
+código 1349 por marcador adicional)
+IMUNOISTOQUÍMICA - PAINEL DIAGNÓSTICO 
+DE 7 A 9 MARCADORES
+Bloco de parafina previamente 
+selecionado do fragmento de tecido a ser 
+analisado e respectiva lâmina HE, laudo 
+histopatológico do caso, histórico clínico 
+e evolução da lesão. O exame visa 
+identificar a histogênese de neoplasias 
+morfologicamente pouco diferenciadas. 
+Nesse painel, nossa equipe de 
+patologistas seleciona marcadores de 
+acordo com o direcionamento clínico e 
+morfológico. Eventualmente, se esse 
+número de marcadores não for suficiente 
+para concluir a histogênese, outros 
+marcadores podem ser sugeridos para 
+serem adicionados à investigação (um 
+código 1349 por marcador adicional)
+
+CódigoExameCor do TuboQuantidade de MaterialEspécie
+Dias 
+Úteis
+Valor de 
+Custo
+Valor +40% 
+Lucro
+Vet e Clínica 
+Parceira
+1367IMUNOISTOQUÍMICA - PAINEL LINFOMABloco de parafinaCaninos e felinos16R$ 888,81R$ 1.244,33
+1250Bloco de parafinaCanina e felina16R$ 545,06R$ 763,08
+1238Bloco de parafinaCanina e felina16R$ 545,06R$ 763,08
+1239Bloco de parafinaCanina e felina16R$ 545,06R$ 763,08
+659Bloco de parafinaCanina e felina16R$ 545,06R$ 763,08
+456Bloco de parafinaCanina16R$ 459,15R$ 642,81
+1236Bloco de parafinaCanina e felina16R$ 545,06R$ 763,08
+653IMUNOISTOQUÍMICA - TOXOPLASMA GONDIIBloco de parafinaCanina e felina16R$ 545,06R$ 763,08
+838Bloco de parafinaCanina e felina16R$ 545,06R$ 763,08
+Bloco de parafina previamente 
+selecionado do fragmento de tecido a ser 
+analisado e respectiva lâmina HE, laudo 
+histopatológico do caso, histórico clínico, 
+localização e evolução da lesão. 
+Indicação: Visa identificar a histogênese 
+e fatores prognósticos para os casos de 
+linfoma, de acordo com informações 
+comprovadas em literatura
+IMUNOISTOQUÍMICA - PAINEL PROGNÓSTICO 
+CARCINOMAS
+Bloco de parafina previamente 
+selecionado do fragmento de tecido a ser 
+analisado e respectiva lâmina HE, laudo 
+histopatológico do caso, histórico clínico, 
+localização e evolução da lesão
+IMUNOISTOQUÍMICA - PAINEL PROGNÓSTICO 
+DE SARCOMA
+Bloco de parafina previamente 
+selecionado do fragmento de tecido a ser 
+analisado e respectiva lâmina HE, laudo 
+histopatológico do caso, histórico clínico, 
+localização e evolução da lesão
+IMUNOISTOQUÍMICA - PAINEL PROGNÓSTICO 
+HEPATOCARCINOMA
+Bloco de parafina previamente 
+selecionado do fragmento de tecido a ser 
+analisado e respectiva lâmina HE, laudo 
+histopatológico do caso, histórico clínico, 
+localização e evolução da lesão
+IMUNOISTOQUÍMICA - PAINEL PROGNÓSTICO 
+LESÕES MELANOCÍTICAS/MELANOMAS
+Bloco de parafina previamente 
+selecionado do fragmento de tecido a ser 
+analisado e respectiva lâmina HE, laudo 
+histopatológico do caso, histórico clínico, 
+localização e evolução da lesão
+IMUNOISTOQUÍMICA - PESQUISA DE 
+LEISHMANIA
+Bloco de parafina previamente 
+selecionado do fragmento de tecido a ser 
+analisado e respectiva lâmina HE, laudo 
+histopatológico do caso, histórico clínico, 
+localização e evolução da lesão ou 
+fragmento de tecido ou pele fixado em 
+formol 10%
+IMUNOISTOQUÍMICA - QUIMIORRESISTÊNCIA 
+DE TUMORES
+Bloco de parafina previamente 
+selecionado do fragmento de tecido a ser 
+analisado e respectiva lâmina HE, laudo 
+histopatológico do caso, histórico clínico, 
+localização e evolução da lesão
+Bloco de parafina previamente 
+selecionado do fragmento de tecido a ser 
+analisado e respectiva lâmina HE, laudo 
+histopatológico do caso, histórico clínico, 
+localização e evolução da lesão ou 
+fragmento de pele fixado em formol 10%
+IMUNOISTOQUÍMICA PAINEL PROGNÓSTICO 
+TUMOR MAMÁRIO
+Bloco de parafina previamente 
+selecionado do fragmento de tecido a ser 
+analisado e respectiva lâmina HE, laudo 
+histopatológico do caso, histórico clínico, 
+localização e evolução da lesão
+
+CódigoExameCor do TuboQuantidade de MaterialEspécie
+Dias 
+Úteis
+Valor de 
+Custo
+Valor +40% 
+Lucro
+Vet e Clínica 
+Parceira
+1248Bloco de parafinaCanina e felina16R$ 545,06R$ 763,08
+1282Bloco de parafinaCanina16R$ 54,13R$ 75,78
+1369Bloco de parafinaCanina e felina16R$ 105,51R$ 147,71
+Biologia Molecular / PCR  (128 exames)
+803RoxaCanina1R$ 124,63R$ 174,48
+951RoxaCanina1R$ 170,52R$ 238,73
+896RoxaCanina1R$ 124,63R$ 174,48
+952RoxaCanina1R$ 170,52R$ 238,73
+IMUNOISTOQUÍMICA- PAINEL PROGNÓSTICO 
+MASTOCITOMA
+Bloco de parafina previamente 
+selecionado do fragmento de tecido a ser 
+analisado e respectiva lâmina HE, laudo 
+histopatológico do caso, histórico clínico, 
+localização e evolução da lesão. Visa 
+identificar a fatores prognósticos e 
+preditivos específicos para a neoplasia, 
+de acordo com informações comprovadas 
+em literatura
+RODANINA, COLORACAO HISTOLOGICA 
+ESPECIAL
+Bloco de parafina, lâmina HE 
+correspondente, histórico clínico e laudo 
+histopatológico. Aplicação: Coloração 
+histológica utilizada para pesquisa e 
+avaliação de acúmulo de cobre em 
+amostras provenientes de biópsias 
+hepáticas
+TRIAGEM PARA PAINEL DE 
+IMUNOISTOQUÍMICA
+Bloco(s) de parafina selecionado(s) do 
+fragmento de tecido a ser analisado e 
+respectiva(s) lâmina HE, laudo 
+histopatológico do caso, histórico clínico, 
+localização e evolução da lesão. Neste 
+exame de triagem, a partir das lâminas 
+HE enviadas, selecionamos o melhor 
+bloco para realização da 
+imunoistoquímica ou verificamos se o 
+bloco encaminhado corresponde à lesão 
+descrita em laudo histopatológico e 
+indicamos o código de painel 
+imunoistoquímico que mais se encaixaria 
+no caso, antes de seguir com o exame de 
+imunoistoquímica. Eventualmente, no 
+momento da análise imunoistoquímica, 
+outros marcadores podem ser sugeridos, 
+visto que alguns casos podem ter 
+comportamentos imprevisíveis nesta 
+investigação
+ADENOVÍRUS CANINO 1 (CAV-1) - REAL TIME 
+PCR QUALITATIVO
+No mínimo 0,5 mL de Sangue total em 
+tubo com EDTA (tampa roxa). No mínimo 
+2,0 mL de urina. Swab com material 
+orgânico visível. 5g fezes
+ADENOVÍRUS CANINO 1 (CAV-1) - REAL TIME 
+PCR QUANTITATIVO
+No mínimo 0,5 mL de Sangue total em 
+tubo com EDTA (tampa roxa). No mínimo 
+2,0 mL de urina. Swab com material 
+orgânico visível. 5g fezes
+ADENOVÍRUS CANINO 2 (CAV-2) - REAL TIME 
+PCR QUALITATIVO
+No mínimo 0,5 mL de Sangue total em 
+tubo com EDTA (tampa roxa). Swab com 
+material orgânico visível. 5g fezes
+ADENOVÍRUS CANINO 2 (CAV-2) - REAL TIME 
+PCR QUANTITATIVO
+No mínimo 0,5 mL de Sangue total em 
+tubo com EDTA (tampa roxa). Swab com 
+material orgânico visível. 5g fezes
+
+CódigoExameCor do TuboQuantidade de MaterialEspécie
+Dias 
+Úteis
+Valor de 
+Custo
+Valor +40% 
+Lucro
+Vet e Clínica 
+Parceira
+873RoxaCanina e felina1R$ 121,38R$ 169,93
+874RoxaCanina e felina1R$ 170,52R$ 238,73
+1109Roxa1R$ 121,38R$ 169,93
+1110Roxa1R$ 166,08R$ 232,51
+1034RoxaCanina, felina e aves1R$ 121,38R$ 169,93
+1035RoxaCanina, felina e aves1R$ 170,52R$ 238,73
+1034RoxaCanina, felina e aves1R$ 121,38R$ 169,93
+1035RoxaCanina, felina e aves1R$ 170,52R$ 238,73
+633RoxaCanina1R$ 124,63R$ 174,48
+769RoxaCanina1R$ 170,52R$ 238,73
+1012BABESIA SPP. - REAL TIME PCR QUALITATIVORoxa1R$ 121,38R$ 169,93
+1013BABESIA SPP. - REAL TIME PCR QUANTITATIVORoxa1R$ 170,52R$ 238,73
+1036RoxaCanina e felina1R$ 124,63R$ 174,48
+1037RoxaCanina e felina1R$ 170,52R$ 238,73
+ANAPLASMA PLATYS - REAL TIME PCR 
+QUALITATIVO
+No mínimo 0,5 mL de sangue total em 
+EDTA ou medula óssea (Tampa roxa). 
+No mínimo 0,6 mL de líquor ou líquido 
+sinovial. Aspirado de tecido em swab 
+seco estéril
+ANAPLASMA PLATYS - REAL TIME PCR 
+QUANTITATIVO
+No mínimo 0,5 mL de sangue total em 
+EDTA ou medula óssea (Tampa roxa). 
+No mínimo 0,6 mL de líquor ou líquido 
+sinovial. Aspirado de tecido em swab 
+seco estéril
+ANAPLASMA SPP. - REAL TIME PCR 
+QUALITATIVO
+No mínimo 0,5 mL de sangue total em 
+EDTA ou medula óssea (Tampa roxa). 
+No mínimo 0,6 mL de líquor ou líquido 
+sinovial. Aspirado de tecido em swab 
+seco estéril
+Canina, felina, equina, 
+bovina e aves
+ANAPLASMA SPP. - REAL TIME PCR 
+QUANTITATIVO
+No mínimo 0,5 mL de sangue total em 
+EDTA ou medula óssea (Tampa roxa). 
+No mínimo 0,6 mL de líquor ou líquido 
+sinovial. Aspirado de tecido em swab 
+seco estéril
+Canina, felina, equina, 
+bovina e aves
+ASPERGILLUS SPP - REAL TIME PCR 
+QUALITATIVO
+No mínimo 0,5 mL de Sangue total em 
+tubo com EDTA (tampa roxa). Swab com 
+material orgânico visível
+ASPERGILLUS SPP - REAL TIME PCR 
+QUANTITATIVO
+No mínimo 0,5 mL de Sangue total em 
+tubo com EDTA (tampa roxa). Swab com 
+material orgânico visível
+ASPERGILLUS SPP. - REAL TIME PCR 
+QUALITATIVO
+No mínimo 0,5 mL de Sangue total em 
+tubo com EDTA (tampa roxa). Swab com 
+material orgânico visível
+ASPERGILLUS SPP. - REAL TIME PCR 
+QUANTITATIVO
+No mínimo 0,5 mL de Sangue total em 
+tubo com EDTA (tampa roxa). Swab com 
+material orgânico visível
+BABESIA CANIS VOGELI - REAL TIME PCR 
+QUALITATIVO
+No mínimo 0,5 mL de sangue total em 
+EDTA ou medula óssea em tubo com 
+EDTA (tampa roxa)
+BABESIA CANIS VOGELI - REAL TIME PCR 
+QUANTITATIVO
+No mínimo 0,5 mL de sangue total em 
+EDTA ou medula óssea em tubo com 
+EDTA (tampa roxa)
+No mínimo 0,5 mL de sangue total em 
+EDTA ou medula óssea em tubo com 
+EDTA (tampa roxa). Aspirado de tecido 
+em swab seco. No mínimo 0,6 mL de 
+líquor
+Canina, felina, bovina, 
+equina e primatas
+No mínimo 0,5 mL de sangue total em 
+EDTA ou medula óssea em tubo com 
+EDTA (tampa roxa). Aspirado de tecido 
+em swab seco. No mínimo 0,6 mL de 
+líquor
+Canina, felina, bovina, 
+equina e primatas
+BARTONELLA SPP. - REAL TIME PCR 
+QUALITATIVO:
+No mínimo 0,5 mL de Sangue total em 
+tubo com EDTA (tampa roxa)
+BARTONELLA SPP. - REAL TIME PCR 
+QUANTITATIVO
+No mínimo 0,5 mL de Sangue total em 
+tubo com EDTA (tampa roxa)
+
+CódigoExameCor do TuboQuantidade de MaterialEspécie
+Dias 
+Úteis
+Valor de 
+Custo
+Valor +40% 
+Lucro
+Vet e Clínica 
+Parceira
+1038RoxaCanina, felina e equina1R$ 124,63R$ 174,48
+1039RoxaCanina, felina e equina1R$ 170,52R$ 238,73
+875Frasco/Coletor estérilSwab com material orgânico visível1R$ 124,63R$ 174,48
+876Frasco/Coletor estérilSwab com material orgânico visível1R$ 170,52R$ 238,73
+961Roxa1R$ 124,63R$ 174,48
+962Roxa1R$ 170,52R$ 238,73
+1132RoxaFelina1R$ 124,63R$ 174,48
+1133RoxaFelina1R$ 170,52R$ 238,73
+1134RoxaFelina1R$ 124,63R$ 174,48
+1135RoxaFelina1R$ 170,52R$ 238,73
+729RoxaSwab com material orgânico visívelFelina1R$ 124,63R$ 174,48
+919RoxaSwab com material orgânico visívelFelina1R$ 170,52R$ 238,73
+899RoxaCanina1R$ 124,63R$ 174,48
+968RoxaCanina1R$ 170,52R$ 238,73
+BLASTOMYCES DERMATITIDIS - REAL TIME 
+PCR QUALITATIVO
+No mínimo 0,5 mL de Sangue total em 
+tubo com EDTA (tampa roxa). No mínimo 
+0,6 mL de líquor ou lavado 
+broncoalveolar. Swab com material 
+orgânico visível
+BLASTOMYCES DERMATITIDIS - REAL TIME 
+PCR QUANTITATIVO
+No mínimo 0,5 mL de Sangue total em 
+tubo com EDTA (tampa roxa). No mínimo 
+0,6 mL de líquor ou lavado 
+broncoalveolar. Swab com material 
+orgânico visível
+BORDETELLA BRONCHISEPTICA - REAL TIME 
+PCR QUALITATIVO
+Canina, felina, suína, 
+equina, lagomorfos 
+(coelhos) e aves
+BORDETELLA BRONCHISEPTICA - REAL TIME 
+PCR QUANTITATIVO
+Canina, felina, suína, 
+equina, lagomorfos 
+(coelhos) e aves
+CAMPYLOBACTER SPP. - REAL TIME PCR 
+QUALITATIVO
+Swab com material orgânico visível. No 
+mínimo 2,0 mL lavado prepucial/vaginal 
+ou sêmen. 5g fezes. No mínimo 0,5 mL 
+de Sangue total em tubo com EDTA 
+(tampa roxa)
+Canina, felina, suína, 
+bovina e aves
+CAMPYLOBACTER SPP. - REAL TIME PCR 
+QUANTITATIVO
+Swab com material orgânico visível. No 
+mínimo 2,0 mL lavado prepucial/vaginal 
+ou sêmen. 5g fezes. No mínimo 0,5 mL 
+de Sangue total em tubo com EDTA 
+(tampa roxa)
+Canina, felina, suína, 
+bovina e aves
+CANDIDATUS MYCOPLASMA HAEMOMINUTUM 
+- REAL TIME PCR QUALITATIVO
+No mínimo 0,5 mL de sangue total em 
+EDTA ou medula óssea (Tampa roxa). 
+Aspirado de tecido em swab seco
+CANDIDATUS MYCOPLASMA HAEMOMINUTUM 
+- REAL TIME PCR QUANTITATIVO
+No mínimo 0,5 mL de sangue total em 
+EDTA ou medula óssea (Tampa roxa). 
+Aspirado de tecido em swab seco
+CANDIDATUS MYCOPLASMA TURICENSIS - 
+REAL TIME PCR QUALITATIVO
+No mínimo 0,5 mL de sangue total em 
+EDTA ou medula óssea (Tampa roxa). 
+Aspirado de tecido em swab seco
+CANDIDATUS MYCOPLASMA TURICENSIS - 
+REAL TIME PCR QUANTITATIVO
+No mínimo 0,5 mL de sangue total em 
+EDTA ou medula óssea (Tampa roxa). 
+Aspirado de tecido em swab seco
+CHLAMYDOPHILA FELIS - REAL TIME PCR 
+QUALITATIVO
+CHLAMYDOPHILA FELIS - REAL TIME PCR 
+QUANTITATIVO
+CIRCOVÍRUS CANINO - REAL TIME PCR 
+QUALITATIVO
+Swab com material orgânico visível. No 
+mínimo 0,5 mL de Sangue total em tubo 
+com EDTA (tampa roxa). No mínimo 0,6 
+mL de líquor. 5g fezes
+CIRCOVÍRUS CANINO - REAL TIME PCR 
+QUANTITATIVO
+Swab com material orgânico visível. No 
+mínimo 0,5 mL de Sangue total em tubo 
+com EDTA (tampa roxa). No mínimo 0,6 
+mL de líquor. 5g fezes
+
+CódigoExameCor do TuboQuantidade de MaterialEspécie
+Dias 
+Úteis
+Valor de 
+Custo
+Valor +40% 
+Lucro
+Vet e Clínica 
+Parceira
+1155Roxa1R$ 124,63R$ 174,48
+1156Roxa1R$ 170,52R$ 238,73
+920Frasco/Coletor estérilCanina1R$ 124,63R$ 174,48
+921Frasco/Coletor estérilCanina1R$ 170,52R$ 238,73
+730RoxaFelina1R$ 124,63R$ 174,48
+782RoxaFelina1R$ 170,52R$ 238,73
+1026RoxaFelina1R$ 124,63R$ 174,48
+1027RoxaFelina1R$ 170,52R$ 238,73
+615RoxaCanina e felina1R$ 121,38R$ 169,93
+771RoxaCanina e felina1R$ 166,08R$ 232,51
+1151RoxaCanina, felina e equina1R$ 121,38R$ 169,93
+1152RoxaCanina, felina e equina1R$ 166,08R$ 232,51
+1205Roxa1R$ 124,63R$ 174,48
+COCCIDIOIDES SPP. - REAL TIME PCR 
+QUALITATIVO
+No mínimo 0,5 mL de sangue total em 
+tubo ou medula óssea em tubo com 
+EDTA (tampa roxa). No mínimo 0,6 mL 
+de líquor ou lavado brônquico. Swab com 
+material orgânico
+Canina, felina, suína, 
+ovina, bovina e primatas 
+não humanos
+COCCIDIOIDES SPP. - REAL TIME PCR 
+QUANTITATIVO
+No mínimo 0,5 mL de sangue total em 
+tubo ou medula óssea em tubo com 
+EDTA (tampa roxa). No mínimo 0,6 mL 
+de líquor ou lavado brônquico. Swab com 
+material orgânico
+Canina, felina, suína, 
+ovina, bovina e primatas 
+não humanos
+CORONAVÍRUS CANINO (CCOV) - REAL TIME 
+PCR QUALITATIVO
+Swab com material orgânico visível. 5g 
+fezes
+CORONAVÍRUS CANINO (CCOV) - REAL TIME 
+PCR QUANTITATIVO
+Swab com material orgânico visível. 5g 
+fezes
+CORONAVÍRUS FELINO (FCOV) - REAL TIME 
+PCR QUALITATIVO
+Swab com material orgânico visível. 5g 
+fezes. No mínimo 0,5 mL de sangue total 
+em tubo com EDTA (tampa roxa). No 
+mínimo 0,6 mL de fluido abdominal ou 
+torácico. No mínimo 0,6 mL de líquor
+CORONAVÍRUS FELINO (FCOV) - REAL TIME 
+PCR QUANTITATIVO
+Swab com material orgânico visível. 5g 
+fezes. No mínimo 0,5 mL de sangue total 
+em tubo com EDTA (tampa roxa). No 
+mínimo 0,6 mL de fluido abdominal ou 
+torácico. No mínimo 0,6 mL de líquor
+CYTAUXZOON SPP. - REAL TIME PCR 
+QUALITATIVO
+No mínimo 0,5 mL de Sangue total em 
+tubo com EDTA (tampa roxa). Aspirado 
+de tecido em swab seco
+CYTAUXZOON SPP. - REAL TIME PCR 
+QUANTITATIVO
+No mínimo 0,5 mL de Sangue total em 
+tubo com EDTA (tampa roxa). Aspirado 
+de tecido em swab seco
+EHRLICHIA CANIS - REAL TIME PCR 
+QUALITATIVO
+No mínimo 0,5 mL de sangue total em 
+tubo ou medula óssea em tubo com 
+EDTA (tampa roxa). No mínimo 0,6 mL 
+de líquor ou líquido sinovial
+EHRLICHIA CANIS - REAL TIME PCR 
+QUANTITATIVO
+No mínimo 0,5 mL de sangue total em 
+tubo ou medula óssea em tubo com 
+EDTA (tampa roxa). No mínimo 0,6 mL 
+de líquor ou líquido sinovial
+EHRLICHIA SPP. - REAL TIME PCR 
+QUALITATIVO
+No mínimo 0,5 mL de sangue total em 
+tubo ou medula óssea em tubo com 
+EDTA (tampa roxa). No mínimo 0,6 mL 
+de líquor ou líquido sinovial
+EHRLICHIA SPP. - REAL TIME PCR 
+QUANTITATIVO
+No mínimo 0,5 mL de sangue total em 
+tubo ou medula óssea em tubo com 
+EDTA (tampa roxa). No mínimo 0,6 mL 
+de líquor ou líquido sinovial
+ENCEPHALITOZOON CUNICULI - REAL TIME 
+PCR QUALITATIVO
+No mínimo 2,0 mL de urina. 0,5 mL 
+Sangue total em tubo com EDTA (tampa 
+roxa). 5g fezes. Swab com material 
+orgânico visível
+Canina, Lagomorfos 
+(Coelhos), roedores, 
+aves e primatas não 
+humanos
+
+CódigoExameCor do TuboQuantidade de MaterialEspécie
+Dias 
+Úteis
+Valor de 
+Custo
+Valor +40% 
+Lucro
+Vet e Clínica 
+Parceira
+1206Roxa1R$ 170,52R$ 238,73
+1374Frasco/Coletor estéril3R$ 124,63R$ 174,48
+897RoxaCanina1R$ 124,63R$ 174,48
+969RoxaCanina1R$ 170,52R$ 238,73
+871RoxaFelina1R$ 124,63R$ 174,48
+1040RoxaCanina e felina1R$ 124,63R$ 174,48
+1041RoxaCanina e felina1R$ 170,52R$ 238,73
+785Roxa1R$ 124,63R$ 174,48
+786Roxa1R$ 170,52R$ 238,73
+955Frasco/Coletor estérilSwab com material orgânico visívelCanina e felina1R$ 124,63R$ 174,48
+956Frasco/Coletor estérilSwab com material orgânico visívelCanina e felina1R$ 170,52R$ 238,73
+947Frasco/Coletor estérilCanina e felina1R$ 124,63R$ 174,48
+948Frasco/Coletor estérilCanina e felina1R$ 170,52R$ 238,73
+1213Frasco/Coletor estérilSwab com material orgânico visívelCanina1R$ 124,63R$ 174,48
+1214Frasco/Coletor estérilSwab com material orgânico visívelCanina1R$ 170,52R$ 238,73
+ENCEPHALITOZOON CUNICULI - REAL TIME 
+PCR QUANTITATIVO
+No mínimo 2,0 mL de urina. 0,5 mL 
+Sangue total em tubo com EDTA (tampa 
+roxa). 5g fezes. Swab com material 
+orgânico visível
+Canina, Lagomorfos 
+(Coelhos), roedores, 
+aves e primatas não 
+humanos
+HELICOBACTER SPP - REAL TIME PCR 
+QUALITATIVO
+Swab com material orgânico visível ou 5g 
+fezes. Fragmentos de biópsia gástrica 
+representativos
+Canina, felina, ferret, 
+mustelídeos
+HERPESVÍRUS CANINO 1 (CHV-1) - REAL TIME 
+PCR QUALITATIVO
+No mínimo 0,5 mL de Sangue total em 
+tubo com EDTA (tampa roxa). No mínimo 
+2,0 mL de urina. No mínimo 0,5 mL de 
+sêmen. Swab com material orgânico 
+visível
+HERPESVÍRUS CANINO 1 (CHV-1) - REAL TIME 
+PCR QUANTITATIVO
+No mínimo 0,5 mL de Sangue total em 
+tubo com EDTA (tampa roxa). No mínimo 
+2,0 mL de urina. No mínimo 0,5 mL de 
+sêmen. Swab com material orgânico 
+visível
+HERPESVÍRUS FELINO (FHV-1) - REAL TIME 
+PCR QUALITATIVO
+No mínimo 0,5 mL de sangue total em 
+tubo com EDTA. No mínimo 0,5 mL de 
+sêmen No mínimo 2,0 mL efusão pleural. 
+Swab com material orgânico visível
+HISTOPLASMA CAPSULATUM - REAL TIME PCR 
+QUALITATIVO
+No mínimo 0,5 mL de sangue total em 
+tubo ou medula óssea em tubo com 
+EDTA (tampa roxa). No mínimo 2,0 mL 
+de urina ou lavado brônquico. Swab com 
+material orgânico visível. 5g fezes
+HISTOPLASMA CAPSULATUM - REAL TIME PCR 
+QUANTITATIVO
+No mínimo 0,5 mL de sangue total em 
+tubo ou medula óssea em tubo com 
+EDTA (tampa roxa). No mínimo 2,0 mL 
+de urina ou lavado brônquico. Swab com 
+material orgânico visível. 5g fezes
+LEPTOSPIRA SPP. - REAL TIME PCR 
+QUALITATIVO
+No mínimo 0,5 mL de Sangue total em 
+tubo com EDTA (tampa roxa). No mínimo 
+2,0 mL de urina. Swab com material 
+orgânico visível
+Canina, felina, bovina, 
+caprina, ovina, equina e 
+suína
+LEPTOSPIRA SPP. - REAL TIME PCR 
+QUANTITATIVO
+No mínimo 0,5 mL de Sangue total em 
+tubo com EDTA (tampa roxa). No mínimo 
+2,0 mL de urina. Swab com material 
+orgânico visível
+Canina, felina, bovina, 
+caprina, ovina, equina e 
+suína
+MALASSEZIA SPP. - REAL TIME PCR 
+QUALITATIVO
+MALASSEZIA SPP. - REAL TIME PCR 
+QUANTITATIVO
+MICROSPORUM SPP. - REAL TIME PCR 
+QUALITATIVO
+Swab com material orgânico visível. Tufo 
+de pelo
+MICROSPORUM SPP. - REAL TIME PCR 
+QUANTITATIVO
+Swab com material orgânico visível. Tufo 
+de pelo
+MYCOPLASMA CYNOS - REAL TIME PCR 
+QUALITATIVO
+MYCOPLASMA CYNOS - REAL TIME PCR 
+QUANTITATIVO
+
+CódigoExameCor do TuboQuantidade de MaterialEspécie
+Dias 
+Úteis
+Valor de 
+Custo
+Valor +40% 
+Lucro
+Vet e Clínica 
+Parceira
+923Roxa1R$ 124,63R$ 174,48
+924RoxaFelina1R$ 170,52R$ 238,73
+548RoxaCanina1R$ 124,63R$ 174,48
+775RoxaCanina1R$ 170,52R$ 238,73
+547RoxaFelina1R$ 124,63R$ 174,48
+774RoxaFelina1R$ 170,52R$ 238,73
+965RoxaCanina1R$ 476,15R$ 666,61
+946RoxaFelina1R$ 451,99R$ 632,79
+1063Frasco/Coletor estérilSwab com material orgânico visívelFelina1R$ 383,76R$ 537,26
+1065RoxaCanina1R$ 369,19R$ 516,87
+913RoxaFelina1R$ 199,31R$ 279,03
+912RoxaFelina1R$ 385,91R$ 540,27
+1131RoxaCanina1R$ 241,14R$ 337,60
+1006RoxaCanina1R$ 447,72R$ 626,81
+1007RoxaFelina1R$ 383,76R$ 537,26
+960Frasco/Coletor estérilCanina1R$ 306,19R$ 428,67
+970Frasco/Coletor estérilFelina1R$ 306,19R$ 428,67
+957Frasco/Coletor estérilFelina1R$ 510,33R$ 714,46
+806Frasco/Coletor estérilCanina1R$ 306,19R$ 428,67
+911Frasco/Coletor estérilCanina1R$ 385,80R$ 540,12
+916Frasco/Coletor estérilFelina1R$ 385,80R$ 540,12
+1262RoxaCanina1R$ 219,23R$ 306,92
+958RoxaCanina1R$ 476,15R$ 666,61
+890Roxa3,0 mL de sangue totalCanina15R$ 763,96R$ 1.069,54
+MYCOPLASMA FELIS - REAL TIME PCR 
+QUALITATIVO
+Swab com material orgânico visível. No 
+mínimo 0,6 mL de fluido torácico ou 
+lavado brônquico
+Felina. CÓDI- EXAME 
+DIAS ÚTEIS VALORES
+MYCOPLASMA FELIS - REAL TIME PCR 
+QUANTITATIVO
+Swab com material orgânico visível. No 
+mínimo 0,6 mL de fluido torácico ou 
+lavado brônquico
+MYCOPLASMA HAEMOCANIS - REAL TIME PCR 
+QUALITATIVO
+No mínimo 0,5 mL de sangue total em 
+EDTA ou medula óssea (Tampa roxa)
+MYCOPLASMA HAEMOCANIS - REAL TIME PCR 
+QUANTITATIVO
+No mínimo 0,5 mL de sangue total em 
+EDTA ou medula óssea (Tampa roxa)
+MYCOPLASMA HAEMOFELIS - REAL TIME PCR 
+QUALITATIVO
+No mínimo 0,5 mL de sangue total em 
+EDTA ou medula óssea (Tampa roxa)
+MYCOPLASMA HAEMOFELIS - REAL TIME PCR 
+QUANTITATIVO
+No mínimo 0,5 mL de sangue total em 
+EDTA ou medula óssea (Tampa roxa)
+PAINEL ABORTO CANINO - REAL TIME PCR 
+QUALITATIVO
+No mínimo 0,5 mL de Sangue total em 
+tubo com EDTA (tampa roxa). 
+Fragmentos de tecido
+PAINEL ABORTO FELINO - REAL TIME PCR 
+QUALITATIVO
+No mínimo 0,5 mL de Sangue total em 
+tubo com EDTA (tampa roxa)
+PAINEL AFECÇÃO ORAL FELINO - REAL TIME 
+PCR QUALITATIVO
+PAINEL ANEMIA CANINA - REAL TIME PCR 
+QUALITATIVO
+No mínimo 0,5 mL de Sangue total em 
+tubo com EDTA (tampa roxa)
+PAINEL ANEMIA FELINA BÁSICO - REAL TIME 
+PCR QUALITATIVO
+No mínimo 0,5 mL de Sangue total em 
+tubo com EDTA (tampa roxa)
+PAINEL ANEMIA FELINA COMPLETO - REAL 
+TIME PCR QUALITATIVO
+No mínimo 0,5 mL de Sangue total em 
+tubo com EDTA (tampa roxa)
+PAINEL BABESIOSE CANINA - REAL TIME PCR 
+QUALITATIVO
+No mínimo 0,5 mL de Sangue total em 
+tubo com EDTA (tampa roxa)
+PAINEL CHECK UP DOENÇAS INFECCIOSAS 
+CANINO - REAL TIME PCR QUALITATIVO
+No mínimo 0,5 mL de Sangue total em 
+tubo com EDTA (tampa roxa)
+PAINEL CHECK UP DOENÇAS INFECCIOSAS 
+FELINO - REAL TIME PCR QUALITATIVO
+No mínimo 0,5 mL de Sangue total em 
+tubo com EDTA (tampa roxa)
+PAINEL DERMATOPATIA FÚNGICA CANINA - 
+REAL TIME PCR QUALITATIVO
+Swab com material orgânico visível. Tufo 
+de pelo
+PAINEL DERMATOPATIA FÚNGICA FELINA 
+BÁSICO - REAL TIME PCR QUALITATIVO
+Swab com material orgânico visível. Tufo 
+de pelo
+PAINEL DERMATOPATIA FÚNGICA FELINA 
+COMPLETO - REAL TIME PCR QUALITATIVO
+Swab com material orgânico visível. Tufo 
+de pelo
+PAINEL DIARREIA CANINA BÁSICO -REAL TIME 
+PCR QUALITATIVO
+Swab com material orgânico visível. 5g 
+fezes
+PAINEL DIARREIA CANINA COMPLETO - REAL 
+TIME PCR QUALITATIVO
+Swab com material orgânico visível. 5g 
+fezes
+PAINEL DIARREIA FELINA COMPLETO - REAL 
+TIME PCR QUALITATIVO
+Swab com material orgânico visível. 5g 
+fezes
+PAINEL DOADOR CÃO ESSENCIAL - REAL TIME 
+PCR QUALITATIVO
+No mínimo 0,5 mL de Sangue total em 
+tubo com EDTA (tampa roxa)
+PAINEL DOADOR SANGUÍNEO CANINO - REAL 
+TIME PCR QUALITATIVO
+No mínimo 0,5 mL de Sangue total em 
+tubo com EDTA (tampa roxa)
+PAINEL DOENCAS GENETICAS CANINAS - 
+SEQUENCIAMENTO GENETICO
+
+CódigoExameCor do TuboQuantidade de MaterialEspécie
+Dias 
+Úteis
+Valor de 
+Custo
+Valor +40% 
+Lucro
+Vet e Clínica 
+Parceira
+914RoxaFelina1R$ 204,13R$ 285,78
+915RoxaFelina1R$ 198,81R$ 278,33
+793RoxaCanina1R$ 199,31R$ 279,03
+1291RoxaCanina1R$ 207,23R$ 290,12
+905RoxaCanina1R$ 341,62R$ 478,27
+1149RoxaCanina1R$ 479,93R$ 671,90
+1150RoxaFelina1R$ 492,78R$ 689,89
+1136RoxaFelina1R$ 234,85R$ 328,79
+1062RoxaCanina e felina1R$ 243,06R$ 340,28
+904RoxaCanina1R$ 199,31R$ 279,03
+1157RoxaCanina1R$ 369,19R$ 516,87
+917RoxaFelina1R$ 341,62R$ 478,27
+1064RoxaFelina1R$ 423,39R$ 592,75
+1194Bloco de parafinaCanina16R$ 717,19R$ 1.004,07
+959Frasco/Coletor estérilSwab com material orgânico visívelCanina1R$ 408,26R$ 571,56
+PAINEL FELV PLUS (RNA E DNA) - REAL TIME 
+PCR
+No mínimo 0,5 mL de sangue total em 
+EDTA ou medula óssea em tubo com 
+EDTA (tampa roxa)
+PAINEL FIV PLUS (RNA E DNA) - REAL TIME 
+PCR QUALITATIVO
+No mínimo 0,5 mL de sangue total em 
+EDTA
+PAINEL HEMOPARASITAS BÁSICO - REAL TIME 
+PCR QUANTITATIVO
+No mínimo 0,5 mL de sangue total em 
+EDTA ou medula óssea em tubo com 
+EDTA (tampa roxa)
+PAINEL HEMOPARASITAS CANINO BÁSICO II - 
+REAL TIME PCR QUALITATIVO
+Mínimo 0,5 mL de sangue total em EDTA 
+ou medula óssea em tubo com EDTA 
+(tampa roxa)
+PAINEL HEMOPARASITAS CANINO COMPLETO 
+- REAL TIME PCR QUALITATIVO
+No mínimo 0,5 mL de sangue total em 
+EDTA ou medula óssea em tubo com 
+EDTA (tampa roxa)
+PAINEL HIPERTERMIA ATÍPICA CANINO - REAL 
+TIME PCR QUALITATIVO
+No mínimo 0,5 mL de Sangue total em 
+tubo com EDTA (tampa roxa)
+PAINEL HIPERTERMIA ATÍPICA FELINO - REAL 
+TIME PCR QUALITATIVO
+No mínimo 0,5 mL de Sangue total em 
+tubo com EDTA (tampa roxa)
+PAINEL MICOPLASMOSE HEMOTRÓPICA 
+FELINA - REAL TIME PCR QUALITATIVO
+No mínimo 0,5 mL de sangue total em 
+EDTA ou medula óssea em tubo com 
+EDTA (tampa roxa)
+PAINEL MICOSES SISTÊMICAS - REAL TIME 
+PCR QUALITATIVO
+Swab com material orgânico visível. 5g 
+fezes. No mínimo 0,5 mL de Sangue total 
+em tubo com EDTA (tampa roxa)
+PAINEL NEUROLÓGICO CANINO BÁSICO - REAL 
+TIME PCR QUALITATIVO
+No mínimo 0,5 mL de Sangue total em 
+tubo com EDTA (tampa roxa). No mínimo 
+0,6 mL de líquor. No mínimo 2,0 mL de 
+urina
+PAINEL NEUROLÓGICO CANINO COMPLETO - 
+REAL TIME PCR QUALITATIVO
+No mínimo 0,5 mL de Sangue total em 
+tubo com EDTA (tampa roxa). No mínimo 
+0,6 mL de líquor. No mínimo 2,0 mL de 
+urina
+PAINEL NEUROLÓGICO FELINO - REAL TIME 
+PCR QUALITATIVO
+No mínimo 0,5 mL de Sangue total em 
+tubo com EDTA (tampa roxa). No mínimo 
+0,6 mL de líquor
+PAINEL OFTALMOPATIA FELINO - REAL TIME 
+PCR QUALITATIVO
+No mínimo 0,5 mL de Sangue total em 
+tubo com EDTA (tampa roxa). No mínimo 
+0,6 mL de humor aquoso. Swab com 
+material orgânico visível
+PAINEL PCR C-KIT +IMUNOISTOQUÍMICA PARA 
+MASTOCITOMA
+1 Bloco de parafina e respectiva lâmina 
+HE representante da lesão para análise 
+imunoistoquímica, laudo histopatológico e 
+histórico clínico com evolução da lesão. 
+Avaliação prognóstica e preditiva para 
+mastocitoma. Combina os achados 
+proteicos do exame imunoistoquímico 
+com os achados genéticos da 
+investigação de mutações no exon 11 do 
+gene C-Kit
+PAINEL RESPIRATÓRIO CANINO - REAL TIME 
+PCR QUALITATIVO
+
+CódigoExameCor do TuboQuantidade de MaterialEspécie
+Dias 
+Úteis
+Valor de 
+Custo
+Valor +40% 
+Lucro
+Vet e Clínica 
+Parceira
+907Frasco/Coletor estérilSwab com material orgânico visívelFelina1R$ 204,13R$ 285,78
+906Frasco/Coletor estérilSwab com material orgânico visívelFelina1R$ 359,91R$ 503,87
+824RoxaFelina1R$ 285,30R$ 399,42
+1008RoxaCanina1R$ 405,09R$ 567,13
+1009RoxaFelina1R$ 324,07R$ 453,70
+932RoxaFelina1R$ 170,52R$ 238,73
+931RoxaFelina1R$ 124,63R$ 174,48
+925RoxaCanina1R$ 124,63R$ 174,48
+926RoxaCanina1R$ 170,52R$ 238,73
+1284Bloco de parafinaBloco de parafina e laudo histopatológicoCanina5R$ 316,94R$ 443,72
+963RoxaCanina1R$ 124,63R$ 174,48
+964RoxaCanina1R$ 170,52R$ 238,73
+953Frasco/Coletor estérilCanina e felina1R$ 121,38R$ 169,93
+954Frasco/Coletor estérilCanina e felina1R$ 170,52R$ 238,73
+949Frasco/Coletor estérilCanina e felina1R$ 124,63R$ 174,48
+950Frasco/Coletor estérilCanina e felina1R$ 170,52R$ 238,73
+927Frasco/Coletor estérilFelina e bovina1R$ 124,63R$ 174,48
+928Frasco/Coletor estérilFelina e bovina1R$ 170,52R$ 238,73
+PAINEL RESPIRATÓRIO FELINO BÁSICO - REAL 
+TIME PCR QUALITATIVO
+PAINEL RESPIRATÓRIO FELINO COMPLETO - 
+REAL TIME PCR QUALITATIVO
+PAINEL RETROVIROSES DNA PROVIRAL - REAL 
+TIME PCR QUANTITATIVO
+No mínimo 0,5 mL de sangue total em 
+EDTA ou medula óssea em tubo com 
+EDTA (tampa roxa)
+PAINEL ZOONOSES CANINA - REAL TIME PCR 
+QUALITATIVO
+No mínimo 0,5 mL de Sangue total em 
+tubo com EDTA (tampa roxa). 5g fezes
+PAINEL ZOONOSES FELINO - REAL TIME PCR 
+QUALITATIVO
+No mínimo 0,5 mL de Sangue total em 
+tubo com EDTA (tampa roxa). 5g fezes
+PANLEUCOPENIA FELINA (FPV PARVOVIRUS 
+FELINO) - REAL TIME PCR QUANTITATIVO
+No mínimo 0,5 mL de Sangue total em 
+tubo com EDTA (tampa roxa). No mínimo 
+0,6 mL de líquor. 5g fezes. Swab com 
+material orgânico visível
+PANLEUCOPENIA FELINA (FPV, PARVOVIRUS 
+FELINO) - REAL TIME PCR QUALITATIVO
+No mínimo 0,5 mL de Sangue total em 
+tubo com EDTA (tampa roxa). No mínimo 
+0,6 mL de líquor. 5g fezes. Swab com 
+material orgânico visível
+PARVOVÍRUS CANINO 2 (CPV-2) - REAL TIME 
+PCR QUALITATIVO
+No mínimo 0,5 mL de Sangue total em 
+tubo com EDTA (tampa roxa). 5g fezes. 
+Swab com material orgânico visível
+PARVOVÍRUS CANINO 2 (CPV-2) - REAL TIME 
+PCR QUANTITATIVO
+No mínimo 0,5 mL de Sangue total em 
+tubo com EDTA (tampa roxa). 5g fezes. 
+Swab com material orgânico visível
+PCR PARA ONCOGENE C-KIT EM 
+MASTOCITOMA
+RANGELIA VITALII - REAL TIME PCR 
+QUALITATIVO
+No mínimo 0,5 mL de sangue total ou 
+medula óssea em tubo com EDTA (tampa 
+roxa)
+RANGELIA VITALII - REAL TIME PCR 
+QUANTITATIVO
+No mínimo 0,5 mL de sangue total ou 
+medula óssea em tubo com EDTA (tampa 
+roxa)
+SPOROTHRIX SPP. - REAL TIME PCR 
+QUALITATIVO (ESPOROTRICOSE)
+Swab com material orgânico visível. No 
+mínimo 0,6 mL de líquor
+SPOROTHRIX SPP. - REAL TIME PCR 
+QUANTITATIVO (ESPOROTRICOSE)
+Swab com material orgânico visível. No 
+mínimo 0,6 mL de líquor
+TRICHOPHYTON SPP. - REAL TIME PCR 
+QUALITATIVO
+Swab com material orgânico visível. Tufo 
+de pelo
+TRICHOPHYTON SPP. - REAL TIME PCR 
+QUANTITATIVO
+Swab com material orgânico visível. Tufo 
+de pelo
+TRITRICHOMONAS FOETUS - REAL TIME PCR 
+QUALITATIVO
+Swab com material orgânico visível. 5g 
+de fezes. No mínimo 2,0 mL lavado 
+prepucial, líquido abomasal ou sêmen
+TRITRICHOMONAS FOETUS - REAL TIME PCR 
+QUANTITATIVO
+Swab com material orgânico visível. 5g 
+de fezes. No mínimo 2,0 mL lavado 
+prepucial, líquido abomasal ou sêmen
+
+CódigoExameCor do TuboQuantidade de MaterialEspécie
+Dias 
+Úteis
+Valor de 
+Custo
+Valor +40% 
+Lucro
+Vet e Clínica 
+Parceira
+817RoxaFelina1R$ 121,38R$ 169,93
+723RoxaCanina1R$ 121,38R$ 169,93
+1362RoxaCanina1R$ 173,05R$ 242,27
+894RoxaFelina1R$ 127,58R$ 178,61
+929RoxaFelina1R$ 166,08R$ 232,51
+816RoxaFelina1R$ 124,63R$ 174,48
+820RoxaFelina1R$ 170,52R$ 238,73
+893RoxaFelina1R$ 124,63R$ 174,48
+930RoxaFelina1R$ 166,08R$ 232,51
+821RoxaFelina1R$ 170,52R$ 238,73
+1375YERSINIA SPP - REAL TIME PCR QUALITATIVOFrasco/Coletor estéril3R$ 124,63R$ 174,48
+Combos / Perfis  (74 exames)
+788Canina, felina e equina0R$ 142,98R$ 200,17
+1004Canina, felina e equina0R$ 89,94R$ 125,92
+VIRUS DA LEUCEMIA FELINA (FELV) - RNA 
+VIRAL - REAL TIME PCR QUALITATIVO
+No mínimo 0,5 mL de sangue total em 
+EDTA ou medula óssea em tubo com 
+EDTA (tampa roxa). No mínimo 0,6 mL 
+de humor aquoso ou líquor. Swab com 
+material orgânico visível. Possível 
+analisar pool de até 3
+VÍRUS DA CINOMOSE CANINA (CDV) - REAL 
+TIME PCR QUALITATIVO
+Swab com material orgânico visível. No 
+mínimo 0,5 mL de sangue total em tubo. 
+No mínimo 0,6 mL de líquor. No mínimo 
+2,0 mL de urina
+VÍRUS DA CINOMOSE CANINA (CDV) - REAL 
+TIME PCR QUANTITATIVO
+Swab com material orgânico visível. No 
+mínimo 0,5 mL de sangue total em tubo. 
+No mínimo 0,6 mL de líquor. No mínimo 
+2,0 mL de urina
+VÍRUS DA IMUNODEFICIÊNCIA FELINA (FIV) - 
+DNA PROVIRAL - REAL TIME PCR
+No mínimo 0,5 mL de sangue total em 
+EDTA ou medula óssea em tubo com 
+EDTA (tampa roxa)
+VÍRUS DA IMUNODEFICIÊNCIA FELINA (FIV) - 
+DNA PROVIRAL - REAL TIME PCR
+No mínimo 0,5 mL de sangue total em 
+EDTA ou medula óssea em tubo com 
+EDTA (tampa roxa)
+VÍRUS DA IMUNODEFICIÊNCIA FELINA (FIV) - 
+RNA VIRAL - REAL TIME PCR
+No mínimo 0,5 mL de sangue total em 
+EDTA ou medula óssea em tubo com 
+EDTA (tampa roxa). No mínimo 0,6 mL 
+de humor aquoso ou líquor. Swab com 
+material orgânico visível
+VÍRUS DA IMUNODEFICIÊNCIA FELINA (FIV) - 
+RNA VIRAL - REAL TIME PCR
+No mínimo 0,5 mL de sangue total em 
+EDTA ou medula óssea em tubo com 
+EDTA (tampa roxa). No mínimo 0,6 mL 
+de humor aquoso ou líquor. Swab com 
+material orgânico visível
+VÍRUS DA LEUCEMIA FELINA (FELV) - DNA 
+PROVIRAL - REAL TIME PCR QUALITATIVO
+No mínimo 0,5 mL de sangue total em 
+EDTA ou medula óssea em tubo com 
+EDTA (tampa roxa)
+VÍRUS DA LEUCEMIA FELINA (FELV) - DNA 
+PROVIRAL - REAL TIME PCR QUANTITATIVO
+No mínimo 0,5 mL de sangue total em 
+EDTA ou medula óssea em tubo com 
+EDTA (tampa roxa)
+VÍRUS DA LEUCEMIA FELINA (FELV) - RNA 
+VIRAL - REAL TIME PCR QUANTITATIVO
+No mínimo 0,5 mL de sangue total em 
+EDTA ou medula óssea em tubo com 
+EDTA (tampa roxa). No mínimo 0,6 mL 
+de humor aquoso ou líquor. Swab com 
+material orgânico visível. Possível 
+analisar pool de até 3
+5g fezes. Swab com material orgânico 
+visível
+Canina, felina, ferret, 
+mustelídeos
+CHECK UP GLOBAL DE FUNÇÕES COM 
+HEMOGRAMA
+Roxa ou 
+Vermelha/Amarela
+1,0 mL de soro + 0,5 plasma fluoretado + 
+0,5 ml sangue total em tubo com EDTA 
+(tampa roxa)
+CHECK UP GLOBAL DE FUNÇÕES COM 
+HEMOGRAMA (SEM GLICOSE)
+Vermelha/Amarela ou 
+Roxa
+1,0 mL de soro + 0,5 ml sangue total em 
+tubo com EDTA
+
+CódigoExameCor do TuboQuantidade de MaterialEspécie
+Dias 
+Úteis
+Valor de 
+Custo
+Valor +40% 
+Lucro
+Vet e Clínica 
+Parceira
+801CHECK UP GLOBAL PLUSCanina, felina e equina1R$ 148,66R$ 208,12
+235CHECK UP POS-OPERATÓRIOCanina, felina e equina1R$ 99,05R$ 138,67
+857Canina1R$ 123,52R$ 172,93
+1115PERFIL ACOMPANHAMENTO EPILEPSIACanina e felina1R$ 161,76R$ 226,46
+1287Felina1R$ 289,39R$ 405,15
+1288Felina5R$ 355,61R$ 497,85
+975Vermelha/Amarela1,0 mL de soroCanina7R$ 1.153,45R$ 1.614,83
+1102Vermelha/Amarela1,0 mL de soroFelina7R$ 1.153,45R$ 1.614,83
+1304PERFIL BIOQUÍMICO AMPLIADOCanina, felina e equina0R$ 148,40R$ 207,76
+324PERFIL BIOQUÍMICO BÁSICOVermelha/Amarela1,0 mL de soroCanina, felina e equina0R$ 105,89R$ 148,25
+1324PERFIL CHECK UPVermelha/AmarelaCanina, felina e equina0R$ 112,22R$ 157,11
+856PERFIL CHECK UP CARDIO - RENALCanina2R$ 344,43R$ 482,20
+1325PERFIL CHECK UP CARE 1Vermelha/AmarelaCanina, felina e equina0R$ 130,26R$ 182,36
+1326PERFIL CHECK UP CARE 2Vermelha/AmarelaCanina, felina e equina0R$ 130,26R$ 182,36
+1306PERFIL CHECK UP CARE 3Canina, felina e equina0R$ 121,16R$ 169,62
+1305PERFIL CHECK UP CARE AMPLIADOCanina, felina e equina0R$ 182,36R$ 255,30
+233PERFIL CHECK UP DE EMERGÊNCIACanina, felina e equina0R$ 86,00R$ 120,40
+570PERFIL CHECK UP GLOBAL DE FUNÇÕESCanina, felina e equina0R$ 138,39R$ 193,75
+591PERFIL COAGULOGRAMAAzul0,5 mL de plasma citratadoCanina, felina e equina0R$ 100,91R$ 141,27
+943PERFIL COMPLEMENTAR P/LEISHMANIOSE IICanina2R$ 120,25R$ 168,35
+316PERFIL COMPLEMENTAR PARA LEISHMANIOSECanina1R$ 107,31R$ 150,23
+326PERFIL COMPLETO PARA HEMOPARASITASCanina2R$ 209,95R$ 293,93
+330Canina2R$ 238,76R$ 334,26
+1223PERFIL DIAGNÓSTICO DIABETES MELLITUSCanina2R$ 156,33R$ 218,86
+Vermelha/Amarela ou 
+Cinza
+1,2 mL de soro + 0,5 mL plasma 
+fluoretado
+Roxa ou 
+Vermelha/Amarela
+0,8 mL de soro + 0,5 ml sangue total em 
+tubo com EDTA (tampa roxa) + 5,0 mL de 
+urina
+COMBO 4 EM 1 - EHRLICHIA - LEISHMANIA - 
+DIROFILARIA - ANAPLASMA
+Vermelha/Amarela ou 
+Roxa
+0,5 mL de soro/plasma ou 2,0 mL de 
+sangue total em EDTA
+Roxa ou 
+Vermelha/Amarela
+2,0 mL de soro + 1,0 mL sangue total em 
+EDTA
+PERFIL ACOMPANHAMENTO PARA DOENTE 
+RENAL FELINO BÁSICO
+Roxa ou 
+Vermelha/Amarela
+1,0 mL sangue total em EDTA + 1,0 mL 
+soro
+PERFIL ACOMPANHAMENTO PARA DOENTE 
+RENAL FELINO COMPLETO
+Roxa ou 
+Vermelha/Amarela
+1,0 mL sangue total em tubo com EDTA + 
+1,0 mL soro + 5,0 mL urina
+PERFIL ALERGENOS AMBIENTAIS E 
+ALIMENTARES - CANINO
+PERFIL ALÉRGENOS AMBIENTAIS E 
+ALIMENTARES - FELINO
+Vermelha/Amarela ou 
+Cinza
+1,0 mL de soro + 0,3 mL de plasma 
+fluoretado
+1,0 mL de soro + 1,0 mL sangue total em 
+tubo com EDTA
+Vermelha/Amarela ou 
+Roxa
+1,0 mL de soro + 0,5 ml de sangue total 
+em tubo com EDTA
+1,0 mL de soro + 1,0 mL de sangue total 
+em tubo com EDTA
+1,0 mL de soro + 1,0 mL sangue total em 
+tubo com EDTA
+Vermelha/Amarela ou 
+Roxa
+1,0 mL de soro + 3,0 ml sangue total em 
+tubo com EDTA
+Vermelha/Amarela ou 
+Cinza ou Roxa
+1,0 mL de soro + 0,3 plasma fluoretado + 
+1,0 ml sangue total em tubo com EDTA
+Vermelha/Amarela ou 
+Roxa
+0,6 mL de soro + 0,5 ml sangue total em 
+tubo com EDTA (tampa roxa) + 5,0 mL de 
+urina
+Vermelha/Amarela ou 
+Cinza
+1,0 mL de soro + 0,5 mL plasma 
+fluoretado
+Branca ou 
+Vermelha/Amarela ou 
+Roxa
+1,0 mL de soro + 1,0 mL sangue total em 
+tubo com EDTA
+Branca ou 
+Vermelha/Amarela ou 
+Roxa
+1,0 mL de soro, 1,0 mL de sangue total 
+em tubo com EDTA (tampa roxa)
+Vermelha/Amarela ou 
+Roxa
+1,0 mL de soro + 1,0 mL sangue total em 
+EDTA
+PERFIL DIAGNÓSTICO COMPLETO DE 
+LEISHMANIOSE
+Vermelha/Amarela ou 
+Roxa
+1,0 mL de soro + 1,0 mL sangue total em 
+EDTA
+Cinza ou Roxa ou 
+Vermelha/Amarela
+0,5 mL de soro + 0,5 mL de plasma 
+fluoretado + 1,0 mL de sangue total em 
+tubo com EDTA + 5,0 mL de urina
+
+CódigoExameCor do TuboQuantidade de MaterialEspécie
+Dias 
+Úteis
+Valor de 
+Custo
+Valor +40% 
+Lucro
+Vet e Clínica 
+Parceira
+527Vermelha/Amarela1,0 mL de soroCanina, felina e equina2R$ 84,79R$ 118,71
+1348PERFIL DIFERENCIAL PARA LEISHMANIOSECanina2R$ 266,37R$ 372,92
+6680,5 mL de soro/plasmaCanina2R$ 157,49R$ 220,49
+331PERFIL ELETROLÍTICOVermelha/Amarela0,8 mL de soroCanina, felina e equina0R$ 61,84R$ 86,58
+1086PERFIL ELETROLÍTICO COMPLETOVermelha/Amarela0,5 mL de soroCanina, felina e equina0R$ 83,03R$ 116,24
+841PERFIL ESPECIAL 2Exclusivamente canina1R$ 85,28R$ 119,39
+1331PERFIL ESTADIAMENTO LEISHMANIOSECanina2R$ 315,65R$ 441,91
+533PERFIL FILHOTE 1 - CANINOCanina1R$ 197,29R$ 276,21
+534PERFIL FILHOTE 2 - CANINOCanina2R$ 204,39R$ 286,15
+1307PERFIL FUNÇÃO TIREOIDIANAVermelha/Amarela1,0 mL de soroCanina, felina e equina3R$ 332,31R$ 465,23
+167PERFIL GERIÁTRICO ICanina, felina e equina0R$ 89,64R$ 125,50
+332PERFIL GERIÁTRICO IICanina, felina e equina2R$ 135,07R$ 189,10
+944Canina5R$ 454,52R$ 636,33
+669Roxa0,5 mL de sangue totalCanina, felina e equina1R$ 44,27R$ 61,98
+333PERFIL HEPÁTICOVermelha/Amarela1,0 mL de soroCanina, felina e equina0R$ 93,17R$ 130,44
+334PERFIL HIPERADRENOCORTICISMOCanina, felina e equina1R$ 113,43R$ 158,80
+373PERFIL HIPERTIREOIDISMO 1Canina, felina e equina3R$ 133,39R$ 186,75
+697PERFIL HIPERTIREOIDISMO 2Canina, felina e equina2R$ 336,10R$ 470,54
+853PERFIL HIPOADRENOCORTICISMOCanina, felina e equina1R$ 213,36R$ 298,70
+336PERFIL HIPOTIREOIDISMO 1Canina, felina e equina1R$ 137,29R$ 192,21
+696PERFIL HIPOTIREOIDISMO 2Canina, felina e equina2R$ 399,41R$ 559,17
+689PERFIL INFECÇÕES NEUROLÓGICAS CANINASVermelha/Amarela0,5 mL de soroCanina4R$ 207,37R$ 290,32
+532PERFIL LEISHMANIOSE + HEMATOZOÁRIOSCanina2R$ 62,16R$ 87,02
+PERFIL DIAGNÓSTICO SOROLÓGICO 
+LEPTOSPIROSE
+Vermelha/Amarela ou 
+Roxa
+1,0 mL de soro + 1,0 mL sangue total em 
+tubo com EDTA
+PERFIL DOENÇA TRANSMITIDA PELO 
+CARRAPATO
+Vermelha/Amarela ou 
+Roxa
+Vermelha/Amarela ou 
+Roxa
+1,0 mL de soro + 0,5 mL sangue total em 
+tubo com EDTA
+Roxa ou 
+Vermelha/Amarela
+0,5 mL de sangue total em tubo com 
+EDTA + 1,0 mL de soro + 0,4 mL de 
+medula óssea em tubo com EDTA + 5,0 
+mL de urina
+Vermelha/Amarela ou 
+Roxa
+1,0 mL de soro + 1,0 mL sangue total 
+emtubo com EDTA + 10 g de fezes
+Vermelha/Amarela ou 
+Roxa
+1,0 mL de soro + 1,0 mL sangue total em 
+tubo com EDTA + 10 g de fezes
+Vermelha/Amarela ou 
+Cinza ou Roxa
+1,0 mL de soro + 0,5 mL de plasma 
+fluoretado + 0,5 ml sangue total em tubo 
+com EDTA (tampa roxa) + 5,0 mL de 
+urina
+Roxa ou 
+Vermelha/Amarela
+1,0 mL de soro + 0,5 mL de plasma 
+fluoretado + 0,5 ml sangue total em tubo 
+com EDTA (tampa roxa) + 5,0 mL de 
+urina
+PERFIL GERIÁTRICO III- COM SDMA E PROBNP 
+CANINO
+Vermelha/Amarela ou 
+Roxa
+1,0 mL de soro + 0,5 mL de plasma 
+fluoretado + 0,5 ml sangue total em tubo 
+com EDTA (tampa roxa) + 5 mL de urina
+PERFIL HEMOGRAMA E PESQUISA DE 
+HEMATOZOÁRIOS
+Roxa ou 
+Vermelha/Amarela
+1,0 mL de soro + 0,5 mL sangue total em 
+tubo com EDTA (tampa roxa)
+Roxa ou 
+Vermelha/Amarela
+1,0 mL de soro + 0,5 mL sangue total em 
+tubo com EDTA (tampa roxa)
+Roxa ou 
+Vermelha/Amarela
+1,0 mL de soro + 1,0 mL sangue total em 
+EDTA
+Vermelha/Amarela ou 
+Cinza
+1,0 mL de soro + 0,5 mL de plasma 
+fluoretado + 0,5 mL sangue total em 
+EDTA
+Vermelha/Amarela ou 
+Roxa
+1,0 mL de soro + 0,5 ml sangue total em 
+EDTA
+Roxa ou 
+Vermelha/Amarela
+2,0 mL de soro + 2,0 mL sangue total em 
+EDTA
+Vermelha/Amarela ou 
+Roxa
+0,5 mL de soro e 1,0 mL de sangue total 
+em tubo com EDTA
+
+CódigoExameCor do TuboQuantidade de MaterialEspécie
+Dias 
+Úteis
+Valor de 
+Custo
+Valor +40% 
+Lucro
+Vet e Clínica 
+Parceira
+1199PERFIL METABÓLICOCanina, felina e equina0R$ 70,63R$ 98,88
+337PERFIL MUSCULARVermelha/Amarela0,5 mL de soroCanina, felina e equina1R$ 56,31R$ 78,83
+844Canina e felina12R$ 385,91R$ 540,27
+339PERFIL OBESIDADECanina, felina e equina2R$ 181,28R$ 253,79
+1111PERFIL OBESIDADE IICanina, felina e equina2R$ 216,41R$ 302,97
+1104PERFIL PRÉ-ANESTÉSICO FELINOExclusivamente felina0R$ 80,16R$ 112,22
+348PERFIL PRÉ-ANESTÉSICO I0,5 mL de soro + 0,5 plasma fluoretadoCanina, felina e equina0R$ 80,24R$ 112,34
+836PERFIL PRÉ-ANESTÉSICO IICanina, felina e equina0R$ 77,89R$ 109,05
+840PERFIL PRÉ-ANESTÉSICO IIICanina, felina e equina0R$ 97,13R$ 135,98
+1164PERFIL PRÉ-CIRURGICO ESTENDIDOVermelha/AmarelaCanina, felina e equina0R$ 62,02R$ 86,83
+1322PERFIL RENAL ABRANGENTE CANINACanina2R$ 432,62R$ 605,67
+1323PERFIL RENAL ABRANGENTE FELINO1,0 mL de soro + 5,0 mL de urinaFelina1R$ 390,09R$ 546,13
+349PERFIL RENAL BÁSICOVermelha/Amarela0,5 mL de soroCanina, felina e equina0R$ 38,66R$ 54,12
+837PERFIL RENAL COMPLETOVermelha/Amarela0,2 mL de soro + 5,0 mL de urinaCanina, felina e equina1R$ 87,87R$ 123,02
+1225PERFIL RENAL GLOBALVermelha0,5 mL de soro e 5,0 mL de urinaCanina e felina1R$ 202,26R$ 283,16
+1321PERFIL RENAL PANORÂMICOCaninos e felinos0R$ 342,83R$ 479,96
+908Vermelha/Amarela0,5 mL de soroCanina e felina1R$ 174,83R$ 244,76
+350PERFIL REPRODUTIVO - CICLO ESTRALCanina, felina e equina3R$ 226,31R$ 316,83
+714Roxa0,5 mL de sangue totalExclusivamente canina0R$ 264,17R$ 369,84
+711Roxa0,5 mL de sangue totalExclusivamente felina0R$ 264,17R$ 369,84
+125PERFIL TIREOIDEANO 1Vermelha/Amarela1,0 mL de soroCanina, felina e equina2R$ 138,98R$ 194,57
+695PERFIL TIREOIDEANO 2 - RIEVermelha/Amarela1,0 mL de soroCanina, felina e equina2R$ 205,81R$ 288,13
+679PERFIL TRIAGEM FELINOSFelina2R$ 275,46R$ 385,64
+702PERFIL TRIAGEM HORMONAL - FÊMEASVermelha/Amarela1,0 mL de soroCanina, felina e equina2R$ 269,21R$ 376,89
+703PERFIL TRIAGEM HORMONAL - MACHOSVermelha/Amarela1,0 mL de soroCanina, felina e equina2R$ 213,93R$ 299,50
+Diversos  (14 exames)
+Vermelha/Amarela ou 
+Cinza
+0,5 mL de soro + 0,5 mL plasma 
+fluoretado
+PERFIL NUTRICIONAL - VITAMINAS, MINERAIS 
+E HEMOGRAMA
+Roxa ou 
+Vermelha/Amarela
+2,0 mL de soro + 1,0 mL sangue total em 
+EDTA
+Roxa ou 
+Vermelha/Amarela ou 
+Cinza
+1,0 mL de soro + 0,5 mL plasma 
+fluoretado + 3,0 ml sangue total em EDTA
+Roxa ou 
+Vermelha/Amarela ou 
+Cinza
+1,0 mL de soro + 0,5 mL plasma 
+fluoretado + 3,0 ml sangue total em EDTA
+Vermelha/Amarela ou 
+Roxa
+0,8 mL de soro + 0,5 mL de sangue total 
+em tubo com EDTA (tampa roxa)
+Vermelha/Amarela ou 
+Cinza
+Vermelha/Amarela ou 
+Roxa
+0,6 mL de soro + 0,5 ml sangue total em 
+tubo com EDTA
+Vermelha/Amarela ou 
+Cinza ou Roxa
+1,0 mL de soro + 0,5 de plasma 
+fluoretado + 0,5 ml sangue total em tubo 
+com EDTA
+0,4 mL de soro + 1,0 ml sangue total em 
+tubo com EDTA
+Vermelha/Amarela ou 
+Roxa
+1,0 mL de soro + 1,0 mL sangue total em 
+EDTA + 5 mL de urina
+Vermelha/Amarela ou 
+Roxa
+Vermelha/Amarela ou 
+Roxa
+1,0 mL de soro + 3,0 mL sangue total em 
+EDTA + 5 mL de urina
+PERFIL RENAL PRECOCE - SDMA / 
+DIMETILARGININA SIMÉTRICA
+Vermelha/Amarela ou 
+Roxa
+1,0 mL de soro ou 2,0 mL de sangue total 
+sem anticoagulante + 0,5 mL sangue total 
+em tubo com EDTA (tampa roxa) + 02 
+lâminas de esfregaço vaginal
+PERFIL TIPAGEM SANGUÍNEA + HEMOGRAMA 
+CANINO
+PERFIL TIPAGEM SANGUÍNEA + HEMOGRAMA 
+FELINO
+Vermelha/Amarela ou 
+Roxa
+1,0 mL de soro + 1,0 mL sangue total em 
+tubo com EDTA
+
+CódigoExameCor do TuboQuantidade de MaterialEspécie
+Dias 
+Úteis
+Valor de 
+Custo
+Valor +40% 
+Lucro
+Vet e Clínica 
+Parceira
+888Roxa2,0 mL de sangue totalCanina15R$ 409,27R$ 572,98
+892CARDIOMIOPATIA HIPERTRÓFICA FELINARoxa2,0 mL de sangue totalFelina15R$ 409,27R$ 572,98
+889RoxaCanina12R$ 409,27R$ 572,98
+891Roxa1,0 mL de sangue totalFelina15R$ 392,21R$ 549,09
+268ESPERMOGRAMAAzul/tubo falcon1 ,0mL de sêmenCanina, felina e equina2R$ 78,49R$ 109,89
+139Canina, felina e equina3R$ 66,88R$ 93,63
+169LÍQUOR -ANALISE DEBranca ou RoxaCanina, felina e equina1R$ 68,67R$ 96,14
+409MYCOPLASMA SPP. - PESQUISA DERoxaExclusivamente felina2R$ 60,38R$ 84,53
+1190ONCO MAPABloco de parafinaCanina28R$ 4.303,15R$ 6.024,41
+887RESISTÊNCIA A DROGAS (MDR1) - CANINORoxa0,5 mL de sangue totalCanina7R$ 368,75R$ 516,25
+1161BrancaMínimo 2,0 mL de urina ou lavado vesicalcanina3R$ 440,45R$ 616,63
+1161BrancaMínimo 2,0 mL de urina ou lavado vesicalcanina3R$ 440,45R$ 616,63
+1162LâminaCanina e felina5R$ 440,45R$ 616,63
+736Frasco/Coletor estéril50 pelosCanina, Felina e Equina3R$ 97,95R$ 137,13
+ATROFIA RETINIANA PROGRESSIVA (PRCD-
+PRA) - CANINO
+COLAPSO INDUZIDO POR EXERCÍCIO (EIC) - 
+CANINO
+2,0 mL de sangue total ou 3 swabs ou 
+escovas
+DOENÇA DO RIM POLICÍSTICO EM FELINOS 
+(PKD1) - FELINO
+LÍQUIDOS CAVITÁRIOS (PERITONEAL,PLEURAL 
+OU PERICÁRDICO) E
+Roxa ou 
+Vermelha/branca/amar
+ela ou Branca
+Líquidos cavitários: mínimo 0,5 mL de 
+líquido em cada tubo e duas lâminas. 
+Líquido sinovial: mínimo 0,5 mL de 
+líquido e duas lâminas
+Pequenos animais: 0,5 ml de líquor 
+(volume total nos três tubos enviados). 
+Grandes animais: 0,5 mL de líquor (
+3 lâminas de esfregaço sanguíneo ou 
+1mL de sangue total
+Bloco de parafina previamente 
+selecionado do fragmento de tecido a ser 
+analisado e respectiva lâmina HE, laudo 
+histopatológico do caso, histórico clínico, 
+localização e evolução da lesão. 
+Indicação: Avaliação genética dos 
+tumores de cães. Análise da expressão 
+de genes responsáveis pela proliferação, 
+progressão e resistência das células 
+tumorais, visando estabelecer estratégias 
+terapêuticas mais assertivas
+TESTE PARA MUTAÇÃO DO GENE BRAF PARA 
+CARCINOMA DE VESÍCULA
+TESTE PARA MUTAÇÃO DO GENE BRAF PARA 
+CARCINOMA DE VESÍCULA URINÁRIA E
+TESTE PARR - DIAGNÓSTICO E 
+IMUNOFENOTIPAGEM DE LINFOMAS
+5,0 mL de líquido cavitário. 3 lâminas 
+com material visível
+TRICOGRAMA (AVALIAÇÃO MORFOLÓGICA 
+MICROSCÓPICA DE PELOS)
+
+HORMONALLE — Exames Caninos e Felinos
+Fonte: Tabela Hormonalle. Cor do tubo inferida pela metodologia; quantidade não especificada por exame. Valor +40% = custo × 1,40.
+CategoriaExameCor do TuboQuantidade de Material
+Doenças Adrenais  (18 exames)
+Doenças AdrenaisACTH ENDÓGENO (CANINO/FELINO - CLIA)Roxa (EDTA)Consultar (não especificado)3R$ 154,00R$ 215,60
+Doenças AdrenaisCORTISOL BASAL (TRIAGEM HIPOADRENO - RIE)Vermelha (soro)Consultar (não especificado)3R$ 135,00R$ 189,00
+Doenças AdrenaisVermelha (soro)Consultar (não especificado)3R$ 135,00R$ 189,00
+Doenças AdrenaisVermelha (soro)Consultar (não especificado)3R$ 215,00R$ 301,00
+Doenças AdrenaisVermelha (soro)Consultar (não especificado)3R$ 300,00R$ 420,00
+Doenças AdrenaisCORTISOL PÓS DEXA (1 AMOSTRA - T8H - RIE)Vermelha (soro)Consultar (não especificado)3R$ 135,00R$ 189,00
+Doenças AdrenaisFrasco estéril (urina)Consultar (não especificado)3R$ 160,00R$ 224,00
+Doenças AdrenaisVermelha (soro)Consultar (não especificado)5R$ 240,00R$ 336,00
+Doenças AdrenaisALDOSTERONA BASAL E PÓS-ACTH (RIE)Vermelha (soro)Consultar (não especificado)5R$ 320,00R$ 448,00
+Doenças AdrenaisALDOSTERONA BASAL FELINOS (HIPERALDO - RIE)Vermelha (soro)Consultar (não especificado)5R$ 240,00R$ 336,00
+Doenças AdrenaisALDOSTERONA + RENINAVermelha (soro)Consultar (não especificado)Sob ConsultaSob ConsultaSob Consulta
+Doenças AdrenaisVermelha (soro)Consultar (não especificado)30Sob ConsultaSob Consulta
+Doenças AdrenaisVermelha (soro)Consultar (não especificado)30Sob ConsultaSob Consulta
+Doenças AdrenaisVermelha (soro)Consultar (não especificado)5R$ 200,00R$ 280,00
+Doenças Adrenais17 Oh Progesterona Basal E Pós-Acth (RIE)Vermelha (soro)Consultar (não especificado)5R$ 300,00R$ 420,00
+Doenças AdrenaisPROGESTERONA BASAL E PÓS-ACTH (CLIA)Vermelha (soro)Consultar (não especificado)5R$ 220,00R$ 308,00
+Doenças AdrenaisTESTOSTERONA BASAL E PÓS-ACTH (RIE)Vermelha (soro)Consultar (não especificado)5R$ 220,00R$ 308,00
+Doenças AdrenaisESTRADIOL BASAL E PÓS-ACTH (RIE)Vermelha (soro)Consultar (não especificado)5R$ 230,00R$ 322,00
+Diagnóstico/Monitoramento (CLIA)  (10 exames)
+Diagnóstico/Monitoramento (CLIA)CORTISOL BASAL (CLIA)Vermelha (soro)Consultar (não especificado)3R$ 105,00R$ 147,00
+Diagnóstico/Monitoramento (CLIA)CORTISOL PÓS- DEXA 2000 (CLIA)Vermelha (soro)Consultar (não especificado)3R$ 105,00R$ 147,00
+Diagnóstico/Monitoramento (CLIA)Vermelha (soro)Consultar (não especificado)3R$ 176,00R$ 246,40
+Diagnóstico/Monitoramento (CLIA)Vermelha (soro)Consultar (não especificado)3R$ 260,00R$ 364,00
+Diagnóstico/Monitoramento (CLIA)Vermelha (soro)Consultar (não especificado)3R$ 176,00R$ 246,40
+Diagnóstico/Monitoramento (CLIA)CORTISOL PÓS-ACTH DIAGNÓSTICO (CLIA)Vermelha (soro)Consultar (não especificado)3R$ 105,00R$ 147,00
+Diagnóstico/Monitoramento (CLIA)CORTISOL PÓS-TRILOSTANO - (CLIA)Vermelha (soro)Consultar (não especificado)3R$ 105,00R$ 147,00
+Diagnóstico/Monitoramento (CLIA)Vermelha (soro)Consultar (não especificado)3R$ 176,00R$ 246,40
+Diagnóstico/Monitoramento (CLIA)Vermelha (soro)Consultar (não especificado)3R$ 105,00R$ 147,00
+Prazo (dias 
+úteis)
+Valor de 
+Custo
+Valor +40% 
+Lucro
+Vet e Clínica 
+Parceira
+CORTISOL PÓS ACTH (DIAGNÓSTICO OU 
+MONITORAMENTO) (T1H) RIE
+SUPRESSÃO DEXAMETASONA (2 AMOSTRAS – 
+T0H/T8H - RIE)
+SUPRESSÃO DEXAMETASONA (3 AMOSTRAS – 
+T0H/T4H/T8H*) RIE
+RELAÇÃO CORTISOL CREATININA URINÁRIA 
+(UCCR)
+ALDOSTERONA (1 AMOSTRA - BASAL OU PÓS-ACTH 
+- RIE)
+ANDROSTENEDIONA (1 AMOSTRA - BASAL OU PÓS 
+- RIE)
+ANDROSTENEDIONA BASAL E PÓS ACTH (T0H/T1H) 
+RIE
+17 OH PROGESTERONA (1 AMOSTRA - BASAL OU 
+PÓS ACTH - RIE)
+SUPRESSÃO DEXAMETASONA 2000 (2 AMOSTRAS 
+T0H/T8HCLIA)
+SUPRESSÃO DEXAMETASONA 2000 (3 AMOSTRAS - 
+T0H/T4H/T8H - CLIA)
+CORTISOL BASAL E PÓS-ACTH DIAGNÓSTICO 
+(CLIA)
+CORTISOL BASAL E PÓS-ACTH (MONITORAMENTO 
+VETORYL® - CLIA)
+CORTISOL PÓS-ACTH (MONITORAMENTO 
+VETORYL® - CLIA)
+
+CategoriaExameCor do TuboQuantidade de Material
+Prazo (dias 
+úteis)
+Valor de 
+Custo
+Valor +40% 
+Lucro
+Vet e Clínica 
+Parceira
+Diagnóstico/Monitoramento (CLIA)FENOBARBITAL (CLIA)Vermelha (soro)Consultar (não especificado)2R$ 115,00R$ 161,00
+Função Tireoidiana  (19 exames)
+Função TireoidianaT3T (RIE)Vermelha (soro)Consultar (não especificado)5R$ 135,00R$ 189,00
+Função TireoidianaT3T (CLIA)Vermelha (soro)Consultar (não especificado)3R$ 120,00R$ 168,00
+Função TireoidianaT4T (RIE)Vermelha (soro)Consultar (não especificado)5R$ 135,00R$ 189,00
+Função TireoidianaT4T PÓS-MEDICAMENTO (RIE)Vermelha (soro)Consultar (não especificado)5R$ 135,00R$ 189,00
+Função TireoidianaT4T 2000 (CLIA)Vermelha (soro)Consultar (não especificado)2R$ 120,00R$ 168,00
+Função TireoidianaT4T 2000 PÓS-MEDICAMENTO (CLIA)Vermelha (soro)Consultar (não especificado)2R$ 120,00R$ 168,00
+Função TireoidianaT4L DIÁLISE DE EQUILÍBRIO (RIE)Vermelha (soro)Consultar (não especificado)5R$ 270,00R$ 378,00
+Função TireoidianaT4L 2000 (CLIA)Vermelha (soro)Consultar (não especificado)2R$ 120,00R$ 168,00
+Função TireoidianaTSHc (CLIA)Vermelha (soro)Consultar (não especificado)5R$ 170,00R$ 238,00
+Função TireoidianaTGAA (Anticorpo Antitireoglobulina - EIE)Vermelha (soro)Consultar (não especificado)10R$ 270,00R$ 378,00
+Função TireoidianaVermelha (soro)Consultar (não especificado)5R$ 235,00R$ 329,00
+Função TireoidianaT4 Livre Diálise De Equilíbrio + TSHVermelha (soro)Consultar (não especificado)5R$ 355,00R$ 497,00
+Função TireoidianaT4T RIE + T4L Diálise De EquilíbrioVermelha (soro)Consultar (não especificado)5R$ 345,00R$ 483,00
+Função TireoidianaT4T 2000 + TSH (CLIA)Vermelha (soro)Consultar (não especificado)3R$ 290,00R$ 406,00
+Função TireoidianaT4L 2000 + TSH (CLIA)Vermelha (soro)Consultar (não especificado)3R$ 290,00R$ 406,00
+Função TireoidianaTIREOIDE TRIAGEM: TSHc E T4TVermelha (soro)Consultar (não especificado)5R$ 280,00R$ 392,00
+Função TireoidianaVermelha (soro)Consultar (não especificado)5R$ 500,00R$ 700,00
+Função TireoidianaVermelha (soro)Consultar (não especificado)10R$ 550,00R$ 770,00
+Função TireoidianaVermelha (soro)Consultar (não especificado)10R$ 570,00R$ 798,00
+Função Reprodutiva/Modulação Hormonal  (6 exames)
+PROGESTERONA (CLIA)Vermelha (soro)Consultar (não especificado)2R$ 145,00R$ 203,00
+TESTOSTERONA (RIE)Vermelha (soro)Consultar (não especificado)5R$ 145,00R$ 203,00
+TESTOSTERONA TOTAL E TESTOSTERONA LIVREVermelha (soro)Consultar (não especificado)5R$ 415,00R$ 581,00
+ESTRADIOL (RIE)Vermelha (soro)Consultar (não especificado)5R$ 160,00R$ 224,00
+Vermelha (soro)Consultar (não especificado)6R$ 389,00R$ 544,60
+Vermelha (soro)Consultar (não especificado)6Sob ConsultaSob Consulta
+Disfunções GI/Pancreatite  (14 exames)
+Disfunções GI/PancreatiteTLI (FELINO)Vermelha (soro)Consultar (não especificado)25R$ 1.190,00R$ 1.666,00
+Disfunções GI/PancreatiteTLI (CANINO)Vermelha (soro)Consultar (não especificado)5R$ 230,00R$ 322,00
+Disfunções GI/PancreatiteÁCIDO FÓLICOVermelha (soro)Consultar (não especificado)5R$ 145,00R$ 203,00
+Disfunções GI/PancreatiteVITAMINA B12Vermelha (soro)Consultar (não especificado)5R$ 140,00R$ 196,00
+Disfunções GI/PancreatiteVITAMINA B12 + ÁCIDO FÓLICOVermelha (soro)Consultar (não especificado)5R$ 245,00R$ 343,00
+TESTE REPOSIÇÃO HORMONAL (T4T BASAL + T4 
+PÓS PILL - RIE)
+TIREOIDE TRIAGEM HORMONALLE: TSH, T4T E 
+T4LDE
+TIREOIDE PADRÃO: TSH, T4T, T4L (IMMULITE 2000) 
+E TGAA
+TIREOIDE PADRÃO HORMONALLE: TSH, T4T, T4LDE 
+(RIE) E TGAA
+Função Reprodutiva/Modulação 
+Hormonal
+Função Reprodutiva/Modulação 
+Hormonal
+Função Reprodutiva/Modulação 
+Hormonal
+Função Reprodutiva/Modulação 
+Hormonal
+Função Reprodutiva/Modulação 
+Hormonal
+PAINEL MODULAÇÃO/ REPOSIÇÃO HORMONAL (P4, 
+E2 E TESTO)
+Função Reprodutiva/Modulação 
+Hormonal
+PAINEL MODULAÇÃO/ REPOSIÇÃO HORMONAL (P4, 
+E2, TESTO E DHEA-S)
+
+CategoriaExameCor do TuboQuantidade de Material
+Prazo (dias 
+úteis)
+Valor de 
+Custo
+Valor +40% 
+Lucro
+Vet e Clínica 
+Parceira
+Disfunções GI/PancreatiteVITAMINA B12 + ÁCIDO FÓLICO + TLI (CANINO)Vermelha (soro)Consultar (não especificado)5R$ 370,00R$ 518,00
+Disfunções GI/PancreatiteINSULINA HORMONALLE CANINA + GLICOSEVermelha (soro)Consultar (não especificado)3R$ 230,00R$ 322,00
+Disfunções GI/PancreatiteVermelha (soro)Consultar (não especificado)5R$ 190,00R$ 266,00
+Disfunções GI/PancreatiteVermelha (soro)Consultar (não especificado)5R$ 315,00R$ 441,00
+Disfunções GI/PancreatiteINSULINA (RIE) + GLICOSEVermelha (soro)Consultar (não especificado)5R$ 260,00R$ 364,00
+Disfunções GI/PancreatiteIGF-1Vermelha (soro)Consultar (não especificado)5R$ 210,00R$ 294,00
+Disfunções GI/PancreatiteGASTRINA (RIE)Vermelha (soro)Consultar (não especificado)2R$ 230,00R$ 322,00
+Disfunções GI/PancreatiteVITAMINA AVermelha (soro)Consultar (não especificado)5R$ 389,00R$ 544,60
+Disfunções GI/PancreatiteVITAMINA EVermelha (soro)Consultar (não especificado)5R$ 389,00R$ 544,60
+Desordens do Cálcio  (4 exames)
+Desordens do Cálcio25 OH VITAMINA D (CALCIDIOL - PMI)Vermelha (soro)Consultar (não especificado)5R$ 298,00R$ 417,20
+Desordens do Cálcio1,25 DIIHIDROXIVITAMINA D (CALCITRIOL-PMI)Vermelha (soro)Consultar (não especificado)12R$ 389,00R$ 544,60
+Desordens do Cálcio1,84 - PARATORMÔNIO (PMI)Vermelha (soro)Consultar (não especificado)5R$ 320,00R$ 448,00
+Desordens do CálcioPTH-rp (RIE)Roxa (EDTA)Consultar (não especificado)6R$ 375,00R$ 525,00
+Vitaminas/Bem-estar  (2 exames)
+Vitaminas/Bem-estarVITAMINAS ESSENCIAIS (VIT D + B12 + FOLATO)Vermelha (soro)Consultar (não especificado)5R$ 543,00R$ 760,20
+Vitaminas/Bem-estarVermelha (soro)Consultar (não especificado)5R$ 642,00R$ 898,80
+Exames Bioquímicos  (35 exames)
+Exames BioquímicosHEMOGRAMA COMPLETORoxa (EDTA)Consultar (não especificado)3R$ 70,00R$ 98,00
+Exames BioquímicosCÁLCIO IONIZADO (CA, NA,K E CLORETO)Vermelha (soro, sem gel)Consultar (não especificado)3R$ 150,00R$ 210,00
+Exames BioquímicosGLICOSECinza (fluoreto)Consultar (não especificado)3R$ 70,00R$ 98,00
+Exames BioquímicosMAGNÉSIO (MG)Vermelha (soro)Consultar (não especificado)3R$ 99,00R$ 138,60
+Exames BioquímicosÁCIDO BILIARES - JEJUMVermelha (soro)Consultar (não especificado)3R$ 200,00R$ 280,00
+Exames BioquímicosÁCIDO BILIARES - PÓS PRANDIALVermelha (soro)Consultar (não especificado)3R$ 200,00R$ 280,00
+Exames BioquímicosCOLESTEROLVermelha (soro)Consultar (não especificado)3R$ 145,00R$ 203,00
+Exames BioquímicosCOLESTEROL TOTAL + FRAÇÕESVermelha (soro)Consultar (não especificado)3R$ 145,00R$ 203,00
+Exames BioquímicosCREATININAVermelha (soro)Consultar (não especificado)3R$ 60,00R$ 84,00
+Exames BioquímicosUREIAVermelha (soro)Consultar (não especificado)3R$ 60,00R$ 84,00
+Exames BioquímicosA.L.T (T.G.P)Vermelha (soro)Consultar (não especificado)3R$ 60,00R$ 84,00
+Exames BioquímicosCREATININA URINARIAFrasco estéril (urina)Consultar (não especificado)3R$ 70,00R$ 98,00
+Exames BioquímicosFOSFATASE ALCALINAVermelha (soro)Consultar (não especificado)3R$ 105,00R$ 147,00
+Exames BioquímicosFRUTOSAMINAVermelha (soro)Consultar (não especificado)3R$ 105,00R$ 147,00
+Exames BioquímicosASTVermelha (soro)Consultar (não especificado)3R$ 60,00R$ 84,00
+Exames BioquímicosGGTVermelha (soro)Consultar (não especificado)3R$ 60,00R$ 84,00
+Exames BioquímicosLACTATOVermelha (soro)Consultar (não especificado)3R$ 99,00R$ 138,60
+Exames BioquímicosFRIBRINOGÊNIOVermelha (soro)Consultar (não especificado)3R$ 130,00R$ 182,00
+Exames BioquímicosPROTEÍNA TOTALVermelha (soro)Consultar (não especificado)3R$ 65,00R$ 91,00
+Exames BioquímicosSÓDIOVermelha (soro)Consultar (não especificado)3R$ 80,00R$ 112,00
+INSULINA (1 AMOSTRA - JEJUM OU PÓS-PRANDIAL - 
+RIE)
+INSULINA (2 AMOSTRAS - BASAL E PÓS-PRANDIAL - 
+RIE)
+PAINEL BEM ESTAR COMPLETO (VIT. D + B12 + 
+FOLATO + MG )
+
+CategoriaExameCor do TuboQuantidade de Material
+Prazo (dias 
+úteis)
+Valor de 
+Custo
+Valor +40% 
+Lucro
+Vet e Clínica 
+Parceira
+Exames BioquímicosPOTÁSSIOVermelha (soro)Consultar (não especificado)3R$ 80,00R$ 112,00
+Exames BioquímicosCKVermelha (soro)Consultar (não especificado)3R$ 80,00R$ 112,00
+Exames BioquímicosBILIRRUBINAVermelha (soro)Consultar (não especificado)3R$ 80,00R$ 112,00
+Exames BioquímicosTRIGLICERÍDEOSVermelha (soro)Consultar (não especificado)3R$ 60,00R$ 84,00
+Exames BioquímicosFERROVermelha (soro)Consultar (não especificado)3R$ 80,00R$ 112,00
+Exames BioquímicosCLORETOVermelha (soro)Consultar (não especificado)3R$ 65,00R$ 91,00
+Exames BioquímicosALBUMINAVermelha (soro)Consultar (não especificado)3R$ 60,00R$ 84,00
+Exames BioquímicosAMILASEVermelha (soro)Consultar (não especificado)3R$ 80,00R$ 112,00
+Exames BioquímicosBROMETO DE POTASSIOVermelha (soro)Consultar (não especificado)3R$ 560,00R$ 784,00
+Exames BioquímicosSDMAVermelha (soro)Consultar (não especificado)3R$ 185,00R$ 259,00
+Exames BioquímicosLIPASE PANCREATICA ESPECIFICA (CAN/FEL)Vermelha (soro)Consultar (não especificado)3R$ 220,00R$ 308,00
+Exames BioquímicosCinza (fluoreto)Consultar (não especificado)3R$ 200,00R$ 280,00
+Exames BioquímicosVermelha (soro)Consultar (não especificado)3R$ 254,00R$ 355,60
+Exames BioquímicosPAINEL LINFOMA (TK1 + PCR OU HPT + NI)Vermelha (soro)Consultar (não especificado)14R$ 980,00R$ 1.372,00
+Exames BioquímicosHAPTOGLOBINA (HPT FELINO)Vermelha (soro)Consultar (não especificado)14Sob ConsultaSob Consulta
+PERFIL ENDÓCRINO I (GLICOSE, FA, TGP, 
+TRIGLICÉRIDES, COLESTEROL)
+PROTEÍNA C REATIVA ( IMUNOENSAIO 
+FLUORESCENTE)
