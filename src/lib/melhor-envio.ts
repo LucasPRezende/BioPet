@@ -293,6 +293,56 @@ export async function imprimirEtiquetas(orderIds: string[]): Promise<string> {
   return data.url
 }
 
+/**
+ * Baixa os bytes reais do PDF da etiqueta (não a página HTML de impressão) —
+ * usado pra reformatar pro tamanho físico do rolo (ver
+ * redimensionarParaEtiqueta10x15). GET /imprimir/pdf/{id} devolve uma URL
+ * assinada da S3 deles, válida por ~30min — baixamos na hora.
+ */
+export async function baixarEtiquetaPdfBytes(orderId: string): Promise<Buffer> {
+  const token = await getValidAccessToken()
+  const res = await fetch(`${baseUrl()}/api/v2/me/imprimir/pdf/${orderId}`, {
+    headers: { Authorization: `Bearer ${token}`, 'User-Agent': USER_AGENT, Accept: 'application/json' },
+  })
+  const data = await res.json().catch(() => null)
+  if (!res.ok || !Array.isArray(data) || !data[0]) {
+    throw new Error(`Melhor Envio /imprimir/pdf falhou (${res.status}): ${JSON.stringify(data)}`)
+  }
+  const pdfRes = await fetch(data[0])
+  if (!pdfRes.ok) throw new Error(`Falha ao baixar PDF da etiqueta (${pdfRes.status}).`)
+  return Buffer.from(await pdfRes.arrayBuffer())
+}
+
+/**
+ * Reformata o PDF pro tamanho físico do rolo (100x150mm). A Melhor Envio não
+ * oferece esse tamanho via API — o conteúdo já nasce desenhado em proporção
+ * A4 (confirmado testando no sandbox); o ajuste deles é client-side, via
+ * driver de impressora + opção "tamanho cartão postal" na tela deles
+ * (ver central de ajuda). Fazemos aqui pra não depender de configuração
+ * manual — reduz a página inteira, mantendo a proporção, centralizada.
+ */
+export async function redimensionarParaEtiqueta10x15(pdfBytes: Buffer): Promise<Buffer> {
+  const { PDFDocument } = await import('pdf-lib')
+  const MM_PARA_PT = 72 / 25.4
+  const LARGURA_PT = 100 * MM_PARA_PT
+  const ALTURA_PT  = 150 * MM_PARA_PT
+
+  const src = await PDFDocument.load(pdfBytes)
+  const primeira = src.getPages()[0]
+  const { width: srcW, height: srcH } = primeira.getSize()
+
+  const out = await PDFDocument.create()
+  const [embedded] = await out.embedPdf(src, [0])
+  const page = out.addPage([LARGURA_PT, ALTURA_PT])
+
+  const escala = Math.min(LARGURA_PT / srcW, ALTURA_PT / srcH)
+  const w = srcW * escala
+  const h = srcH * escala
+  page.drawPage(embedded, { x: (LARGURA_PT - w) / 2, y: (ALTURA_PT - h) / 2, width: w, height: h })
+
+  return Buffer.from(await out.save())
+}
+
 export interface StatusRastreio {
   status:      string
   tracking:    string | null

@@ -7,8 +7,10 @@
 import { supabase } from './supabase'
 import {
   type Endereco, type OpcaoFrete, PRESET_CAIXA_PADRAO, enderecoOrigemBioPet,
-  cotarFrete, adicionarAoCarrinho, comprarFretes, gerarEtiquetas, imprimirEtiquetas,
+  cotarFrete, adicionarAoCarrinho, comprarFretes, gerarEtiquetas,
+  baixarEtiquetaPdfBytes, redimensionarParaEtiqueta10x15,
 } from './melhor-envio'
+import { salvarEtiquetaFrete } from './etiqueta-frete-storage'
 
 async function enderecoLab(laboratorioId: number): Promise<{ nome: string; endereco: Endereco }> {
   const { data, error } = await supabase
@@ -40,6 +42,18 @@ async function labsDoPedido(pedidoId: number): Promise<LabDoPedido[]> {
     porLab.set(item.laboratorio_id, atual)
   }
   return Array.from(porLab.values())
+}
+
+async function baixarComRetry(orderId: string, tentativas = 6, esperaMs = 2000): Promise<Buffer> {
+  for (let i = 0; i < tentativas; i++) {
+    await new Promise(r => setTimeout(r, esperaMs))
+    try {
+      return await baixarEtiquetaPdfBytes(orderId)
+    } catch (e) {
+      if (i === tentativas - 1) throw e
+    }
+  }
+  throw new Error('Etiqueta não ficou pronta a tempo.')
 }
 
 export interface CotacaoPorLab {
@@ -97,9 +111,16 @@ export async function comprarFretePedido(pedidoId: number, laboratorioId: number
 
   await comprarFretes([item.id])
   await gerarEtiquetas([item.id])
-  // "generate" é assíncrono — pequena folga antes de imprimir (ver LABS_PARCEIROS.md).
-  await new Promise(r => setTimeout(r, 3000))
-  const etiquetaUrl = await imprimirEtiquetas([item.id])
+
+  // A Melhor Envio devolve o PDF em proporção A4 (não 10x15) — baixa os bytes
+  // reais, reformata pro tamanho do rolo e serve pelo nosso próprio domínio
+  // (a URL assinada deles expira em ~30min, não dá pra persistir direto).
+  // "generate" é assíncrono (ver LABS_PARCEIROS.md) — tenta baixar com retry
+  // em vez de um delay fixo, que às vezes não é suficiente.
+  const pdfOriginal = await baixarComRetry(item.id)
+  const pdfRedimensionado = await redimensionarParaEtiqueta10x15(pdfOriginal)
+  await salvarEtiquetaFrete(pedidoId, laboratorioId, pdfRedimensionado)
+  const etiquetaUrl = `${process.env.NEXT_PUBLIC_URL}/api/labs/pedidos/${pedidoId}/frete/${laboratorioId}/etiqueta`
 
   const { error } = await supabase.from('pedido_lab_envio').upsert({
     pedido_id:       pedidoId,
