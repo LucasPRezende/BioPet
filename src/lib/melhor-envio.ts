@@ -344,13 +344,18 @@ export async function redimensionarParaEtiqueta10x15(pdfBytes: Buffer): Promise<
 }
 
 export interface StatusRastreio {
-  status:      string
-  tracking:    string | null
-  posted_at:   string | null
+  status:       string
+  tracking:     string | null
+  generated_at: string | null
+  posted_at:    string | null
   delivered_at: string | null
-  canceled_at: string | null
+  canceled_at:  string | null
 }
 
+// generated_at é o sinal confiável de que a etiqueta terminou de ser gerada
+// (testado no sandbox: /imprimir/pdf só funciona depois dele aparecer). O
+// tempo até aparecer é bem variável (~3s a mais de 1min já observado), então
+// não travamos a compra esperando — ver obterEtiquetaFrete em lab-frete.ts.
 export async function rastrearEnvios(orderIds: string[]): Promise<Record<string, StatusRastreio>> {
   return apiFetch<Record<string, StatusRastreio>>('/shipment/tracking', { orders: orderIds })
 }

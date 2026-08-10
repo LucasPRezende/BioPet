@@ -248,7 +248,11 @@ export default function PedidoLabDetalhePage() {
       body: JSON.stringify({ laboratorio_id: laboratorioId, service_id: serviceId }),
     })
     const data = await res.json()
-    if (res.ok) { setCotacoes(null); carregar() }
+    // Não zera cotacoes aqui: se o pedido tiver mais de um lab, a cotação dos
+    // outros labs (ainda sem envio) precisa continuar visível. O filtro
+    // jaComprado (mais abaixo) esconde só o lab que acabou de ser comprado,
+    // assim que `envios` for atualizado pelo carregar().
+    if (res.ok) carregar()
     else setErro(data.error ?? 'Erro ao comprar frete.')
     setComprando(null)
   }
@@ -386,10 +390,13 @@ export default function PedidoLabDetalhePage() {
                       <div className="text-right">
                         <p className="font-semibold text-[#19202d]">{fmtBRL(e.valor_frete)}</p>
                         {e.etiqueta_url && (
-                          <a href={e.etiqueta_url} target="_blank" rel="noopener noreferrer"
-                            className="text-[11px] text-[#8a6e36] font-semibold hover:underline">
-                            etiqueta ↗
-                          </a>
+                          <>
+                            <a href={e.etiqueta_url} target="_blank" rel="noopener noreferrer"
+                              className="text-[11px] text-[#8a6e36] font-semibold hover:underline">
+                              etiqueta ↗
+                            </a>
+                            <p className="text-[10px] text-gray-300">se não abrir, a Melhor Envio ainda tá gerando — tenta de novo em instantes</p>
+                          </>
                         )}
                       </div>
                     </div>

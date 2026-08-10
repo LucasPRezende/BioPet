@@ -7,10 +7,10 @@
 import { supabase } from './supabase'
 import {
   type Endereco, type OpcaoFrete, PRESET_CAIXA_PADRAO, enderecoOrigemBioPet,
-  cotarFrete, adicionarAoCarrinho, comprarFretes, gerarEtiquetas,
+  cotarFrete, adicionarAoCarrinho, comprarFretes, gerarEtiquetas, rastrearEnvios,
   baixarEtiquetaPdfBytes, redimensionarParaEtiqueta10x15,
 } from './melhor-envio'
-import { salvarEtiquetaFrete } from './etiqueta-frete-storage'
+import { salvarEtiquetaFrete, lerEtiquetaFrete } from './etiqueta-frete-storage'
 
 async function enderecoLab(laboratorioId: number): Promise<{ nome: string; endereco: Endereco }> {
   const { data, error } = await supabase
@@ -42,18 +42,6 @@ async function labsDoPedido(pedidoId: number): Promise<LabDoPedido[]> {
     porLab.set(item.laboratorio_id, atual)
   }
   return Array.from(porLab.values())
-}
-
-async function baixarComRetry(orderId: string, tentativas = 6, esperaMs = 2000): Promise<Buffer> {
-  for (let i = 0; i < tentativas; i++) {
-    await new Promise(r => setTimeout(r, esperaMs))
-    try {
-      return await baixarEtiquetaPdfBytes(orderId)
-    } catch (e) {
-      if (i === tentativas - 1) throw e
-    }
-  }
-  throw new Error('Etiqueta não ficou pronta a tempo.')
 }
 
 export interface CotacaoPorLab {
@@ -88,9 +76,13 @@ export async function cotarFretePedido(pedidoId: number): Promise<CotacaoPorLab[
 
 /**
  * Compra o frete pra um lab do pedido: recota (nunca confia em preço vindo do
- * front) -> carrinho -> checkout -> gera etiqueta -> imprime -> persiste em
- * pedido_lab_envio. Se depois de comprar todos os labs do pedido tiverem
- * envio comprado e o pedido estiver "coletado", avança pra "enviado".
+ * front) -> carrinho -> checkout -> dispara a geração da etiqueta -> persiste
+ * em pedido_lab_envio. NÃO espera a etiqueta terminar de gerar aqui — no
+ * sandbox esse passo é assíncrono e a demora variou de ~3s a mais de 1min nos
+ * testes, tempo demais pra travar a compra. O PDF em si é buscado sob
+ * demanda em obterEtiquetaFrete, na hora que alguém abrir o link.
+ * Se depois de comprar todos os labs do pedido tiverem envio e o pedido
+ * estiver "coletado", avança pra "enviado".
  */
 export async function comprarFretePedido(pedidoId: number, laboratorioId: number, serviceId: number): Promise<void> {
   const origem = await enderecoOrigemBioPet()
@@ -111,15 +103,6 @@ export async function comprarFretePedido(pedidoId: number, laboratorioId: number
 
   await comprarFretes([item.id])
   await gerarEtiquetas([item.id])
-
-  // A Melhor Envio devolve o PDF em proporção A4 (não 10x15) — baixa os bytes
-  // reais, reformata pro tamanho do rolo e serve pelo nosso próprio domínio
-  // (a URL assinada deles expira em ~30min, não dá pra persistir direto).
-  // "generate" é assíncrono (ver LABS_PARCEIROS.md) — tenta baixar com retry
-  // em vez de um delay fixo, que às vezes não é suficiente.
-  const pdfOriginal = await baixarComRetry(item.id)
-  const pdfRedimensionado = await redimensionarParaEtiqueta10x15(pdfOriginal)
-  await salvarEtiquetaFrete(pedidoId, laboratorioId, pdfRedimensionado)
   const etiquetaUrl = `${process.env.NEXT_PUBLIC_URL}/api/labs/pedidos/${pedidoId}/frete/${laboratorioId}/etiqueta`
 
   const { error } = await supabase.from('pedido_lab_envio').upsert({
@@ -143,4 +126,31 @@ export async function comprarFretePedido(pedidoId: number, laboratorioId: number
       await supabase.from('pedido_lab').update({ status: 'enviado' }).eq('id', pedidoId)
     }
   }
+}
+
+/**
+ * Busca o PDF da etiqueta pra servir — usa o arquivo já processado se existir
+ * (storage local); senão checa se a Melhor Envio já terminou de gerar
+ * (generated_at) e, se sim, baixa/reformata/guarda na hora. Retorna null se
+ * ainda não estiver pronta (o chamador decide a mensagem — "ainda gerando,
+ * tente novamente em instantes").
+ */
+export async function obterEtiquetaFrete(pedidoId: number, laboratorioId: number): Promise<Buffer | null> {
+  const existente = await lerEtiquetaFrete(pedidoId, laboratorioId)
+  if (existente) return existente
+
+  const { data: envio } = await supabase
+    .from('pedido_lab_envio')
+    .select('melhor_envio_id')
+    .eq('pedido_id', pedidoId).eq('laboratorio_id', laboratorioId)
+    .maybeSingle()
+  if (!envio?.melhor_envio_id) return null
+
+  const status = await rastrearEnvios([envio.melhor_envio_id])
+  if (!status[envio.melhor_envio_id]?.generated_at) return null
+
+  const pdfOriginal = await baixarEtiquetaPdfBytes(envio.melhor_envio_id)
+  const pdfRedimensionado = await redimensionarParaEtiqueta10x15(pdfOriginal)
+  await salvarEtiquetaFrete(pedidoId, laboratorioId, pdfRedimensionado)
+  return pdfRedimensionado
 }
