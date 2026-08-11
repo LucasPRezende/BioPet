@@ -6,11 +6,12 @@
  */
 import { supabase } from './supabase'
 import {
-  type Endereco, type OpcaoFrete, PRESET_CAIXA_PADRAO, enderecoOrigemBioPet,
+  type Endereco, type OpcaoFrete, enderecoOrigemBioPet,
   cotarFrete, adicionarAoCarrinho, comprarFretes, gerarEtiquetas, rastrearEnvios,
   baixarEtiquetaPdfBytes, redimensionarParaEtiqueta10x15,
 } from './melhor-envio'
 import { salvarEtiquetaFrete, lerEtiquetaFrete } from './etiqueta-frete-storage'
+import { caixaPresetPadrao, baixarKitCaixa } from './lab-estoque'
 
 async function enderecoLab(laboratorioId: number): Promise<{ nome: string; endereco: Endereco }> {
   const { data, error } = await supabase
@@ -57,12 +58,14 @@ export async function cotarFretePedido(pedidoId: number): Promise<CotacaoPorLab[
   if (labs.length === 0) throw new Error('Pedido sem itens.')
 
   const origem = await enderecoOrigemBioPet()
+  const caixa  = await caixaPresetPadrao()
+  if (!caixa) throw new Error('Nenhum preset de caixa cadastrado — configure em /admin/estoque.')
   const resultado: CotacaoPorLab[] = []
 
   for (const lab of labs) {
     try {
       const { endereco: destino } = await enderecoLab(lab.laboratorio_id)
-      const opcoes = await cotarFrete(origem, destino, PRESET_CAIXA_PADRAO, lab.valorItens)
+      const opcoes = await cotarFrete(origem, destino, caixa.pacote, lab.valorItens)
       resultado.push({ laboratorio_id: lab.laboratorio_id, nome: lab.nome, opcoes })
     } catch (e) {
       resultado.push({
@@ -91,13 +94,16 @@ export async function comprarFretePedido(pedidoId: number, laboratorioId: number
   const lab  = labs.find(l => l.laboratorio_id === laboratorioId)
   if (!lab) throw new Error('Este laboratório não tem itens neste pedido.')
 
-  const opcoes   = await cotarFrete(origem, destino, PRESET_CAIXA_PADRAO, lab.valorItens)
+  const caixa = await caixaPresetPadrao()
+  if (!caixa) throw new Error('Nenhum preset de caixa cadastrado — configure em /admin/estoque.')
+
+  const opcoes   = await cotarFrete(origem, destino, caixa.pacote, lab.valorItens)
   const escolhida = opcoes.find(o => o.id === serviceId)
   if (!escolhida) throw new Error('Opção de frete não encontrada — cote novamente.')
   const preco = Number(escolhida.custom_price ?? escolhida.price ?? 0)
 
   const item = await adicionarAoCarrinho({
-    serviceId, origem, destino, pacote: PRESET_CAIXA_PADRAO,
+    serviceId, origem, destino, pacote: caixa.pacote,
     valorSegurado: lab.valorItens, nomeProduto: `Pedido Lab #${pedidoId} - ${nomeLab}`,
   })
 
@@ -115,6 +121,14 @@ export async function comprarFretePedido(pedidoId: number, laboratorioId: number
     status_envio:    'comprado',
   }, { onConflict: 'pedido_id,laboratorio_id' })
   if (error) throw new Error(`Falha ao salvar envio: ${error.message}`)
+
+  // Baixa o kit de insumos da caixa usada (isopor, gelo, etiqueta...). Não
+  // bloqueia a compra se o kit estiver vazio/mal configurado.
+  try {
+    await baixarKitCaixa(caixa.id, pedidoId)
+  } catch (e) {
+    console.error('[lab-frete] falha ao baixar kit de insumos:', e instanceof Error ? e.message : e)
+  }
 
   // Avança o pedido pra "enviado" quando todos os labs tiverem envio comprado.
   const { data: envios } = await supabase.from('pedido_lab_envio').select('laboratorio_id').eq('pedido_id', pedidoId)

@@ -44,6 +44,7 @@ interface OpcaoFrete {
   company:       { name: string }
 }
 interface CotacaoPorLab { laboratorio_id: number; nome: string; opcoes: OpcaoFrete[]; erro?: string }
+interface CustoReal { custoItens: number; custoFrete: number; custoInsumos: number; custoTotal: number }
 
 interface Pedido {
   id:               number
@@ -184,6 +185,7 @@ export default function PedidoLabDetalhePage() {
   const [cotacoes,    setCotacoes]    = useState<CotacaoPorLab[] | null>(null)
   const [cotando,     setCotando]     = useState(false)
   const [comprando,   setComprando]   = useState<string | null>(null)
+  const [custoReal,   setCustoReal]   = useState<CustoReal | null>(null)
 
   const carregar = useCallback(() => {
     setLoading(true)
@@ -191,14 +193,16 @@ export default function PedidoLabDetalhePage() {
       fetch(`/api/labs/pedidos/${id}`).then(r => r.json()),
       fetch(`/api/labs/pedidos/${id}/tubos`).then(r => r.ok ? r.json() : { grupos: [], resumo: '' }),
       fetch(`/api/labs/pedidos/${id}/frete`).then(r => r.ok ? r.json() : []),
+      fetch(`/api/labs/pedidos/${id}/custo-real`).then(r => r.ok ? r.json() : null),
     ])
-      .then(([d, t, f]) => {
+      .then(([d, t, f, cr]) => {
         if (d.error) { setErro(d.error); return }
         setPedido(d)
         setObservacoes(d.observacoes ?? '')
         setGrupos(t.grupos ?? [])
         setResumoTubos(t.resumo ?? '')
         setEnvios(f ?? [])
+        setCustoReal(cr)
       })
       .catch(() => setErro('Erro ao carregar pedido.'))
       .finally(() => setLoading(false))
@@ -471,6 +475,30 @@ export default function PedidoLabDetalhePage() {
               </p>
             )}
           </div>
+
+          {/* Custo real (interno) */}
+          {custoReal && (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-1.5 text-sm">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Custo real (interno)</p>
+              <div className="flex justify-between text-xs text-gray-500">
+                <span>Custo lab (itens)</span><span>{fmtBRL(custoReal.custoItens)}</span>
+              </div>
+              <div className="flex justify-between text-xs text-gray-500">
+                <span>Frete</span><span>{fmtBRL(custoReal.custoFrete)}</span>
+              </div>
+              <div className="flex justify-between text-xs text-gray-500">
+                <span>Insumos</span><span>{fmtBRL(custoReal.custoInsumos)}</span>
+              </div>
+              <div className="flex justify-between font-bold text-[#19202d] border-t border-gray-100 pt-1.5">
+                <span>Total</span><span>{fmtBRL(custoReal.custoTotal)}</span>
+              </div>
+              {pedido.valor_total !== null && (
+                <p className="text-[11px] text-gray-400 pt-1">
+                  Margem: {fmtBRL(pedido.valor_total - custoReal.custoTotal)}
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Ações */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-2">

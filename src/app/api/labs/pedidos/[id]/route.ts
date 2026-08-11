@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
 import { transicaoValida } from '@/lib/lab-pedidos'
+import { baixarTubosDoPedido } from '@/lib/lab-estoque'
 
 async function requireAuth(request: NextRequest) {
   const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value
@@ -70,5 +71,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     .from('pedido_lab').update(patch).eq('id', pedidoId).select('*').single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Baixa automática dos insumos de tubo consumidos na coleta. Não bloqueia
+  // a transição se der erro (cadastro de insumo é responsabilidade separada).
+  if (patch.status === 'coletado') {
+    baixarTubosDoPedido(pedidoId).catch(e =>
+      console.error('[labs/pedidos] falha ao baixar insumos de tubo:', e instanceof Error ? e.message : e),
+    )
+  }
+
   return NextResponse.json(data)
 }

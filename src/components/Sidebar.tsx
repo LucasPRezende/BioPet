@@ -51,6 +51,7 @@ const NAV: NavGroup[] = [
       { icon: '💰', label: 'Preços',     href: '/admin/comissoes', adminOnly: true },
       { icon: '🔬', label: 'Labs Parceiros', href: '/admin/labs',  adminOnly: true },
       { icon: '📦', label: 'Pedidos Labs',   href: '/admin/labs/pedidos', adminOnly: true },
+      { icon: '📋', label: 'Estoque',    href: '/admin/estoque',   adminOnly: true },
       { icon: '🩸', label: 'Extrações',  href: '/admin/extracoes'  },
     ],
   },

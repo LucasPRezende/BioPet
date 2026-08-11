@@ -193,13 +193,6 @@ export interface Pacote {
   peso_kg: number
 }
 
-// Chutes de mercado pra caixa de isopor + gelo + tubos — sem medida real ainda
-// (não bloqueia a Fase 4, ver LABS_PARCEIROS.md seção "Estoque de insumos").
-// Ajustar aqui quando tiver os presets de caixa de verdade.
-export const PRESET_CAIXA_PADRAO: Pacote = {
-  altura_cm: 20, largura_cm: 20, comprimento_cm: 20, peso_kg: 1.5,
-}
-
 export async function enderecoOrigemBioPet(): Promise<Endereco> {
   const { data } = await supabase
     .from('system_config').select('value').eq('key', 'biopet_endereco_origem').maybeSingle()
