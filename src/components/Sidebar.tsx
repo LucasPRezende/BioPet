@@ -15,9 +15,10 @@ interface Props {
 interface NavItem {
   icon:       string
   label:      string
-  href:       string
+  href?:      string       // ausente = item é só um toggle de submenu (tem children)
   badge?:     boolean
   adminOnly?: boolean
+  children?:  NavItem[]
 }
 
 interface NavGroup {
@@ -49,9 +50,14 @@ const NAV: NavGroup[] = [
     items: [
       { icon: '📊', label: 'Dashboard',  href: '/admin/dashboard', adminOnly: true },
       { icon: '💰', label: 'Preços',     href: '/admin/comissoes', adminOnly: true },
-      { icon: '🔬', label: 'Labs Parceiros', href: '/admin/labs',  adminOnly: true },
-      { icon: '📦', label: 'Pedidos Labs',   href: '/admin/labs/pedidos', adminOnly: true },
-      { icon: '📋', label: 'Estoque',    href: '/admin/estoque',   adminOnly: true },
+      {
+        icon: '🔬', label: 'Labs Parceiros', adminOnly: true,
+        children: [
+          { icon: '📖', label: 'Catálogo', href: '/admin/labs' },
+          { icon: '📦', label: 'Pedidos',  href: '/admin/labs/pedidos' },
+          { icon: '📋', label: 'Estoque',  href: '/admin/estoque' },
+        ],
+      },
       { icon: '🩸', label: 'Extrações',  href: '/admin/extracoes'  },
     ],
   },
@@ -69,11 +75,16 @@ const NAV: NavGroup[] = [
   },
 ]
 
+function todosHrefs(items: NavItem[]): string[] {
+  return items.flatMap(i => (i.children ? todosHrefs(i.children) : i.href ? [i.href] : []))
+}
+
 export default function Sidebar({ isOpen, onClose }: Props) {
   const pathname = usePathname()
   const router   = useRouter()
   const [user,   setUser]   = useState<User | null>(null)
   const [unread, setUnread] = useState(0)
+  const [aberto, setAberto] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -102,12 +113,32 @@ export default function Sidebar({ isOpen, onClose }: Props) {
 
   // Entre hrefs aninhados (ex: /admin/labs e /admin/labs/pedidos), só o mais
   // específico fica ativo — senão os dois acendem ao mesmo tempo.
-  const melhorMatch = NAV.flatMap(g => g.items.map(i => i.href))
+  const melhorMatch = NAV.flatMap(g => todosHrefs(g.items))
     .filter(h => pathname === h || pathname.startsWith(h + '/'))
     .sort((a, b) => b.length - a.length)[0]
 
   function isActive(href: string) {
     return href === melhorMatch
+  }
+
+  // Abre automaticamente o submenu que contém a página atual.
+  useEffect(() => {
+    for (const group of NAV) {
+      for (const item of group.items) {
+        if (item.children && todosHrefs(item.children).includes(melhorMatch)) {
+          setAberto(prev => new Set(prev).add(item.label))
+        }
+      }
+    }
+  }, [melhorMatch])
+
+  function toggleAberto(label: string) {
+    setAberto(prev => {
+      const next = new Set(prev)
+      if (next.has(label)) next.delete(label)
+      else next.add(label)
+      return next
+    })
   }
 
   const isAdmin = user?.role === 'admin'
@@ -176,11 +207,59 @@ export default function Sidebar({ isOpen, onClose }: Props) {
                   {group.title}
                 </p>
                 {items.map(item => {
-                  const active = isActive(item.href)
+                  if (item.children) {
+                    const filhos = item.children.filter(c => !c.adminOnly || isAdmin)
+                    if (!filhos.length) return null
+                    const algumFilhoAtivo = filhos.some(c => c.href && isActive(c.href))
+                    const expandido = aberto.has(item.label) || algumFilhoAtivo
+                    return (
+                      <div key={item.label}>
+                        <button
+                          type="button"
+                          onClick={() => toggleAberto(item.label)}
+                          className={[
+                            'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150',
+                            algumFilhoAtivo
+                              ? 'bg-white/15 text-white border-l-2 border-[#c4a35a] pl-[10px]'
+                              : 'text-white/65 hover:bg-white/10 hover:text-white',
+                          ].join(' ')}
+                        >
+                          <span className="text-[15px] w-5 text-center shrink-0">{item.icon}</span>
+                          <span className="flex-1 truncate text-left">{item.label}</span>
+                          <span className={`text-[10px] transition-transform duration-150 ${expandido ? 'rotate-90' : ''}`}>▶</span>
+                        </button>
+                        {expandido && (
+                          <div className="ml-4 pl-3 border-l border-white/10 space-y-0.5 mt-0.5">
+                            {filhos.map(filho => {
+                              const active = !!filho.href && isActive(filho.href)
+                              return (
+                                <Link
+                                  key={filho.href}
+                                  href={filho.href ?? '#'}
+                                  onClick={onClose}
+                                  className={[
+                                    'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150',
+                                    active
+                                      ? 'bg-white/15 text-white border-l-2 border-[#c4a35a] pl-[10px]'
+                                      : 'text-white/55 hover:bg-white/10 hover:text-white',
+                                  ].join(' ')}
+                                >
+                                  <span className="text-[13px] w-4 text-center shrink-0">{filho.icon}</span>
+                                  <span className="flex-1 truncate">{filho.label}</span>
+                                </Link>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  }
+
+                  const active = !!item.href && isActive(item.href)
                   return (
                     <Link
                       key={item.href}
-                      href={item.href}
+                      href={item.href ?? '#'}
                       onClick={onClose}
                       className={[
                         'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150',
