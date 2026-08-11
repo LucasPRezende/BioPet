@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
   // 3) Todos os agendamentos com pagamento pendente (não só hoje)
   const { data: pagPend } = await supabase
     .from('agendamentos')
-    .select('id, tipo_exame, valor, status_pagamento, data_hora, pets(nome), tutores(nome)')
+    .select('id, tipo_exame, valor, status_pagamento, pagamento_responsavel, data_hora, pets(nome), tutores(nome)')
     .in('status_pagamento', ['pendente', 'a_receber'])
     .neq('status', 'cancelado')
     .neq('forma_pagamento', 'gratuito')
@@ -95,6 +95,9 @@ export async function GET(request: NextRequest) {
       tipo_exame:      ag.tipo_exame,
       valor:           ag.valor,
       status_pagamento: ag.status_pagamento,
+      // 'clinica' = repasse devido pela clínica parceira (ela cobrou o tutor,
+      // ainda não repassou); qualquer outro valor = a BioPet cobra do tutor direto.
+      origem:          ag.pagamento_responsavel === 'clinica' ? 'clinica' : 'tutor',
       data_hora:       ag.data_hora,
       pet_nome:        (Array.isArray(ag.pets) ? ag.pets[0] : ag.pets as { nome: string } | null)?.nome ?? '—',
       vencido:         ag.data_hora.slice(0, 10) < hojeStr && Number(ag.valor ?? 0) > 0,

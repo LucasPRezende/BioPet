@@ -37,7 +37,7 @@ interface Alertas {
   falta_laudo_lista:           { id: number; tipo_exame: string; data_hora: string; pet_nome: string }[]
   falta_pagamento:             number
   falta_pagamento_valor:       number
-  falta_pagamento_lista:       { id: number; tipo_exame: string; valor: number; status_pagamento: string; data_hora: string; pet_nome: string; vencido: boolean }[]
+  falta_pagamento_lista:       { id: number; tipo_exame: string; valor: number; status_pagamento: string; origem: 'tutor' | 'clinica'; data_hora: string; pet_nome: string; vencido: boolean }[]
 }
 
 interface VetEntry {
@@ -786,6 +786,11 @@ export default function DashboardPage() {
                         className="flex items-center gap-2.5 text-xs text-yellow-800 flex-wrap px-2 py-1.5 rounded-lg hover:bg-yellow-100/60 transition">
                         <span className={`font-extrabold whitespace-nowrap ${ag.vencido ? 'text-red-700' : 'text-yellow-700'}`}>
                           {ag.vencido ? '🔴 Vencido' : '🟡 No prazo'}
+                        </span>
+                        <span className={`font-semibold whitespace-nowrap px-1.5 py-0.5 rounded-full text-[10px] ${
+                          ag.origem === 'clinica' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'
+                        }`}>
+                          {ag.origem === 'clinica' ? '🏥 Repasse clínica' : '👤 Direto do tutor'}
                         </span>
                         <span className="flex-1">Ag.{ag.id} — {ag.pet_nome} — <span className="font-semibold">{formatBRL(ag.valor)}</span></span>
                         <span className="font-bold text-yellow-700 whitespace-nowrap">Abrir →</span>

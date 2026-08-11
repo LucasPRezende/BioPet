@@ -189,9 +189,9 @@ function RelatorioRepasseContent() {
                   amber:  'bg-amber-50 border-amber-200 text-amber-700',
                 }[s.cor]
                 return (
-                  <div className={`rounded-xl border p-4 mb-6 flex items-center justify-between flex-wrap gap-2 ${cores}`}>
-                    <p className="text-xs font-bold uppercase tracking-wide">Saldo geral do período</p>
-                    <p className="text-xl font-extrabold">
+                  <div className={`rounded-lg border px-3 py-2 mb-6 flex items-center justify-between flex-wrap gap-2 ${cores}`}>
+                    <p className="text-[10px] font-bold uppercase tracking-wide">Saldo geral do período</p>
+                    <p className="text-sm font-bold">
                       {s.texto}{s.valor > 0 ? ` — ${formatBRL(s.valor)}` : ''}
                     </p>
                   </div>
@@ -271,34 +271,36 @@ function RelatorioRepasseContent() {
                               {exames.length} exame{exames.length !== 1 ? 's' : ''} · repassado {formatBRL(repassadoC)} · pendente {formatBRL(pendenteC)}
                             </p>
                           </div>
-                          <table className="w-full text-sm border border-t-0 rounded-b-lg overflow-hidden">
-                            <thead>
-                              <tr className="border-b bg-gray-50 text-xs text-gray-400 uppercase">
-                                <th className="text-left py-2 px-3 font-bold">Data</th>
-                                <th className="text-left py-2 px-3 font-bold">Pet</th>
-                                <th className="text-left py-2 px-3 font-bold">Tutor</th>
-                                <th className="text-left py-2 px-3 font-bold">Exame</th>
-                                <th className="text-right py-2 px-3 font-bold">Valor</th>
-                                <th className="text-right py-2 px-3 font-bold">Status</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-50">
-                              {exames.map(ag => (
-                                <tr key={ag.id}>
-                                  <td className="py-2 px-3 text-gray-500 whitespace-nowrap">{formatDate(ag.data_hora)}</td>
-                                  <td className="py-2 px-3 font-semibold text-[#19202d] whitespace-nowrap">{ag.pet_nome}</td>
-                                  <td className="py-2 px-3 text-gray-600 whitespace-nowrap">{ag.tutor_nome}</td>
-                                  <td className="py-2 px-3 text-gray-600">{ag.tipo_exame}</td>
-                                  <td className="py-2 px-3 text-right text-gray-700 whitespace-nowrap">{formatBRL(ag.valor ?? 0)}</td>
-                                  <td className="py-2 px-3 text-right whitespace-nowrap">
-                                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${ag.repasse_confirmado ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-indigo-50 text-indigo-700 border border-indigo-200'}`}>
-                                      {ag.repasse_confirmado ? 'Repassado' : 'Pendente'}
-                                    </span>
-                                  </td>
+                          <div className="overflow-x-auto border border-t-0 rounded-b-lg">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="border-b bg-gray-50 text-xs text-gray-400 uppercase">
+                                  <th className="text-left py-2 px-3 font-bold">Data</th>
+                                  <th className="text-left py-2 px-3 font-bold">Pet</th>
+                                  <th className="text-left py-2 px-3 font-bold">Tutor</th>
+                                  <th className="text-left py-2 px-3 font-bold">Exame</th>
+                                  <th className="text-right py-2 px-3 font-bold">Valor</th>
+                                  <th className="text-right py-2 px-3 font-bold">Status</th>
                                 </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                              </thead>
+                              <tbody className="divide-y divide-gray-50">
+                                {exames.map(ag => (
+                                  <tr key={ag.id}>
+                                    <td className="py-2 px-3 text-gray-500 whitespace-nowrap">{formatDate(ag.data_hora)}</td>
+                                    <td className="py-2 px-3 font-semibold text-[#19202d] whitespace-nowrap">{ag.pet_nome}</td>
+                                    <td className="py-2 px-3 text-gray-600 whitespace-nowrap">{ag.tutor_nome}</td>
+                                    <td className="py-2 px-3 text-gray-600 whitespace-nowrap">{ag.tipo_exame}</td>
+                                    <td className="py-2 px-3 text-right text-gray-700 whitespace-nowrap">{formatBRL(ag.valor ?? 0)}</td>
+                                    <td className="py-2 px-3 text-right whitespace-nowrap">
+                                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${ag.repasse_confirmado ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-indigo-50 text-indigo-700 border border-indigo-200'}`}>
+                                        {ag.repasse_confirmado ? 'Repassado' : 'Pendente'}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
                         </div>
                       )}
 
@@ -310,34 +312,36 @@ function RelatorioRepasseContent() {
                               {comissaoExames.length} exame{comissaoExames.length !== 1 ? 's' : ''} · pago {formatBRL(comissaoPagaC)} · a pagar {formatBRL(comissaoPendenteC)}
                             </p>
                           </div>
-                          <table className="w-full text-sm border border-t-0 rounded-b-lg overflow-hidden">
-                            <thead>
-                              <tr className="border-b bg-gray-50 text-xs text-gray-400 uppercase">
-                                <th className="text-left py-2 px-3 font-bold">Data</th>
-                                <th className="text-left py-2 px-3 font-bold">Pet</th>
-                                <th className="text-left py-2 px-3 font-bold">Tutor</th>
-                                <th className="text-left py-2 px-3 font-bold">Exame</th>
-                                <th className="text-right py-2 px-3 font-bold">Comissão</th>
-                                <th className="text-right py-2 px-3 font-bold">Status</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-50">
-                              {comissaoExames.map(ag => (
-                                <tr key={ag.id}>
-                                  <td className="py-2 px-3 text-gray-500 whitespace-nowrap">{formatDate(ag.data_hora)}</td>
-                                  <td className="py-2 px-3 font-semibold text-[#19202d] whitespace-nowrap">{ag.pet_nome}</td>
-                                  <td className="py-2 px-3 text-gray-600 whitespace-nowrap">{ag.tutor_nome}</td>
-                                  <td className="py-2 px-3 text-gray-600">{ag.comissao_exame}</td>
-                                  <td className="py-2 px-3 text-right text-gray-700 whitespace-nowrap">{formatBRL(ag.comissao_valor)}</td>
-                                  <td className="py-2 px-3 text-right whitespace-nowrap">
-                                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${ag.comissao_clinica_confirmada ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
-                                      {ag.comissao_clinica_confirmada ? 'Pago' : 'A pagar'}
-                                    </span>
-                                  </td>
+                          <div className="overflow-x-auto border border-t-0 rounded-b-lg">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="border-b bg-gray-50 text-xs text-gray-400 uppercase">
+                                  <th className="text-left py-2 px-3 font-bold">Data</th>
+                                  <th className="text-left py-2 px-3 font-bold">Pet</th>
+                                  <th className="text-left py-2 px-3 font-bold">Tutor</th>
+                                  <th className="text-left py-2 px-3 font-bold">Exame</th>
+                                  <th className="text-right py-2 px-3 font-bold">Comissão</th>
+                                  <th className="text-right py-2 px-3 font-bold">Status</th>
                                 </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                              </thead>
+                              <tbody className="divide-y divide-gray-50">
+                                {comissaoExames.map(ag => (
+                                  <tr key={ag.id}>
+                                    <td className="py-2 px-3 text-gray-500 whitespace-nowrap">{formatDate(ag.data_hora)}</td>
+                                    <td className="py-2 px-3 font-semibold text-[#19202d] whitespace-nowrap">{ag.pet_nome}</td>
+                                    <td className="py-2 px-3 text-gray-600 whitespace-nowrap">{ag.tutor_nome}</td>
+                                    <td className="py-2 px-3 text-gray-600 whitespace-nowrap">{ag.comissao_exame}</td>
+                                    <td className="py-2 px-3 text-right text-gray-700 whitespace-nowrap">{formatBRL(ag.comissao_valor)}</td>
+                                    <td className="py-2 px-3 text-right whitespace-nowrap">
+                                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${ag.comissao_clinica_confirmada ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+                                        {ag.comissao_clinica_confirmada ? 'Pago' : 'A pagar'}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
                         </div>
                       )}
                     </div>
