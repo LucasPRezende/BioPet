@@ -48,6 +48,7 @@ export async function GET(request: NextRequest) {
     agendamentos: {
       id:                          number
       tipo_exame:                  string
+      exame_detalhe:               string
       data_hora:                   string
       valor:                       number | null
       status_pagamento:            string
@@ -91,6 +92,20 @@ export async function GET(request: NextRequest) {
       ...bioComComissao.map(b => nomeSub(b.bioquimica_exames)).filter(Boolean),
     ].join(', ') || ag.tipo_exame
 
+    // Detalhe do exame pra exibição (tabela de repasse): troca "Teste Rápido"/
+    // "Bioquímica" pelo(s) sub-exame(s) específico(s) feito(s), independente de
+    // gerar comissão ou não — diferente de comissaoExameNome, que só mostra o
+    // que gera comissão.
+    const todosTestesNomes = (Array.isArray(ag.agendamento_testes_rapidos) ? ag.agendamento_testes_rapidos as SubTeste[] : [])
+      .map(t => nomeSub(t.testes_rapidos)).filter(Boolean)
+    const todosBioNomes = (Array.isArray(ag.agendamento_bioquimica) ? ag.agendamento_bioquimica as SubBio[] : [])
+      .map(b => nomeSub(b.bioquimica_exames)).filter(Boolean)
+    const exameDetalhe = ag.tipo_exame.split(',').map((s: string) => s.trim()).map((t: string) => {
+      if (t === 'Teste Rápido' && todosTestesNomes.length > 0) return todosTestesNomes.join(', ')
+      if (t === 'Bioquímica'   && todosBioNomes.length > 0)    return todosBioNomes.join(', ')
+      return t
+    }).join(', ')
+
     // Linha a agrupar: prioriza clinica_id (repasse), cai para comissao_clinica_id
     // quando a BioPet recebeu direto e não há clinica_id (agendamento admin com
     // clínica de comissão selecionada, sem envolvimento de repasse).
@@ -131,6 +146,7 @@ export async function GET(request: NextRequest) {
     map[cid].agendamentos.push({
       id:                          ag.id as number,
       tipo_exame:                  ag.tipo_exame,
+      exame_detalhe:               exameDetalhe,
       data_hora:                   ag.data_hora,
       valor:                       ag.valor,
       status_pagamento:            ag.status_pagamento,

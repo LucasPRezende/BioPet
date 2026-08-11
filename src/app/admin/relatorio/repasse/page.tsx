@@ -6,6 +6,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 interface AgClinica {
   id:                          number
   tipo_exame:                  string
+  exame_detalhe:               string
   data_hora:                   string
   valor:                       number | null
   status_pagamento:            string
@@ -40,7 +41,13 @@ function formatBRL(n: number | null | undefined) {
 }
 
 function formatDate(dt: string) {
-  return new Date(dt).toLocaleDateString('pt-BR')
+  return new Date(dt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })
+}
+
+// Só o primeiro nome — a coluna Tutor é só pra identificar o tutor de relance,
+// o relatório precisa é imprimir sem cortar as outras colunas.
+function primeiroNome(nome: string) {
+  return nome.split(' ')[0] || nome
 }
 
 function saldoInfo(saldo: number) {
@@ -271,7 +278,7 @@ function RelatorioRepasseContent() {
                               {exames.length} exame{exames.length !== 1 ? 's' : ''} · repassado {formatBRL(repassadoC)} · pendente {formatBRL(pendenteC)}
                             </p>
                           </div>
-                          <div className="overflow-x-auto border border-t-0 rounded-b-lg">
+                          <div className="overflow-x-auto print:overflow-visible border border-t-0 rounded-b-lg">
                             <table className="w-full text-sm">
                               <thead>
                                 <tr className="border-b bg-gray-50 text-xs text-gray-400 uppercase">
@@ -288,8 +295,8 @@ function RelatorioRepasseContent() {
                                   <tr key={ag.id}>
                                     <td className="py-2 px-3 text-gray-500 whitespace-nowrap">{formatDate(ag.data_hora)}</td>
                                     <td className="py-2 px-3 font-semibold text-[#19202d] whitespace-nowrap">{ag.pet_nome}</td>
-                                    <td className="py-2 px-3 text-gray-600 whitespace-nowrap">{ag.tutor_nome}</td>
-                                    <td className="py-2 px-3 text-gray-600 whitespace-nowrap">{ag.tipo_exame}</td>
+                                    <td className="py-2 px-3 text-gray-600 whitespace-nowrap">{primeiroNome(ag.tutor_nome)}</td>
+                                    <td className="py-2 px-3 text-gray-600 whitespace-nowrap">{ag.exame_detalhe}</td>
                                     <td className="py-2 px-3 text-right text-gray-700 whitespace-nowrap">{formatBRL(ag.valor ?? 0)}</td>
                                     <td className="py-2 px-3 text-right whitespace-nowrap">
                                       <span className={`text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${ag.repasse_confirmado ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-indigo-50 text-indigo-700 border border-indigo-200'}`}>
@@ -312,7 +319,7 @@ function RelatorioRepasseContent() {
                               {comissaoExames.length} exame{comissaoExames.length !== 1 ? 's' : ''} · pago {formatBRL(comissaoPagaC)} · a pagar {formatBRL(comissaoPendenteC)}
                             </p>
                           </div>
-                          <div className="overflow-x-auto border border-t-0 rounded-b-lg">
+                          <div className="overflow-x-auto print:overflow-visible border border-t-0 rounded-b-lg">
                             <table className="w-full text-sm">
                               <thead>
                                 <tr className="border-b bg-gray-50 text-xs text-gray-400 uppercase">
@@ -329,7 +336,7 @@ function RelatorioRepasseContent() {
                                   <tr key={ag.id}>
                                     <td className="py-2 px-3 text-gray-500 whitespace-nowrap">{formatDate(ag.data_hora)}</td>
                                     <td className="py-2 px-3 font-semibold text-[#19202d] whitespace-nowrap">{ag.pet_nome}</td>
-                                    <td className="py-2 px-3 text-gray-600 whitespace-nowrap">{ag.tutor_nome}</td>
+                                    <td className="py-2 px-3 text-gray-600 whitespace-nowrap">{primeiroNome(ag.tutor_nome)}</td>
                                     <td className="py-2 px-3 text-gray-600 whitespace-nowrap">{ag.comissao_exame}</td>
                                     <td className="py-2 px-3 text-right text-gray-700 whitespace-nowrap">{formatBRL(ag.comissao_valor)}</td>
                                     <td className="py-2 px-3 text-right whitespace-nowrap">
