@@ -216,6 +216,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
   const [petInternado,         setPetInternado]         = useState(false)
   const [pagamentoResp,        setPagamentoResp]        = useState<'tutor' | 'clinica'>('tutor')
   const [clinicaId,            setClinicaId]            = useState('')
+  const [clinicaComissaoId,    setClinicaComissaoId]    = useState('')
   const [clinicas,             setClinicas]             = useState<{ id: number; nome: string }[]>([])
   const [formaPagamento,       setFormaPagamento]       = useState<'pix' | 'cartao'>('pix')
   const [entregaPagamento,     setEntregaPagamento]     = useState<'link' | 'presencial'>('link')
@@ -563,6 +564,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
       forma_pagamento:       gratuito ? 'gratuito' : pagamentoResp === 'tutor' ? formaPagamento : 'a confirmar',
       entrega_pagamento:     gratuito ? null : pagamentoResp === 'tutor' ? entregaPagamento : null,
       clinica_id:            pagamentoResp === 'clinica' && clinicaId ? Number(clinicaId) : null,
+      comissao_clinica_id:   pagamentoResp === 'tutor' && temTesteRapido && clinicaComissaoId ? Number(clinicaComissaoId) : null,
       valor:                 totalValor,
       bioquimica_selecionados: bioquimicaPayload,
       testes_rapidos_selecionados: testesRapidosPayload,
@@ -1124,7 +1126,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
             <RadioGroup<'tutor' | 'clinica'>
               label="Responsável pelo pagamento *"
               value={pagamentoResp}
-              onChange={v => { setPagamentoResp(v); if (v !== 'clinica') setClinicaId('') }}
+              onChange={v => { setPagamentoResp(v); if (v !== 'clinica') setClinicaId(''); if (v !== 'tutor') setClinicaComissaoId('') }}
               options={[
                 { value: 'tutor',   label: 'Tutor paga diretamente à BioPet' },
                 { value: 'clinica', label: 'Clínica já pagou / vai pagar' },
@@ -1140,6 +1142,23 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
                     <option key={c.id} value={String(c.id)}>{c.nome}</option>
                   ))}
                 </select>
+              </div>
+            )}
+
+            {pagamentoResp === 'tutor' && temTesteRapido && modo === 'admin' && clinicas.length > 0 && (
+              <div>
+                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+                  Clínica parceira (comissão do teste rápido)
+                </label>
+                <select value={clinicaComissaoId} onChange={e => setClinicaComissaoId(e.target.value)} className={INPUT}>
+                  <option value="">Nenhuma / não aplicável</option>
+                  {clinicas.map(c => (
+                    <option key={c.id} value={String(c.id)}>{c.nome}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-400 mt-1">
+                  Se uma clínica parceira coletou o material, selecione-a para a BioPet dever a comissão a ela.
+                </p>
               </div>
             )}
 

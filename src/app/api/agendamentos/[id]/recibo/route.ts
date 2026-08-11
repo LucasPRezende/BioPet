@@ -25,7 +25,7 @@ export async function GET(
       id, tipo_exame, data_hora, valor, forma_pagamento, status_pagamento, pagamento_responsavel,
       tutores(nome),
       pets(nome, especie, raca),
-      clinicas(nome),
+      clinicas!agendamentos_clinica_id_fkey(nome),
       agendamento_exames(tipo_exame, descricao),
       agendamento_bioquimica(id, bioquimica_exames(nome)),
       agendamento_testes_rapidos(id, testes_rapidos(nome))

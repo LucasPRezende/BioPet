@@ -37,7 +37,7 @@ export async function POST(
 
   const { data: ag } = await supabase
     .from('agendamentos')
-    .select('id, status, tipo_exame, data_hora, clinicas(nome, telefone), tutores(telefone), pets(nome)')
+    .select('id, status, tipo_exame, data_hora, clinicas!agendamentos_clinica_id_fkey(nome, telefone), tutores(telefone), pets(nome)')
     .eq('id', agId)
     .single()
 

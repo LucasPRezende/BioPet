@@ -63,6 +63,7 @@ export async function POST(request: NextRequest) {
     encaixe,
     notificar,
     clinica_id,
+    comissao_clinica_id,
   } = body ?? {}
 
   const deveNotificar = notificar !== false
@@ -184,6 +185,7 @@ export async function POST(request: NextRequest) {
       status_pagamento:      statusPag,
       encaixe:               encaixe ?? false,
       clinica_id:            clinica_id ? Number(clinica_id) : null,
+      comissao_clinica_id:   pagResp === 'tutor' && comissao_clinica_id ? Number(comissao_clinica_id) : null,
       origem:                'manual',
     })
     .select('id')

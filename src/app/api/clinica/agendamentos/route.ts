@@ -169,6 +169,12 @@ export async function POST(request: NextRequest) {
   const tipoExameLabel = examesPrecificados.map(e => e.tipo_exame).join(', ')
   const valorTotal     = examesPrecificados.reduce((sum, e) => sum + (e.valor ?? 0), 0)
 
+  // Teste rápido feito pela própria clínica: se a BioPet recebe direto do
+  // tutor, a comissão do teste ainda é devida a esta clínica (automático,
+  // sem precisar escolher — é a mesma clínica que está logada).
+  const temTesteRapido = examesArr.some(e => e.tipo_exame === 'Teste Rápido')
+  const comissaoClinicaId = temTesteRapido && pagamento_responsavel !== 'clinica' ? session.clinicaId : null
+
   const { data: agendamento, error: errAg } = await supabase
     .from('agendamentos')
     .insert({
@@ -188,6 +194,7 @@ export async function POST(request: NextRequest) {
       status:                'pendente',
       origem:                'clinica',
       clinica_id:            session.clinicaId,
+      comissao_clinica_id:   comissaoClinicaId,
       status_pagamento:      'pendente',
     })
     .select('id')

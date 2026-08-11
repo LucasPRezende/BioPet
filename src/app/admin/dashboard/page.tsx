@@ -67,28 +67,35 @@ interface LaudoStats {
 }
 
 interface AgClinica {
-  id:                    number
-  tipo_exame:            string
-  data_hora:             string
-  valor:                 number | null
-  status_pagamento:      string
-  pet_nome:              string
-  tutor_nome:            string
-  pagamento_responsavel: string | null
-  repasse_confirmado:    boolean
-  repasse_em:            string | null
+  id:                          number
+  tipo_exame:                  string
+  data_hora:                   string
+  valor:                       number | null
+  status_pagamento:            string
+  pet_nome:                    string
+  tutor_nome:                  string
+  pagamento_responsavel:       string | null
+  repasse_confirmado:          boolean
+  repasse_em:                  string | null
+  comissao_clinica:            boolean
+  comissao_valor:              number
+  comissao_exame:              string
+  comissao_clinica_confirmada: boolean
+  comissao_clinica_em:         string | null
 }
 
 interface ClinicaRow {
-  clinica_id:      number
-  clinica_nome:    string
-  total:           number
-  total_valor:     number
-  a_receber:       number
-  recebido:        number
-  repasse_pendente: number
-  pendente_mp:     number
-  agendamentos:    AgClinica[]
+  clinica_id:        number
+  clinica_nome:      string
+  total:             number
+  total_valor:       number
+  a_receber:         number
+  recebido:          number
+  repasse_pendente:  number
+  pendente_mp:       number
+  comissao_pendente: number
+  comissao_paga:     number
+  agendamentos:      AgClinica[]
 }
 
 type Periodo = 'mes' | 'mes_passado' | 'personalizado'
@@ -319,9 +326,15 @@ function ClinicaModal({ clinica, onClose, onRepasseConfirmado }: {
   const [saving, setSaving]     = useState(false)
   const [error, setError]       = useState('')
 
-  const pendentes  = clinica.agendamentos.filter(ag => !ag.repasse_confirmado && ag.pagamento_responsavel === 'clinica')
-  const diretos    = clinica.agendamentos.filter(ag => !ag.repasse_confirmado && ag.pagamento_responsavel !== 'clinica')
-  const confirmados = clinica.agendamentos.filter(ag => ag.repasse_confirmado)
+  const [selectedCom, setSelectedCom] = useState<Set<number>>(new Set())
+  const [savingCom, setSavingCom]     = useState(false)
+  const [errorCom, setErrorCom]       = useState('')
+
+  const pendentes    = clinica.agendamentos.filter(ag => !ag.repasse_confirmado && ag.pagamento_responsavel === 'clinica')
+  const diretos       = clinica.agendamentos.filter(ag => !ag.repasse_confirmado && ag.pagamento_responsavel !== 'clinica' && !ag.comissao_clinica)
+  const confirmados   = clinica.agendamentos.filter(ag => ag.repasse_confirmado)
+  const comissaoPendente = clinica.agendamentos.filter(ag => ag.comissao_clinica && !ag.comissao_clinica_confirmada)
+  const comissaoPaga     = clinica.agendamentos.filter(ag => ag.comissao_clinica && ag.comissao_clinica_confirmada)
 
   const PAG_LABELS: Record<string, string> = {
     'a_receber': 'A receber', 'pendente': 'Pendente',
@@ -336,7 +349,16 @@ function ClinicaModal({ clinica, onClose, onRepasseConfirmado }: {
     setSelected(selected.size === pendentes.length ? new Set() : new Set(pendentes.map(ag => ag.id)))
   }
 
-  const selectedTotal = Array.from(selected).reduce((s, id) => s + (pendentes.find(ag => ag.id === id)?.valor ?? 0), 0)
+  function toggleCom(id: number) {
+    setSelectedCom(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
+  }
+
+  function toggleAllCom() {
+    setSelectedCom(selectedCom.size === comissaoPendente.length ? new Set() : new Set(comissaoPendente.map(ag => ag.id)))
+  }
+
+  const selectedTotal    = Array.from(selected).reduce((s, id) => s + (pendentes.find(ag => ag.id === id)?.valor ?? 0), 0)
+  const selectedComTotal = Array.from(selectedCom).reduce((s, id) => s + (comissaoPendente.find(ag => ag.id === id)?.comissao_valor ?? 0), 0)
 
   async function confirmarRepasse() {
     if (!selected.size) return
@@ -348,6 +370,18 @@ function ClinicaModal({ clinica, onClose, onRepasseConfirmado }: {
     if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Erro ao confirmar.') }
     else { onRepasseConfirmado() }
     setSaving(false)
+  }
+
+  async function confirmarComissao() {
+    if (!selectedCom.size) return
+    setSavingCom(true); setErrorCom('')
+    const res = await fetch(`/api/admin/clinicas/${clinica.clinica_id}/comissao`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agendamento_ids: Array.from(selectedCom) }),
+    })
+    if (!res.ok) { const d = await res.json(); setErrorCom(d.error ?? 'Erro ao confirmar.') }
+    else { onRepasseConfirmado() }
+    setSavingCom(false)
   }
 
   return (
@@ -404,6 +438,53 @@ function ClinicaModal({ clinica, onClose, onRepasseConfirmado }: {
                   {saving
                     ? 'Confirmando...'
                     : `Confirmar repasse — ${selected.size} selecionado${selected.size !== 1 ? 's' : ''} (${formatBRL(selectedTotal)})`}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Comissão de teste rápido a pagar à clínica (BioPet recebeu direto do tutor) */}
+          {comissaoPendente.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-xs font-bold text-amber-600 uppercase tracking-wide">
+                  Comissão a pagar — {formatBRL(clinica.comissao_pendente)}
+                </h4>
+                <button onClick={toggleAllCom} className="text-xs text-[#8a6e36] hover:underline">
+                  {selectedCom.size === comissaoPendente.length ? 'Desmarcar todos' : 'Selecionar todos'}
+                </button>
+              </div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-xs text-gray-400 uppercase">
+                    <th className="py-2 px-2 w-8" />
+                    <th className="text-left py-2 px-2">Pet</th>
+                    <th className="text-left py-2 px-2">Exame</th>
+                    <th className="text-left py-2 px-2">Data</th>
+                    <th className="text-right py-2 px-2">Comissão</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {comissaoPendente.map(ag => (
+                    <tr key={ag.id} onClick={() => toggleCom(ag.id)} className="hover:bg-amber-50/30 cursor-pointer">
+                      <td className="py-2 px-2">
+                        <input type="checkbox" checked={selectedCom.has(ag.id)} onChange={() => toggleCom(ag.id)} onClick={e => e.stopPropagation()} />
+                      </td>
+                      <td className="py-2 px-2 font-medium text-[#19202d]">{ag.pet_nome}</td>
+                      <td className="py-2 px-2 text-gray-600">{ag.comissao_exame}</td>
+                      <td className="py-2 px-2 text-gray-500">{formatDateTime(ag.data_hora)}</td>
+                      <td className="py-2 px-2 text-right text-amber-700">{formatBRL(ag.comissao_valor)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {errorCom && <p className="text-xs text-red-600 mt-2">{errorCom}</p>}
+              <div className="mt-3">
+                <button onClick={confirmarComissao} disabled={!selectedCom.size || savingCom}
+                  className="px-4 py-2 bg-[#19202d] text-white text-sm font-semibold rounded-lg disabled:opacity-40 hover:bg-[#232d3f] transition">
+                  {savingCom
+                    ? 'Confirmando...'
+                    : `Confirmar comissão paga — ${selectedCom.size} selecionado${selectedCom.size !== 1 ? 's' : ''} (${formatBRL(selectedComTotal)})`}
                 </button>
               </div>
             </div>
@@ -466,6 +547,35 @@ function ClinicaModal({ clinica, onClose, onRepasseConfirmado }: {
                       <td className="py-2 px-2 text-gray-600">{ag.tipo_exame}</td>
                       <td className="py-2 px-2 text-gray-500">{ag.repasse_em ? formatDateTime(ag.repasse_em) : '—'}</td>
                       <td className="py-2 px-2 text-right text-green-700">{formatBRL(ag.valor ?? 0)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Comissão paga */}
+          {comissaoPaga.length > 0 && (
+            <div>
+              <h4 className="text-xs font-bold text-green-600 uppercase tracking-wide mb-2">
+                Comissão paga ({comissaoPaga.length})
+              </h4>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-xs text-gray-400 uppercase">
+                    <th className="text-left py-2 px-2">Pet</th>
+                    <th className="text-left py-2 px-2">Exame</th>
+                    <th className="text-left py-2 px-2">Confirmado em</th>
+                    <th className="text-right py-2 px-2">Comissão</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {comissaoPaga.map(ag => (
+                    <tr key={ag.id} className="hover:bg-green-50/20">
+                      <td className="py-2 px-2 font-medium text-[#19202d]">{ag.pet_nome}</td>
+                      <td className="py-2 px-2 text-gray-600">{ag.comissao_exame}</td>
+                      <td className="py-2 px-2 text-gray-500">{ag.comissao_clinica_em ? formatDateTime(ag.comissao_clinica_em) : '—'}</td>
+                      <td className="py-2 px-2 text-right text-green-700">{formatBRL(ag.comissao_valor)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -561,6 +671,11 @@ export default function DashboardPage() {
     : `${inicio.split('-').reverse().join('/')} — ${fim.split('-').reverse().join('/')}`
 
   const hasAlertas = alertas && (alertas.laudos_sem_agendamento > 0 || alertas.falta_laudo > 0 || alertas.falta_pagamento > 0)
+
+  // Comissão de teste rápido que a BioPet ainda deve a clínicas parceiras
+  // (recebimento foi direto — ver [[feature_comissao_clinica_biopet_direto]]).
+  // Some da mesma fonte da tabela "Repasse — clínicas parceiras" acima.
+  const comissaoClinicaPendente = clinicas.reduce((s, c) => s + c.comissao_pendente, 0)
 
   const pagVencidos = alertas ? alertas.falta_pagamento_lista.filter(ag => ag.vencido) : []
   const pagNoPrazo  = alertas ? alertas.falta_pagamento_lista.filter(ag => !ag.vencido) : []
@@ -740,7 +855,7 @@ export default function DashboardPage() {
                       <table className="w-full">
                         <thead>
                           <tr className="border-b">
-                            {['Clínica', 'Encaminhados', 'Repasse pendente', 'Recebido', ''].map(h => (
+                            {['Clínica', 'Encaminhados', 'Repasse pendente', 'Comissão a pagar', 'Recebido', ''].map(h => (
                               <th key={h} className="text-left py-2 px-3 text-xs font-bold text-gray-400 uppercase tracking-wide">{h}</th>
                             ))}
                           </tr>
@@ -753,6 +868,11 @@ export default function DashboardPage() {
                               <td className="py-3 px-3 text-sm">
                                 {row.repasse_pendente > 0
                                   ? <span className="font-semibold px-2 py-0.5 rounded-full text-xs bg-indigo-50 text-indigo-700 border border-indigo-200">{formatBRL(row.repasse_pendente)}</span>
+                                  : <span className="text-gray-300 text-xs">—</span>}
+                              </td>
+                              <td className="py-3 px-3 text-sm">
+                                {row.comissao_pendente > 0
+                                  ? <span className="font-semibold px-2 py-0.5 rounded-full text-xs bg-amber-50 text-amber-700 border border-amber-200">{formatBRL(row.comissao_pendente)}</span>
                                   : <span className="text-gray-300 text-xs">—</span>}
                               </td>
                               <td className="py-3 px-3 text-sm">
@@ -773,6 +893,7 @@ export default function DashboardPage() {
                             <td className="py-3 px-3 text-xs font-bold text-gray-500 uppercase">Total</td>
                             <td className="py-3 px-3 text-sm font-bold text-gray-700">{clinicas.reduce((s, r) => s + r.total, 0)}</td>
                             <td className="py-3 px-3 text-sm font-bold text-indigo-700">{formatBRL(clinicas.reduce((s, r) => s + r.repasse_pendente, 0))}</td>
+                            <td className="py-3 px-3 text-sm font-bold text-amber-700">{formatBRL(clinicas.reduce((s, r) => s + r.comissao_pendente, 0))}</td>
                             <td className="py-3 px-3 text-sm font-bold text-blue-700">{formatBRL(clinicas.reduce((s, r) => s + r.recebido, 0))}</td>
                             <td />
                           </tr>
@@ -922,15 +1043,21 @@ export default function DashboardPage() {
 
                 {showDetalheFinanceiro && (
                   <div className="flex flex-col gap-4">
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
                       <StatCard label="Total de laudos" value={String(laudoStats.total)} />
                       <StatCard label="Custo total"     value={formatBRL(laudoStats.custo)}    color="text-red-500" />
                       <StatCard label="Comissões"       value={formatBRL(laudoStats.comissao)} color="text-amber-600" sub="a pagar" />
                       <StatCard
+                        label="Comissão a clínicas"
+                        value={formatBRL(comissaoClinicaPendente)}
+                        color="text-amber-600"
+                        sub="teste rápido, a pagar"
+                      />
+                      <StatCard
                         label="Lucro BioPet (est.)"
-                        value={formatBRL(resumo.total_recebido - laudoStats.custo - laudoStats.comissao)}
-                        color={(resumo.total_recebido - laudoStats.custo - laudoStats.comissao) >= 0 ? 'text-green-600' : 'text-red-500'}
-                        sub="recebido − custo − comissão"
+                        value={formatBRL(resumo.total_recebido - laudoStats.custo - laudoStats.comissao - comissaoClinicaPendente)}
+                        color={(resumo.total_recebido - laudoStats.custo - laudoStats.comissao - comissaoClinicaPendente) >= 0 ? 'text-green-600' : 'text-red-500'}
+                        sub="recebido − custo − comissões − comissão clínicas"
                       />
                     </div>
 

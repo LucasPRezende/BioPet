@@ -4,28 +4,35 @@ import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 
 interface AgClinica {
-  id:                    number
-  tipo_exame:            string
-  data_hora:             string
-  valor:                 number | null
-  status_pagamento:      string
-  pet_nome:              string
-  tutor_nome:            string
-  pagamento_responsavel: string | null
-  repasse_confirmado:    boolean
-  repasse_em:            string | null
+  id:                          number
+  tipo_exame:                  string
+  data_hora:                   string
+  valor:                       number | null
+  status_pagamento:            string
+  pet_nome:                    string
+  tutor_nome:                  string
+  pagamento_responsavel:       string | null
+  repasse_confirmado:          boolean
+  repasse_em:                  string | null
+  comissao_clinica:            boolean
+  comissao_valor:              number
+  comissao_exame:              string
+  comissao_clinica_confirmada: boolean
+  comissao_clinica_em:         string | null
 }
 
 interface ClinicaRow {
-  clinica_id:       number
-  clinica_nome:     string
-  total:            number
-  total_valor:      number
-  a_receber:        number
-  recebido:         number
-  repasse_pendente: number
-  pendente_mp:      number
-  agendamentos:     AgClinica[]
+  clinica_id:        number
+  clinica_nome:      string
+  total:             number
+  total_valor:       number
+  a_receber:         number
+  recebido:          number
+  repasse_pendente:  number
+  pendente_mp:       number
+  comissao_pendente: number
+  comissao_paga:     number
+  agendamentos:      AgClinica[]
 }
 
 function formatBRL(n: number | null | undefined) {
@@ -36,8 +43,18 @@ function formatDate(dt: string) {
   return new Date(dt).toLocaleDateString('pt-BR')
 }
 
+function saldoInfo(saldo: number) {
+  if (Math.abs(saldo) < 0.005) return { texto: 'Quitado — nada em aberto', valor: 0, cor: 'gray' as const }
+  if (saldo > 0) return { texto: 'Clínica deve à BioPet', valor: saldo, cor: 'indigo' as const }
+  return { texto: 'BioPet deve à clínica', valor: -saldo, cor: 'amber' as const }
+}
+
 function examesRepasse(c: ClinicaRow) {
   return c.agendamentos.filter(ag => ag.pagamento_responsavel === 'clinica')
+}
+
+function examesComissao(c: ClinicaRow) {
+  return c.agendamentos.filter(ag => ag.comissao_clinica)
 }
 
 function capitalize(s: string) {
@@ -85,12 +102,21 @@ function RelatorioRepasseContent() {
   const clinicasFiltradas = (selecionada === 'todas'
     ? clinicas
     : clinicas.filter(c => String(c.clinica_id) === selecionada)
-  ).filter(c => examesRepasse(c).length > 0)
+  ).filter(c => examesRepasse(c).length > 0 || examesComissao(c).length > 0)
 
   const totalExames = clinicasFiltradas.reduce((s, c) => s + examesRepasse(c).length, 0)
   const valorTotal  = clinicasFiltradas.reduce((s, c) => s + examesRepasse(c).reduce((ss, ag) => ss + (ag.valor ?? 0), 0), 0)
   const jaRepassado = clinicasFiltradas.reduce((s, c) => s + examesRepasse(c).filter(ag => ag.repasse_confirmado).reduce((ss, ag) => ss + (ag.valor ?? 0), 0), 0)
   const pendente    = clinicasFiltradas.reduce((s, c) => s + examesRepasse(c).filter(ag => !ag.repasse_confirmado).reduce((ss, ag) => ss + (ag.valor ?? 0), 0), 0)
+
+  const totalComissaoExames = clinicasFiltradas.reduce((s, c) => s + examesComissao(c).length, 0)
+  const comissaoPaga        = clinicasFiltradas.reduce((s, c) => s + examesComissao(c).filter(ag => ag.comissao_clinica_confirmada).reduce((ss, ag) => ss + ag.comissao_valor, 0), 0)
+  const comissaoPendente    = clinicasFiltradas.reduce((s, c) => s + examesComissao(c).filter(ag => !ag.comissao_clinica_confirmada).reduce((ss, ag) => ss + ag.comissao_valor, 0), 0)
+
+  // Saldo = o que falta acertar agora: repasse pendente (clínica deve à BioPet)
+  // menos comissão a pagar (BioPet deve à clínica). Não entra o que já foi
+  // repassado/pago — só o que ainda está em aberto.
+  const saldoGeral = pendente - comissaoPendente
 
   const geradoEm = new Date().toLocaleString('pt-BR')
   const clinicaSelecionadaNome = selecionada !== 'todas'
@@ -154,6 +180,24 @@ function RelatorioRepasseContent() {
                 </div>
               </div>
 
+              {/* Saldo geral — quem deve a quem, considerando só o que está em aberto */}
+              {(pendente > 0 || comissaoPendente > 0) && (() => {
+                const s = saldoInfo(saldoGeral)
+                const cores = {
+                  gray:   'bg-gray-50 border-gray-200 text-gray-500',
+                  indigo: 'bg-indigo-50 border-indigo-200 text-indigo-700',
+                  amber:  'bg-amber-50 border-amber-200 text-amber-700',
+                }[s.cor]
+                return (
+                  <div className={`rounded-xl border p-4 mb-6 flex items-center justify-between flex-wrap gap-2 ${cores}`}>
+                    <p className="text-xs font-bold uppercase tracking-wide">Saldo geral do período</p>
+                    <p className="text-xl font-extrabold">
+                      {s.texto}{s.valor > 0 ? ` — ${formatBRL(s.valor)}` : ''}
+                    </p>
+                  </div>
+                )
+              })()}
+
               {/* Cards de totais */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
                 <div className="bg-gray-50 border rounded-lg p-3">
@@ -174,51 +218,128 @@ function RelatorioRepasseContent() {
                 </div>
               </div>
 
+              {/* Cards de totais — comissão de teste rápido (BioPet recebeu direto) */}
+              {totalComissaoExames > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
+                  <div className="bg-gray-50 border rounded-lg p-3">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Exames com comissão</p>
+                    <p className="text-xl font-bold text-[#19202d]">{totalComissaoExames}</p>
+                  </div>
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                    <p className="text-[10px] font-bold text-green-600 uppercase tracking-wide mb-1">Comissão paga</p>
+                    <p className="text-xl font-bold text-green-700">{formatBRL(comissaoPaga)}</p>
+                  </div>
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                    <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wide mb-1">Comissão a pagar</p>
+                    <p className="text-xl font-bold text-amber-700">{formatBRL(comissaoPendente)}</p>
+                  </div>
+                </div>
+              )}
+
               {/* Seções por clínica */}
               {clinicasFiltradas.length === 0 && (
-                <p className="text-center text-gray-400 py-10">Nenhum exame de repasse no período selecionado.</p>
+                <p className="text-center text-gray-400 py-10">Nenhum exame de repasse ou comissão no período selecionado.</p>
               )}
               <div className="space-y-5">
                 {clinicasFiltradas.map(c => {
                   const exames = examesRepasse(c).slice().sort((a, b) => new Date(a.data_hora).getTime() - new Date(b.data_hora).getTime())
                   const repassadoC = exames.filter(ag => ag.repasse_confirmado).reduce((s, ag) => s + (ag.valor ?? 0), 0)
                   const pendenteC  = exames.filter(ag => !ag.repasse_confirmado).reduce((s, ag) => s + (ag.valor ?? 0), 0)
+                  const comissaoExames = examesComissao(c).slice().sort((a, b) => new Date(a.data_hora).getTime() - new Date(b.data_hora).getTime())
+                  const comissaoPagaC     = comissaoExames.filter(ag => ag.comissao_clinica_confirmada).reduce((s, ag) => s + ag.comissao_valor, 0)
+                  const comissaoPendenteC = comissaoExames.filter(ag => !ag.comissao_clinica_confirmada).reduce((s, ag) => s + ag.comissao_valor, 0)
+                  const saldoC = saldoInfo(pendenteC - comissaoPendenteC)
                   return (
-                    <div key={c.clinica_id} className="break-inside-avoid">
-                      <div className="bg-[#19202d] text-white px-4 py-2.5 rounded-t-lg flex items-center justify-between flex-wrap gap-1">
-                        <p className="font-bold text-sm">{c.clinica_nome}</p>
-                        <p className="text-xs text-gray-300">
-                          {exames.length} exame{exames.length !== 1 ? 's' : ''} · repassado {formatBRL(repassadoC)} · pendente {formatBRL(pendenteC)}
-                        </p>
+                    <div key={c.clinica_id} className="break-inside-avoid space-y-3">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <p className="font-extrabold text-[#19202d]">{c.clinica_nome}</p>
+                        {(pendenteC > 0 || comissaoPendenteC > 0) && (
+                          <p className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
+                            saldoC.cor === 'gray' ? 'bg-gray-50 text-gray-500 border-gray-200'
+                            : saldoC.cor === 'indigo' ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                            : 'bg-amber-50 text-amber-700 border-amber-200'
+                          }`}>
+                            {saldoC.texto}{saldoC.valor > 0 ? ` — ${formatBRL(saldoC.valor)}` : ''}
+                          </p>
+                        )}
                       </div>
-                      <table className="w-full text-sm border border-t-0 rounded-b-lg overflow-hidden">
-                        <thead>
-                          <tr className="border-b bg-gray-50 text-xs text-gray-400 uppercase">
-                            <th className="text-left py-2 px-3 font-bold">Data</th>
-                            <th className="text-left py-2 px-3 font-bold">Pet</th>
-                            <th className="text-left py-2 px-3 font-bold">Tutor</th>
-                            <th className="text-left py-2 px-3 font-bold">Exame</th>
-                            <th className="text-right py-2 px-3 font-bold">Valor</th>
-                            <th className="text-right py-2 px-3 font-bold">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-50">
-                          {exames.map(ag => (
-                            <tr key={ag.id}>
-                              <td className="py-2 px-3 text-gray-500">{formatDate(ag.data_hora)}</td>
-                              <td className="py-2 px-3 font-semibold text-[#19202d]">{ag.pet_nome}</td>
-                              <td className="py-2 px-3 text-gray-600">{ag.tutor_nome}</td>
-                              <td className="py-2 px-3 text-gray-600">{ag.tipo_exame}</td>
-                              <td className="py-2 px-3 text-right text-gray-700">{formatBRL(ag.valor ?? 0)}</td>
-                              <td className="py-2 px-3 text-right">
-                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${ag.repasse_confirmado ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-indigo-50 text-indigo-700 border border-indigo-200'}`}>
-                                  {ag.repasse_confirmado ? 'Repassado' : 'Pendente'}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                      {exames.length > 0 && (
+                        <div>
+                          <div className="bg-[#19202d] text-white px-4 py-2.5 rounded-t-lg flex items-center justify-between flex-wrap gap-1">
+                            <p className="font-bold text-sm">Repasse</p>
+                            <p className="text-xs text-gray-300">
+                              {exames.length} exame{exames.length !== 1 ? 's' : ''} · repassado {formatBRL(repassadoC)} · pendente {formatBRL(pendenteC)}
+                            </p>
+                          </div>
+                          <table className="w-full text-sm border border-t-0 rounded-b-lg overflow-hidden">
+                            <thead>
+                              <tr className="border-b bg-gray-50 text-xs text-gray-400 uppercase">
+                                <th className="text-left py-2 px-3 font-bold">Data</th>
+                                <th className="text-left py-2 px-3 font-bold">Pet</th>
+                                <th className="text-left py-2 px-3 font-bold">Tutor</th>
+                                <th className="text-left py-2 px-3 font-bold">Exame</th>
+                                <th className="text-right py-2 px-3 font-bold">Valor</th>
+                                <th className="text-right py-2 px-3 font-bold">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50">
+                              {exames.map(ag => (
+                                <tr key={ag.id}>
+                                  <td className="py-2 px-3 text-gray-500 whitespace-nowrap">{formatDate(ag.data_hora)}</td>
+                                  <td className="py-2 px-3 font-semibold text-[#19202d] whitespace-nowrap">{ag.pet_nome}</td>
+                                  <td className="py-2 px-3 text-gray-600 whitespace-nowrap">{ag.tutor_nome}</td>
+                                  <td className="py-2 px-3 text-gray-600">{ag.tipo_exame}</td>
+                                  <td className="py-2 px-3 text-right text-gray-700 whitespace-nowrap">{formatBRL(ag.valor ?? 0)}</td>
+                                  <td className="py-2 px-3 text-right whitespace-nowrap">
+                                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${ag.repasse_confirmado ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-indigo-50 text-indigo-700 border border-indigo-200'}`}>
+                                      {ag.repasse_confirmado ? 'Repassado' : 'Pendente'}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+
+                      {comissaoExames.length > 0 && (
+                        <div>
+                          <div className="bg-[#19202d] text-white px-4 py-2.5 rounded-t-lg flex items-center justify-between flex-wrap gap-1">
+                            <p className="font-bold text-sm">Comissão (BioPet recebeu direto)</p>
+                            <p className="text-xs text-gray-300">
+                              {comissaoExames.length} exame{comissaoExames.length !== 1 ? 's' : ''} · pago {formatBRL(comissaoPagaC)} · a pagar {formatBRL(comissaoPendenteC)}
+                            </p>
+                          </div>
+                          <table className="w-full text-sm border border-t-0 rounded-b-lg overflow-hidden">
+                            <thead>
+                              <tr className="border-b bg-gray-50 text-xs text-gray-400 uppercase">
+                                <th className="text-left py-2 px-3 font-bold">Data</th>
+                                <th className="text-left py-2 px-3 font-bold">Pet</th>
+                                <th className="text-left py-2 px-3 font-bold">Tutor</th>
+                                <th className="text-left py-2 px-3 font-bold">Exame</th>
+                                <th className="text-right py-2 px-3 font-bold">Comissão</th>
+                                <th className="text-right py-2 px-3 font-bold">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50">
+                              {comissaoExames.map(ag => (
+                                <tr key={ag.id}>
+                                  <td className="py-2 px-3 text-gray-500 whitespace-nowrap">{formatDate(ag.data_hora)}</td>
+                                  <td className="py-2 px-3 font-semibold text-[#19202d] whitespace-nowrap">{ag.pet_nome}</td>
+                                  <td className="py-2 px-3 text-gray-600 whitespace-nowrap">{ag.tutor_nome}</td>
+                                  <td className="py-2 px-3 text-gray-600">{ag.comissao_exame}</td>
+                                  <td className="py-2 px-3 text-right text-gray-700 whitespace-nowrap">{formatBRL(ag.comissao_valor)}</td>
+                                  <td className="py-2 px-3 text-right whitespace-nowrap">
+                                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${ag.comissao_clinica_confirmada ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+                                      {ag.comissao_clinica_confirmada ? 'Pago' : 'A pagar'}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
                     </div>
                   )
                 })}
