@@ -133,6 +133,19 @@ async function processar(
 async function processarMidia(msg: MensagemRecebida) {
   const telefone = msg.telefone!
   try {
+    // MESMA checagem de bloqueio/pausa que processar() faz pra texto — sem
+    // isso, mídia de um número pausado (atendimento humano) ou bloqueado
+    // ainda baixava, gastava Gemini pra ler, e podia responder direto (os
+    // vários sendWhatsAppText de erro abaixo não passam por processar()).
+    if (await telefoneBloqueado(telefone)) {
+      console.log(`[agente/webhook] número bloqueado (mídia): ${telefone}`)
+      return
+    }
+    if (await emAtendimentoHumano(telefone)) {
+      console.log(`[agente/webhook] atendimento humano ativo (mídia): ${telefone}`)
+      return
+    }
+
     const media = await getBase64FromMedia(msg.rawKey!)
     if (!media) {
       await sendWhatsAppText(telefone, 'Não consegui abrir seu arquivo 😕 Pode me mandar por texto?', 'ia')
