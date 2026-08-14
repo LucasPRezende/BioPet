@@ -177,14 +177,15 @@ export const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'remarcar_agendamento',
-    description: 'Remarca um agendamento para nova data/hora. O agendamento_id TEM que vir de meus_agendamentos (a lista do próprio cliente) — NUNCA invente/chute esse número. Se não tiver a lista, chame meus_agendamentos ANTES.',
+    description: 'Remarca a data/hora e/ou a forma de pagamento de um agendamento (pelo menos um dos dois). O agendamento_id TEM que vir de meus_agendamentos (a lista do próprio cliente) — NUNCA invente/chute esse número. Se não tiver a lista, chame meus_agendamentos ANTES. O valor é recalculado automaticamente (data/hora pode cruzar horário especial, forma de pagamento muda o preço) — informe o valor_total que a tool retornar, nunca o antigo.',
     input_schema: {
       type: 'object',
       properties: {
         agendamento_id: { type: 'number', description: 'Id vindo de meus_agendamentos — nunca chutado.' },
-        nova_data_hora: { type: 'string', description: 'YYYY-MM-DDTHH:MM:00' },
+        nova_data_hora: { type: 'string', description: 'YYYY-MM-DDTHH:MM:00 — omita se só a forma de pagamento está mudando.' },
+        nova_forma_pagamento: { type: 'string', enum: ['pix', 'cartao'], description: 'Omita se só a data/hora está mudando.' },
       },
-      required: ['agendamento_id', 'nova_data_hora'],
+      required: ['agendamento_id'],
     },
   },
   {
@@ -283,7 +284,7 @@ export async function executarTool(
       return chamarApi(
         `/api/agente/remarcar?id=${Number(input.agendamento_id)}`,
         'PATCH',
-        { nova_data_hora: input.nova_data_hora, telefone },
+        { nova_data_hora: input.nova_data_hora, nova_forma_pagamento: input.nova_forma_pagamento, telefone },
       )
     case 'listar_laudos':
       return chamarApi(`/api/agente/laudo?telefone=${tel}`, 'GET')
