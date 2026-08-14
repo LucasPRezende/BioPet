@@ -48,6 +48,7 @@ export async function GET() {
 
   return NextResponse.json({
     horario_comercial: 'Segunda a Sexta, 9h às 16h30',
+    nota_horario_comercial: 'O limite de 16h30 é quando o exame precisa estar FINALIZADO, não é um horário seguro pra começar — um exame que começa às 16h30 pode terminar depois disso e já não ser comercial. NÃO calcule de cabeça: confie sempre no campo "especial" de cada horário de horarios_livres.',
     nota_cartao: 'cartao_total é o valor TOTAL no cartão (parcelável em até 3x sem juros) — NÃO multiplicar por 3.',
     exames,
     bioquimica: {

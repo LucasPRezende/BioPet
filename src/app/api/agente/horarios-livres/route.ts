@@ -104,7 +104,6 @@ export async function GET(request: NextRequest) {
     dia_semana: diaDaSemana(data),
     duracao_minutos: duracao,
     expediente: { inicio, fim },
-    horario_comercial: { inicio: horarioEspecialInicio, fim: horarioEspecialFim },
     total_livres: horarios_livres.length,
     horarios_livres,
   })

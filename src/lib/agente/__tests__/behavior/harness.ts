@@ -18,17 +18,39 @@ export interface ToolCall {
 /** Dados canônicos devolvidos pelas tools fake. */
 const PRECOS = {
   horario_comercial: 'Segunda a Sexta, 9h às 16h30',
+  nota_horario_comercial:
+    'O limite de 16h30 é quando o exame precisa estar FINALIZADO, não é um horário seguro pra começar — ' +
+    'um exame que começa às 16h30 pode terminar depois disso e já não ser comercial. NÃO calcule de cabeça: ' +
+    'confie sempre no campo "especial" de cada horário de horarios_livres.',
+  nota_cartao: 'cartao_total é o valor TOTAL no cartão (parcelável em até 3x sem juros) — NÃO multiplicar por 3.',
   exames: [
     {
       tipo: 'Ultrassom Abdominal',
       varia_por_horario: true,
       horario_comercial: { pix: 180, cartao_total: 200 },
-      fora_horario: { pix: 250, cartao_total: 280 },
+      fora_horario: { pix: 240, cartao_total: 260 },
       duracao_minutos: 30,
     },
   ],
   bioquimica: { exames: [] },
 }
+
+/**
+ * Slots fixos que cobrem a borda real do horário comercial (9h–16h30): um exame
+ * de 30min que começa às 16h30 termina às 17h — passa do limite, então "especial"
+ * tem que vir true mesmo o horário de INÍCIO batendo exatamente no limite. Mesma
+ * forma da API real (ver src/app/api/agente/horarios-livres/route.ts).
+ */
+const HORARIOS_LIVRES = [
+  { hora: '09:00', especial: false },
+  { hora: '09:30', especial: false },
+  { hora: '15:00', especial: false },
+  { hora: '15:30', especial: false },
+  { hora: '16:00', especial: false },
+  { hora: '16:30', especial: true },
+  { hora: '17:00', especial: true },
+  { hora: '17:30', especial: true },
+]
 
 const CONTEXTO = {
   tutor: { id: 1, nome: 'Maria', telefone: TELEFONE, atendimento_humano: false },
@@ -48,7 +70,15 @@ function fakeResultado(nome: string, input: Record<string, any>): unknown {
     case 'identificar_tutor':   return CONTEXTO
     case 'consultar_precos':    return PRECOS
     case 'listar_veterinarios': return { veterinarios: [{ id: 3, nome: 'Dra. Ana' }] }
-    case 'horarios_livres':     return { data: input.data, horarios_livres: ['09:00', '09:30', '10:00'], total_livres: 3 }
+    case 'horarios_livres':
+      return {
+        data: input.data,
+        dia_semana: 'segunda-feira',
+        duracao_minutos: input.duracao ?? 30,
+        expediente: { inicio: '08:00', fim: '18:00' },
+        total_livres: HORARIOS_LIVRES.length,
+        horarios_livres: HORARIOS_LIVRES,
+      }
     case 'cadastrar_tutor':     return { id: 1, nome: input.nome, telefone: TELEFONE }
     case 'cadastrar_pet':       return { id: 8, nome: input.nome, especie: input.especie }
     case 'agendar':             return { agendamento_id: 123 }
