@@ -141,4 +141,49 @@ run('comportamento do agente (IA real, tools fake)', () => {
     expect(/sem juros/i.test(t)).toBe(true)
     expect(/3x|3 vezes|at[ée] 3/i.test(t)).toBe(true)
   })
+
+  // Caso real (Giovania, 14/08): pediu ultrassom abdominal (30min) às 16h30 de
+  // segunda. 16h30 é exatamente o limite comercial — mas o exame TERMINA às 17h,
+  // então é horário especial. A IA cotou o preço comercial (R$180) de cabeça,
+  // ignorando o campo "especial": true que horarios_livres já devolvia para
+  // aquele horário, e repetiu o valor errado até na confirmação final (mesmo
+  // depois da tool agendar informar o valor certo). Corrigido tirando o
+  // "horario_comercial": {inicio, fim} solto de horarios_livres e reforçando a
+  // ressalva em consultar_precos (nota_horario_comercial) — sem tocar na lista
+  // de regras do prompt.
+  it('horário que começa em cima do limite comercial (16h30) mas termina depois: cota o preço de horário especial, não o comercial', OPTS, async () => {
+    const c = novaConversa()
+    await c.enviar(
+      'oi, sou tutor do Rex, o veterinário pediu um ultrassom abdominal pra ele, dá pra marcar segunda às 16:30?',
+    )
+    // Se a 1ª mensagem só gerou uma pergunta de esclarecimento, reafirma o horário.
+    if (!c.nomes().includes('horarios_livres')) {
+      await c.enviar('isso, segunda-feira às 16:30 mesmo')
+    }
+
+    expect(c.nomes()).toContain('horarios_livres')
+    const t = c.textos()
+    // Preço de horário especial (fora do comercial): R$240 PIX / R$260 cartão.
+    expect(t).toMatch(/240/)
+    // Não pode ter ficado no preço comercial (R$180) pra esse horário.
+    expect(t).not.toMatch(/\b180\b/)
+  })
+
+  // Controle do teste acima: um horário claramente dentro do comercial (15h,
+  // termina às 15h30, bem antes do limite) tem que continuar cotando o preço
+  // comercial normal — a correção não pode ter virado "sempre fora de horário".
+  it('horário claramente dentro do comercial (15h): continua cotando o preço comercial normal', OPTS, async () => {
+    const c = novaConversa()
+    await c.enviar(
+      'oi, sou tutor do Rex, o veterinário pediu um ultrassom abdominal pra ele, dá pra marcar segunda às 15:00?',
+    )
+    if (!c.nomes().includes('horarios_livres')) {
+      await c.enviar('isso, segunda-feira às 15:00 mesmo')
+    }
+
+    expect(c.nomes()).toContain('horarios_livres')
+    const t = c.textos()
+    expect(t).toMatch(/180/)
+    expect(t).not.toMatch(/\b240\b/)
+  })
 })
