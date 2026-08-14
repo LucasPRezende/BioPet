@@ -57,7 +57,7 @@ export async function PATCH(
     sedacao_necessaria, pet_internado, veterinario_id,
     status_pagamento, agendamento_exames_update,
     exames_remover, exames_adicionar, laudo_dispensado,
-    notificar,
+    notificar, comissao_clinica_id,
   } = body ?? {}
 
   const STATUSES = ['pendente', 'agendado', 'em atendimento', 'concluído', 'cancelado', 'faltou']
@@ -78,6 +78,7 @@ export async function PATCH(
   if (veterinario_id       !== undefined) update.veterinario_id       = veterinario_id === '' ? null : Number(veterinario_id)
   if (status_pagamento     !== undefined) update.status_pagamento     = status_pagamento
   if (laudo_dispensado     !== undefined) update.laudo_dispensado     = laudo_dispensado
+  if (comissao_clinica_id  !== undefined) update.comissao_clinica_id  = comissao_clinica_id ? Number(comissao_clinica_id) : null
 
   // Estado de pagamento ANTES da edição — usado para reconciliar o link de pagamento
   // depois que tudo (forma, valor via recalcularTotal, entrega, responsável) for aplicado.

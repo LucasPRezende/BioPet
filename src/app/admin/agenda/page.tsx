@@ -67,6 +67,7 @@ interface Agendamento {
   mp_init_point:         string | null
   veterinario_id:        number | null
   clinica_id:            number | null
+  comissao_clinica_id:   number | null
   is_revisao:                 boolean | null
   laudo_revisao_solicitado:  boolean | null
   laudo_dispensado:           boolean | null
@@ -332,6 +333,8 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
   const [formaPag,     setFormaPag]     = useState(ag.forma_pagamento ?? 'a confirmar')
   const [entrega,      setEntrega]      = useState(ag.entrega_pagamento ?? 'link')
   const [pagResp,      setPagResp]      = useState(ag.pagamento_responsavel ?? 'tutor')
+  const [comissaoClinicaId, setComissaoClinicaId] = useState(String(ag.comissao_clinica_id ?? ''))
+  const [clinicas,     setClinicas]     = useState<{ id: number; nome: string }[]>([])
   const [sedacao,      setSedacao]      = useState(ag.sedacao_necessaria ?? false)
   const [internado,    setInternado]    = useState(ag.pet_internado ?? false)
   const [vetId,        setVetId]        = useState(String(ag.veterinario_id ?? ''))
@@ -376,6 +379,11 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
   const INPUT = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8a6e36] bg-white'
 
   useEffect(() => { fetch('/api/veterinarios').then(r => r.ok ? r.json() : []).then(setVets) }, [])
+  useEffect(() => {
+    fetch('/api/admin/clinicas').then(r => r.ok ? r.json() : []).then(d =>
+      setClinicas((d ?? []).filter((c: { ativo: boolean }) => c.ativo))
+    ).catch(() => {})
+  }, [])
   useEffect(() => {
     fetch('/api/comissoes').then(r => r.ok ? r.json() : []).then((data: ComissaoInfo[]) => {
       comissoesRef.current = data
@@ -521,6 +529,7 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
       forma_pagamento:       formaPag || null,
       entrega_pagamento:     entrega,
       pagamento_responsavel: pagResp,
+      comissao_clinica_id:   pagResp === 'tutor' && comissaoClinicaId ? Number(comissaoClinicaId) : null,
       sedacao_necessaria:    sedacao,
       pet_internado:         internado,
       veterinario_id:        vetId || '',
@@ -816,11 +825,26 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
                 userChangedRef.current = true
                 setPagResp(v)
                 if (v === 'clinica') setEntrega('link')
+                if (v !== 'tutor') setComissaoClinicaId('')
               }} className={INPUT}>
                 <option value="tutor">Tutor</option>
                 <option value="clinica">Clínica</option>
               </select>
             </div>
+
+            {pagResp === 'tutor' && examesAtivos.some(e => e.tipo_exame === 'Teste Rápido') && clinicas.length > 0 && (
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">
+                  Clínica parceira (comissão do teste rápido)
+                </label>
+                <select value={comissaoClinicaId} onChange={e => setComissaoClinicaId(e.target.value)} className={INPUT}>
+                  <option value="">Nenhuma / não aplicável</option>
+                  {clinicas.map(c => (
+                    <option key={c.id} value={String(c.id)}>{c.nome}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* Aviso de recálculo de valor */}
             {novoValor !== null && examesAtivos.length > 0 && formaPag !== 'gratuito' && (
