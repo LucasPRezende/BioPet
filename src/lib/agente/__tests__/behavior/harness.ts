@@ -13,6 +13,7 @@ const TELEFONE = '5524999999999'
 export interface ToolCall {
   nome: string
   input: Record<string, any>
+  resultado: unknown
 }
 
 /** Dados canônicos devolvidos pelas tools fake. */
@@ -54,8 +55,35 @@ const HORARIOS_LIVRES = [
 
 const CONTEXTO = {
   tutor: { id: 1, nome: 'Maria', telefone: TELEFONE, atendimento_humano: false },
-  pets: [{ id: 7, nome: 'Rex', especie: 'Canina', raca: 'SRD' }],
+  pets: [
+    { id: 7, nome: 'Rex', especie: 'Canina', raca: 'SRD' },
+    { id: 15, nome: 'Fido', especie: 'Canina', raca: 'SRD' },
+  ],
   pets_falecidos: [],
+  // Duas revisões: a do Rex tem restricao_horario (exame original foi em
+  // horário comercial); a do Fido NÃO tem (exame original foi em horário
+  // especial) — usadas pra testar os dois lados da regra de restrição.
+  revisoes_disponiveis: [
+    {
+      agendamento_original_id: 900,
+      pet_nome: 'Rex',
+      tipo_exame: 'Ultrassom Abdominal Total',
+      data_original: '2026-08-10',
+      prazo_limite: '2026-09-10',
+      horario_restrito: true,
+      restricao_horario:
+        'exame original foi em horário comercial — a revisão SÓ pode ser agendada em horário comercial (seg–sex, começando entre 09:00 e 16:30)',
+    },
+    {
+      agendamento_original_id: 901,
+      pet_nome: 'Fido',
+      tipo_exame: 'Ultrassom Abdominal Total',
+      data_original: '2026-08-10',
+      prazo_limite: '2026-09-10',
+      horario_restrito: false,
+      restricao_horario: null,
+    },
+  ],
 }
 
 const LAUDOS = {
@@ -82,6 +110,24 @@ function fakeResultado(nome: string, input: Record<string, any>): unknown {
     case 'cadastrar_tutor':     return { id: 1, nome: input.nome, telefone: TELEFONE }
     case 'cadastrar_pet':       return { id: 8, nome: input.nome, especie: input.especie }
     case 'agendar':             return { agendamento_id: 123 }
+    case 'agendar_revisao': {
+      // Espelha a checagem real de src/app/api/agente/agendar-revisao/route.ts:
+      // revisão de exame original em horário comercial só pode cair em
+      // horário comercial (09:00–16:30). id 900 = Rex (restrito); 901 = Fido
+      // (sem restrição, original foi em horário especial).
+      const hora = String(input.data_hora ?? '').split('T')[1]?.slice(0, 5) ?? ''
+      const restrito = Number(input.agendamento_original_id) === 900
+      const dentroComercial = hora >= '09:00' && hora <= '16:30'
+      if (restrito && !dentroComercial) {
+        return {
+          erro: true,
+          status: 422,
+          error: 'Revisões de exames feitos em horário comercial só podem ser agendadas em horário comercial (09:00–16:30, seg–sex).',
+          precisa_atendente: true,
+        }
+      }
+      return { agendamento_id: 999, valor_total: 0, gratuito: true, laudo_incluido: false }
+    }
     case 'meus_agendamentos':   return { agendamentos: [] }
     case 'cancelar_agendamento':return { sucesso: true }
     case 'remarcar_agendamento':return { sucesso: true }
@@ -128,8 +174,9 @@ export function novaConversa(responderFn: ResponderFn = responder): Conversa {
   let custo = 0
 
   const executar: ToolExecutor = async (nome, input) => {
-    calls.push({ nome, input })
-    return fakeResultado(nome, input)
+    const resultado = fakeResultado(nome, input)
+    calls.push({ nome, input, resultado })
+    return resultado
   }
 
   return {

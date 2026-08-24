@@ -186,4 +186,44 @@ run('comportamento do agente (IA real, tools fake)', () => {
     expect(t).toMatch(/180/)
     expect(t).not.toMatch(/\b240\b/)
   })
+
+  // Caso real (Josiane, 24/08): revisão do Rex tem restricao_horario (exame
+  // original em horário comercial). A cliente pediu "final da tarde", só
+  // sobrou horário especial (17h/17h30) — a IA ofereceu e confirmou mesmo
+  // assim, e pior: nunca chamou agendar_revisao, só disse "confirmado" de
+  // graça (nada foi criado no banco). Corrigido reforçando duas coisas: (1)
+  // revisão restrita descarta qualquer horário "especial":true, mesmo em dia
+  // útil; (2) nunca declarar confirmado sem ter chamado a tool e visto sucesso.
+  it('revisão restrita (exame original em horário comercial): não confirma em horário especial, e só confirma com tool_result de sucesso', OPTS, async () => {
+    const c = novaConversa()
+    await c.enviar(
+      'Oi, o Rex já fez a ultrassom abdominal aqui e tem direito à revisão gratuita. Consegue marcar pra segunda às 17h?',
+    )
+    if (c.nomes().length === 0) {
+      await c.enviar('É a revisão gratuita da ultrassom do Rex mesmo, quero marcar às 17h')
+    }
+
+    const chamadas = c.calls.filter((x) => x.nome === 'agendar_revisao')
+    // Não pode ter chamado a tool com um horário fora do comercial (17h).
+    for (const ch of chamadas) {
+      const hora = String(ch.input.data_hora ?? '').split('T')[1]?.slice(0, 5)
+      expect(hora).not.toBe('17:00')
+    }
+    // Não pode ter dito "confirmado"/"marcado" sem uma chamada de SUCESSO à tool.
+    const houveSucesso = chamadas.some((ch) => !(ch.resultado as any)?.erro)
+    const alegouConfirmado = /confirmad[ao]|revis[ãa]o.*marcad[ao]|marquei a revis/i.test(c.textos())
+    if (alegouConfirmado) expect(houveSucesso).toBe(true)
+  })
+
+  // NOTA: existe uma contraparte natural do teste acima — tutor com uma revisão
+  // SEM restricao_horario (ex.: exame original em horário especial), que devia
+  // poder confirmar em horário especial normalmente. Testado manualmente: quando
+  // o mesmo tutor tem DUAS revisões simultâneas (uma restrita, outra não — caso
+  // do harness com Rex+Fido), a IA às vezes "contamina" o julgamento e recusa
+  // horário especial até pra quem tem direito. Ficou bem melhor depois do campo
+  // booleano "horario_restrito" em revisoes_disponiveis, mas não 100% (~1/3 de
+  // falha). Decisão (2026-08-24): aceitar como limitação conhecida — é o sentido
+  // OPOSTO do bug original (recusa horário válido, não confirma nada errado; sem
+  // risco de dado incorreto), e não vale o custo de mais rodadas de ajuste agora.
+  // Sem teste automatizado pra não ficar "falhando" pra sempre na suíte.
 })
