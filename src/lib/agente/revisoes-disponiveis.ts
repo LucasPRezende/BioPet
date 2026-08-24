@@ -17,9 +17,13 @@ export interface RevisaoDisponivel {
   prazo_limite: string
   pode_agendar: boolean
   /**
-   * Presente quando o exame original foi em horário comercial: a revisão SÓ
-   * pode ser agendada em horário comercial (mesma regra do /api/revisoes).
+   * true quando o exame original foi em horário comercial: a revisão SÓ pode
+   * ser agendada em horário comercial (mesma regra do /api/revisoes). Campo
+   * booleano explícito (em vez de só a string) pra IA não precisar inferir
+   * "null = sem restrição" — mesmo padrão do "especial" de horarios_livres.
    */
+  horario_restrito: boolean
+  /** Texto pronto pra avisar o cliente — só preenchido quando horario_restrito=true. */
   restricao_horario: string | null
 }
 
@@ -97,6 +101,7 @@ export async function buscarRevisoesDisponiveis(petIds: number[]): Promise<Revis
         data_original: ag.data_hora,
         prazo_limite: eleg.prazo_limite.toISOString().slice(0, 10),
         pode_agendar: eleg.pode_agendar,
+        horario_restrito: originalComercial,
         restricao_horario: originalComercial
           ? `exame original foi em horário comercial — a revisão SÓ pode ser agendada em horário comercial (seg–sex, começando entre ${horarioInicio} e ${horarioFim})`
           : null,
@@ -147,7 +152,9 @@ export async function montarInfoClienteNovo(telefone: string): Promise<string | 
       linhas.push(
         `- ${r.pet_nome ?? 'pet'}: ${r.tipo_exame} feito em ${formatBr(r.data_original)} ` +
           `(agendamento_original_id=${r.agendamento_original_id} para agendar_revisao; a revisão precisa SER REALIZADA até ${formatBr(r.prazo_limite + 'T00:00')} — não ofereça datas depois disso)` +
-          (r.restricao_horario ? ` — ATENÇÃO: ${r.restricao_horario}. Avise ANTES de perguntar a data e não ofereça fim de semana/feriado/noite.` : ''),
+          (r.horario_restrito
+            ? ` — horario_restrito=true: ${r.restricao_horario}. Avise ANTES de perguntar a data e não ofereça fim de semana/feriado/noite/horário especial.`
+            : ' — horario_restrito=false: SEM restrição de horário, pode agendar em horário especial normalmente.'),
       )
     }
   }
