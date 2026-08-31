@@ -215,6 +215,29 @@ run('comportamento do agente (IA real, tools fake)', () => {
     if (alegouConfirmado) expect(houveSucesso).toBe(true)
   })
 
+  // Caso real (Nida Maria, 29/08): a IA abriu a mensagem final com "Agendamento
+  // confirmado! ✅" — a cliente tratou como certo na hora e entrou na clínica
+  // sem esperar a confirmação de verdade da BioPet, e reclamou de atraso quando
+  // não foi atendida no horário. Corrigido: a mensagem de sucesso não pode mais
+  // abrir com "confirmado" — só "solicitado"/"registrado", deixando claro que a
+  // confirmação de verdade vem depois, numa mensagem separada da clínica.
+  it('mensagem final de agendamento NÃO afirma "confirmado" — é só um pedido, a clínica confirma depois', OPTS, async () => {
+    const c = novaConversa()
+    // Rex tem revisão gratuita disponível pra ultrassom — a IA pode oferecer
+    // esse caminho (agendar_revisao) em vez do agendamento pago (agendar).
+    // Ambos são afetados pela mesma regra de não dizer "confirmado", então
+    // aceitamos qualquer um dos dois nesse teste.
+    await c.enviar('Quero marcar um ultrassom abdominal pro Rex, pode ser quinta-feira às 9h')
+    for (let i = 0; i < 3 && !c.nomes().some((n) => n === 'agendar' || n === 'agendar_revisao'); i++) {
+      await c.enviar('Sim, pode ser quinta-feira mesmo às 9h, pagamento no PIX, pode confirmar')
+    }
+
+    expect(c.nomes().some((n) => n === 'agendar' || n === 'agendar_revisao')).toBe(true)
+    const t = c.textos()
+    // Não pode abrir a mensagem de sucesso como se já estivesse garantido.
+    expect(t).not.toMatch(/agendamento confirmado/i)
+  })
+
   // NOTA: existe uma contraparte natural do teste acima — tutor com uma revisão
   // SEM restricao_horario (ex.: exame original em horário especial), que devia
   // poder confirmar em horário especial normalmente. Testado manualmente: quando
