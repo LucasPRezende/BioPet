@@ -32,6 +32,20 @@ const PRECOS = {
       fora_horario: { pix: 240, cartao_total: 260 },
       duracao_minutos: 30,
     },
+    {
+      tipo: 'Raio-X',
+      varia_por_horario: true,
+      horario_comercial: { pix: 230, cartao_total: 250 },
+      fora_horario: { pix: 250, cartao_total: 270 },
+      duracao_minutos: 30,
+    },
+    {
+      tipo: 'Raio-X Acréscimo por Estudo Adicional',
+      varia_por_horario: false,
+      pix: 150,
+      cartao_total: null,
+      duracao_minutos: 15,
+    },
   ],
   bioquimica: { exames: [] },
 }
@@ -109,7 +123,21 @@ function fakeResultado(nome: string, input: Record<string, any>): unknown {
       }
     case 'cadastrar_tutor':     return { id: 1, nome: input.nome, telefone: TELEFONE }
     case 'cadastrar_pet':       return { id: 8, nome: input.nome, especie: input.especie }
-    case 'agendar':             return { agendamento_id: 123 }
+    case 'agendar': {
+      // Espelha o backend real: Raio-X nunca agenda automático, sempre exige atendente.
+      const tipos: string[] = input.exames
+        ? (input.exames as { tipo_exame: string }[]).map((e) => e.tipo_exame)
+        : [input.tipo_exame]
+      if (tipos.some((t) => String(t).toLowerCase().includes('raio-x') || String(t).toLowerCase().includes('raio x'))) {
+        return {
+          erro: true,
+          status: 422,
+          error: 'precisa_atendente',
+          mensagem: 'O exame "Raio-X" não pode ser agendado automaticamente — deve ser feito por um atendente. Use transferir_humano.',
+        }
+      }
+      return { agendamento_id: 123 }
+    }
     case 'agendar_revisao': {
       // Espelha a checagem real de src/app/api/agente/agendar-revisao/route.ts:
       // revisão de exame original em horário comercial só pode cair em
