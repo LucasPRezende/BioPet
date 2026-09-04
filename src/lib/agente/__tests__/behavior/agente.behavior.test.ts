@@ -238,6 +238,44 @@ run('comportamento do agente (IA real, tools fake)', () => {
     expect(t).not.toMatch(/agendamento confirmado/i)
   })
 
+  // Caso real: perguntada de forma genérica "vocês atendem fim de semana?" (antes
+  // de qualquer tentativa de marcar algo específico), a IA respondeu "não
+  // atendemos aos sábados/domingos, só de segunda a sexta" — sem chamar NENHUMA
+  // tool, pura invenção (confundiu "horário comercial" da precificação com
+  // horário de funcionamento). A BioPet atende todo dia, só muda o preço.
+  it('pergunta genérica sobre fim de semana: não inventa que não atende sábado/domingo', OPTS, async () => {
+    const c = novaConversa()
+    await c.enviar('Vocês atendem aos fins de semana? Queria marcar um ultrassom pro sábado')
+
+    const t = c.textos()
+    expect(t).not.toMatch(/n[ãa]o atendemos.{0,20}(s[áa]bado|domingo)|n[ãa]o temos atendimento.{0,20}(s[áa]bado|domingo)|s[óo] (atendemos|funcionamos|trabalhamos).{0,20}segunda a sexta/i)
+  })
+
+  // Caso real (Roselita, 04/09): Raio-X de coluna lombar/pelve/cauda (regiões
+  // contíguas, ambíguo se conta como "uma região" ou "várias") — a IA cotou só
+  // o preço base (R$230/250), sem avisar do possível acréscimo por estudo
+  // adicional (R$150), e tentou chamar `agendar` (que sempre recusa Raio-X)
+  // antes de escalar. Novo fluxo: para Raio-X, a IA nunca chama agendar — vai
+  // direto para transferir_humano depois de coletar os dados, e a ressalva do
+  // possível acréscimo de R$150 é SEMPRE incluída (não só quando parece
+  // multi-região — essa divisão não é decisão dela, é do atendente).
+  it('Raio-X: nunca chama agendar (vai direto pra atendente) e SEMPRE avisa do possível acréscimo de R$150', OPTS, async () => {
+    const c = novaConversa()
+    // Região única/ambígua de propósito (igual ao caso real) — a ressalva tem
+    // que aparecer mesmo sem "duas regiões" explícitas no pedido.
+    await c.enviar('Preciso agendar um raio-x de coluna pro Rex, ele está com dor')
+    for (let i = 0; i < 6 && !c.nomes().includes('transferir_humano'); i++) {
+      await c.enviar(
+        'Pode ser quinta-feira às 9h, pagamento no PIX. Meu nome é Maria, o Rex é um cachorro SRD. Não sei o nome do veterinário.',
+      )
+    }
+
+    expect(c.nomes()).not.toContain('agendar')
+    expect(c.nomes()).toContain('transferir_humano')
+    const t = c.textos()
+    expect(t).toMatch(/150/)
+  })
+
   // NOTA: existe uma contraparte natural do teste acima — tutor com uma revisão
   // SEM restricao_horario (ex.: exame original em horário especial), que devia
   // poder confirmar em horário especial normalmente. Testado manualmente: quando
