@@ -236,6 +236,10 @@ run('comportamento do agente (IA real, tools fake)', () => {
     const t = c.textos()
     // Não pode abrir a mensagem de sucesso como se já estivesse garantido.
     expect(t).not.toMatch(/agendamento confirmado/i)
+    // Tem que vir um aviso explícito de que falta a confirmação de verdade da BioPet.
+    expect(t).toMatch(/ainda não é a confirmação|falta.{0,20}confirma|aguard.{0,20}confirma/i)
+    // Nunca sugerir que já pode considerar certo / ir fazer o exame.
+    expect(t).not.toMatch(/aproveite que (você )?já está/i)
   })
 
   // Caso real: perguntada de forma genérica "vocês atendem fim de semana?" (antes
