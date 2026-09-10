@@ -1234,7 +1234,9 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
             {ag.forma_pagamento && ag.forma_pagamento !== 'a confirmar' && (() => {
               const semLink = ag.forma_pagamento === 'gratuito' || ag.pagamento_responsavel === 'clinica'
               const confirmadoManual = !!ag.pagamento_confirmado_por
-              const pago = ag.status_pagamento === 'pago' || ag.status_pagamento === 'pago_clinica'
+              // estorno_pendente/estornado só existem porque o pagamento FOI confirmado
+              // antes do cancelamento — não deixa de ter sido "pago" por causa disso.
+              const pago = !!ag.status_pagamento && ['pago', 'pago_clinica', 'estorno_pendente', 'estornado'].includes(ag.status_pagamento)
               const porLink = !semLink && ag.entrega_pagamento === 'link'
               return (
                 <div>
@@ -1248,7 +1250,11 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
                   {porLink && (
                     <p className="text-xs mt-0.5">
                       {pago
-                        ? <span className="text-green-600 font-medium">✅ Pagamento por link confirmado</span>
+                        ? <span className="text-green-600 font-medium">
+                            ✅ Pagamento por link confirmado
+                            {ag.status_pagamento === 'estorno_pendente' && ' — estorno pendente'}
+                            {ag.status_pagamento === 'estornado' && ' — estornado'}
+                          </span>
                         : ag.mp_init_point
                         ? <span className="text-green-600 font-medium">🔗 Link de pagamento enviado</span>
                         : <span className="text-gray-400">link de pagamento pendente</span>}

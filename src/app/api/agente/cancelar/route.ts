@@ -24,7 +24,7 @@ export async function PATCH(request: NextRequest) {
   // Verifica se agendamento existe e não está já cancelado (+ dados do tutor)
   const { data: atual, error: fetchError } = await supabase
     .from('agendamentos')
-    .select('id, status, tutores(telefone, nome)')
+    .select('id, status, status_pagamento, tutores(telefone, nome)')
     .eq('id', id)
     .single()
 
@@ -49,10 +49,14 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'Agendamento já está cancelado.' }, { status: 400 })
   }
 
+  // Mesmo tratamento do painel admin: se já foi pago, vira estorno pendente em
+  // vez de simplesmente fechar — alguém precisa devolver o dinheiro ao tutor.
+  const novoStatusPagamento = atual.status_pagamento === 'pago' ? 'estorno_pendente' : 'cancelado'
+
   // Cancela o agendamento
   const { error: updateError } = await supabase
     .from('agendamentos')
-    .update({ status: 'cancelado' })
+    .update({ status: 'cancelado', status_pagamento: novoStatusPagamento })
     .eq('id', id)
 
   if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 })
@@ -69,5 +73,5 @@ export async function PATCH(request: NextRequest) {
     agendamento_id: id,
   })
 
-  return NextResponse.json({ sucesso: true })
+  return NextResponse.json({ sucesso: true, status_pagamento: novoStatusPagamento })
 }
