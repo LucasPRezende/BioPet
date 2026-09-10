@@ -138,7 +138,12 @@ function pendConfirmacao(ag: Agendamento): boolean {
   return ag.status === 'pendente'
 }
 function pendPagamento(ag: Agendamento): boolean {
-  return ag.status_pagamento === 'a_receber' || ag.status_pagamento === 'estorno_pendente'
+  // "A receber" some quando cancela/falta — não vai mais ser cobrado. Estorno
+  // pendente continua valendo (é justamente sobre um agendamento que não vai
+  // mais acontecer, mas já foi pago).
+  if (ag.status_pagamento === 'estorno_pendente') return true
+  if (ag.status === 'cancelado' || ag.status === 'faltou') return false
+  return ag.status_pagamento === 'a_receber'
 }
 function pendLaudo(ag: Agendamento): boolean {
   if (ag.status === 'cancelado' || ag.status === 'pendente') return false
@@ -1125,7 +1130,12 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
           <div className="overflow-y-auto flex-1 p-5 space-y-5">
 
             {/* Precisa de ação */}
-            {(pendConfirmacao(ag) || statusPag === 'a_receber' || statusPag === 'estorno_pendente') && (
+            {/* "A receber" não faz sentido pra um agendamento cancelado/faltou — não vai
+                mais ser cobrado. "Estorno pendente" continua valendo mesmo cancelado,
+                é justamente pra isso que existe. */}
+            {(pendConfirmacao(ag)
+              || (statusPag === 'a_receber' && status !== 'cancelado' && status !== 'faltou')
+              || statusPag === 'estorno_pendente') && (
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 space-y-2.5">
                 <p className="text-[11px] font-extrabold text-amber-700 uppercase tracking-wide">Precisa de ação</p>
                 {pendConfirmacao(ag) && (
@@ -1143,7 +1153,7 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
                     </div>
                   </div>
                 )}
-                {statusPag === 'a_receber' && (
+                {statusPag === 'a_receber' && status !== 'cancelado' && status !== 'faltou' && (
                   <div className="flex items-center justify-between gap-2.5 flex-wrap">
                     <span className="text-sm text-amber-900">Pagamento ainda não recebido</span>
                     <button onClick={handleConfirmarPagamento} disabled={confirmingPag}
@@ -1175,8 +1185,8 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
               {ag.pet_internado && <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-200">🏥 Internado</span>}
               {statusPag === 'pago' && <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-green-50 text-green-700 border border-green-200">🟢 Pago</span>}
               {statusPag === 'pago_clinica' && <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">🔵 Pago (Clínica)</span>}
-              {statusPag === 'a_receber' && !!ag.valor && ag.pagamento_responsavel === 'clinica' && <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">🔵 A receber (Clínica)</span>}
-              {statusPag === 'a_receber' && !!ag.valor && ag.pagamento_responsavel !== 'clinica' && <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-yellow-50 text-yellow-700 border border-yellow-200">🟡 A receber</span>}
+              {statusPag === 'a_receber' && status !== 'cancelado' && status !== 'faltou' && !!ag.valor && ag.pagamento_responsavel === 'clinica' && <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">🔵 A receber (Clínica)</span>}
+              {statusPag === 'a_receber' && status !== 'cancelado' && status !== 'faltou' && !!ag.valor && ag.pagamento_responsavel !== 'clinica' && <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-yellow-50 text-yellow-700 border border-yellow-200">🟡 A receber</span>}
               {statusPag === 'estorno_pendente' && <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-red-50 text-red-700 border border-red-200">🔴 Estorno pendente</span>}
             </div>
 
@@ -1838,7 +1848,7 @@ export default function AgendaPage() {
                             {pendConfirmacao(ag) && (
                               <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-[#fef9c3] text-[#a16207]">⏳ Aguarda confirmação</span>
                             )}
-                            {ag.status_pagamento === 'a_receber' && (
+                            {ag.status_pagamento === 'a_receber' && status !== 'cancelado' && status !== 'faltou' && (
                               <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-[#fef9c3] text-[#a16207]">💰 A receber</span>
                             )}
                             {ag.status_pagamento === 'estorno_pendente' && (
