@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
+import { verifyAgentOrSystemSession } from '@/lib/agent-auth'
 
 export const dynamic = 'force-dynamic'
 
-// GET — público (sem autenticação), usado pelo agente N8N
-export async function GET() {
+// GET — agente (chave) ou admin logado (sessão). Era aberto "para o agente do
+// n8n", que não existe mais; ficava expondo config e números bloqueados.
+export async function GET(request: NextRequest) {
+  if (!(await verifyAgentOrSystemSession(request))) {
+    return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 })
+  }
+
   const { data, error } = await supabase
     .from('configuracoes_agente')
     .select('tempo_retorno_ia_horas, numeros_bloqueados')

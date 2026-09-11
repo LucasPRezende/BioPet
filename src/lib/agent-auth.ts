@@ -11,6 +11,7 @@
  */
 import { createHash, timingSafeEqual } from 'node:crypto'
 import type { NextRequest } from 'next/server'
+import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
 
 /**
  * Chave adivinhável (nome do produto + ano) que esteve hardcoded num componente
@@ -51,4 +52,19 @@ export function verifyAgentKey(request: NextRequest): boolean {
   if (!recebida) return false
 
   return iguais(recebida, esperada)
+}
+
+/**
+ * Aceita QUALQUER um dos dois chamadores legítimos das rotas de leitura do
+ * agente: o próprio agente (server-side, com a chave) ou uma tela de admin
+ * aberta no navegador (cookie de sessão). Serve para rotas que precisam ser
+ * lidas pelos dois — preços e configuração — sem ficarem abertas à internet.
+ */
+export async function verifyAgentOrSystemSession(request: NextRequest): Promise<boolean> {
+  if (verifyAgentKey(request)) return true
+
+  const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value
+  if (!cookie) return false
+
+  return !!(await parseSystemSession(cookie))
 }

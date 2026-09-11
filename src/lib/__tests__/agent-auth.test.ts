@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { verifyAgentKey } from '@/lib/agent-auth'
+import { verifyAgentKey, verifyAgentOrSystemSession } from '@/lib/agent-auth'
 
 /**
  * A AGENT_API_KEY autoriza cancelar/remarcar/enviar laudo escolhendo o telefone
@@ -62,5 +62,65 @@ describe('verifyAgentKey', () => {
     process.env.AGENT_API_KEY = 'curta123'
     expect(verifyAgentKey(req('curta123'))).toBe(true)
     expect(console.warn).toHaveBeenCalled()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Dupla porta: rotas de leitura (precos/configuracoes) aceitam o agente OU um
+// admin logado — e mais ninguem. Antes eram abertas a internet inteira.
+// ---------------------------------------------------------------------------
+
+vi.mock('@/lib/system-auth', () => ({
+  SESSION_COOKIE_NAME: 'sys_session',
+  parseSystemSession: vi.fn(async (token: string) =>
+    token === 'sessao-valida' ? { id: 1, role: 'admin' } : null,
+  ),
+}))
+
+/** Request com cookie de sessao (e, opcionalmente, chave do agente). */
+function reqCookie(cookie?: string, key?: string) {
+  const headers: Record<string, string> = {}
+  if (cookie) headers.cookie = `sys_session=${cookie}`
+  if (key) headers['x-api-key'] = key
+  const r = new Request('http://localhost/api/agente/precos', { headers }) as any
+  // NextRequest expõe cookies.get(); o Request cru nao — adaptador minimo.
+  r.cookies = {
+    get: (n: string) => {
+      const m = (headers.cookie ?? '').match(new RegExp(`${n}=([^;]+)`))
+      return m ? { value: m[1] } : undefined
+    },
+  }
+  return r
+}
+
+describe('verifyAgentOrSystemSession', () => {
+  const original = process.env.AGENT_API_KEY
+
+  beforeEach(() => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    process.env.AGENT_API_KEY = CHAVE_BOA
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    if (original === undefined) delete process.env.AGENT_API_KEY
+    else process.env.AGENT_API_KEY = original
+  })
+
+  it('aceita o agente pela chave, sem cookie', async () => {
+    expect(await verifyAgentOrSystemSession(reqCookie(undefined, CHAVE_BOA))).toBe(true)
+  })
+
+  it('aceita o admin logado, sem chave', async () => {
+    expect(await verifyAgentOrSystemSession(reqCookie('sessao-valida'))).toBe(true)
+  })
+
+  it('recusa anonimo — o caso que deixava a tabela de precos publica', async () => {
+    expect(await verifyAgentOrSystemSession(reqCookie())).toBe(false)
+  })
+
+  it('recusa cookie de sessao invalido e chave errada', async () => {
+    expect(await verifyAgentOrSystemSession(reqCookie('lixo'))).toBe(false)
+    expect(await verifyAgentOrSystemSession(reqCookie(undefined, 'errada'))).toBe(false)
   })
 })
