@@ -40,7 +40,7 @@ interface TesteRapidoExame {
 }
 
 interface VetOpt    { id: number; nome: string }
-interface PetOpt    { id: number; nome: string; especie: string | null; raca: string | null }
+interface PetOpt    { id: number; nome: string; especie: string | null; raca: string | null; falecido?: boolean }
 interface TutorInfo { id: number; nome: string | null; telefone: string; cpf?: string | null }
 
 export interface AgendamentoFormProps {
@@ -410,7 +410,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
     setTutorNome(t.nome ?? '')
     setCpfTutor(t.cpf ? formatCPFInput(t.cpf) : '')
     setCpfSomenteLeitura(!!t.cpf)
-    setPetsDisponiveis(t.pets ?? [])
+    setPetsDisponiveis((t.pets ?? []).filter(p => !p.falecido))
     setPetSelecionado(null)
     setNovoPet(false)
     setBuscaResultados([])
@@ -444,10 +444,19 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
         else { setTutorNovo(true); setNovoPet(true); if (digits.length >= 8) setTelefone(q); else setTutorNome(q) }
       }
     } else {
-      const res = await fetch(`/api/agente/contexto?telefone=${tel}`, { headers: { 'x-api-key': 'biopet_agent_2026' } })
+      // Rota autenticada por SESSAO (mesma da busca dinamica acima). Antes aqui
+      // havia uma chamada a /api/agente/contexto com a AGENT_API_KEY escrita no
+      // codigo — como este arquivo e 'use client', a chave ia inteira para o
+      // bundle do navegador.
+      const res = await fetch(`/api/tutores/buscar?q=${encodeURIComponent(q)}`, { credentials: 'include' })
       if (res.ok) {
-        const d = await res.json()
-        if (d.tutor) { selecionarTutor({ ...d.tutor, pets: d.pets ?? [] }) }
+        const lista = await res.json()
+        // Busca por telefone: prefere o casamento exato; senao, o primeiro.
+        const exato = Array.isArray(lista)
+          ? lista.find((t: TutorInfo) => normalizeTelefone(t.telefone) === tel)
+          : null
+        const achado = exato ?? (Array.isArray(lista) && lista.length > 0 ? lista[0] : null)
+        if (achado) { selecionarTutor(achado) }
         else { setTutorNovo(true); setNovoPet(true); if (digits.length >= 8) setTelefone(q); else setTutorNome(q) }
       } else { setTutorNovo(true); setNovoPet(true); if (digits.length >= 8) setTelefone(q) }
     }
