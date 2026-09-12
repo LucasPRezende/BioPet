@@ -12,6 +12,7 @@ import {
   insertBioquimica,
   insertTestesRapidos,
   precificarExames,
+  resolverComissoes,
   type ExameInput,
   type BioquimicaInput,
   type TesteRapidoInput,
@@ -148,8 +149,11 @@ export async function POST(request: NextRequest) {
   const pagarPresencial = !pagarGratuito && !pagarClinica && entrega === 'presencial'
   const statusPag       = pagarGratuito ? 'pago' : (pagarClinica || pagarPresencial ? 'a_receber' : 'pendente')
 
-  const bioPayload      = Array.isArray(bioquimica_selecionados) ? bioquimica_selecionados as BioquimicaInput[] : []
-  const testePayload    = Array.isArray(testes_rapidos_selecionados) ? testes_rapidos_selecionados as TesteRapidoInput[] : []
+  // A comissão de cada item vem do catálogo no banco, nunca do corpo da requisição.
+  const { bio: bioPayload, testes: testePayload } = await resolverComissoes(
+    Array.isArray(bioquimica_selecionados) ? bioquimica_selecionados as BioquimicaInput[] : [],
+    Array.isArray(testes_rapidos_selecionados) ? testes_rapidos_selecionados as TesteRapidoInput[] : [],
+  )
   const examesPrecificados = await precificarExames(examesArr, {
     forma:           formaEfetiva(pagResp, forma_pagamento),
     gratuito:        pagarGratuito,

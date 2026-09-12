@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
   if (q) {
     let query = supabase
       .from('tutores')
-      .select('id, nome, telefone, cpf, pets(id, nome, especie, raca)')
+      .select('id, nome, telefone, cpf, pets(id, nome, especie, raca, falecido)')
       .order('nome')
       .limit(8)
 
@@ -60,7 +60,14 @@ export async function GET(request: NextRequest) {
     }
     // ────────────────────────────────────────────────────────────────────────
 
-    return NextResponse.json(data ?? [])
+    // Pet falecido não pode aparecer como opção de agendamento. O filtro é aqui
+    // (e não no select) porque o PostgREST não filtra linha embutida sem !inner,
+    // o que esconderia o tutor que só tem pet falecido.
+    const tutores = (data ?? []).map(t => {
+      const { pets, ...tutor } = t as { pets?: { falecido?: boolean | null }[] }
+      return { ...tutor, pets: (pets ?? []).filter(p => !p.falecido) }
+    })
+    return NextResponse.json(tutores)
   }
 
   // Busca direta por telefone — retorna { tutor, pets } (compatibilidade)
@@ -76,6 +83,7 @@ export async function GET(request: NextRequest) {
     .from('pets')
     .select('id, nome, especie, raca')
     .eq('tutor_id', tutor.id)
+    .not('falecido', 'is', true)   // a coluna é nullable: null e false continuam valendo
     .order('nome')
 
   return NextResponse.json({ tutor, pets: pets ?? [] })
