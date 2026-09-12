@@ -14,7 +14,8 @@ interface Props {
   valor:         number
   dataHora:      string
   statusInicial: string
-  cpfInicial?:   string
+  /** CPF do banco já mascarado (***.456.789-**). O número inteiro nunca chega aqui. */
+  cpfMascarado?: string
 }
 
 function formatDataHora(iso: string) {
@@ -42,9 +43,11 @@ function formatCPFInput(v: string) {
   return `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9)}`
 }
 
-export default function PIXPayment({ agendamentoId, pixToken, petNome, tipoExame, valor, dataHora, statusInicial, cpfInicial }: Props) {
+export default function PIXPayment({ agendamentoId, pixToken, petNome, tipoExame, valor, dataHora, statusInicial, cpfMascarado }: Props) {
   const [estado,       setEstado]      = useState<Estado>(statusInicial === 'pago' ? 'pago' : 'form')
-  const [cpf,          setCpf]         = useState(cpfInicial ? formatCPFInput(cpfInicial) : '')
+  const [cpf,          setCpf]         = useState('')
+  // Tutor com CPF cadastrado não redigita nada: o backend usa o do banco.
+  const [outroCpf,     setOutroCpf]    = useState(!cpfMascarado)
   const [deviceId,     setDeviceId]    = useState('')
   const [erro,         setErro]        = useState('')
   const [qrCode,       setQrCode]      = useState('')
@@ -80,15 +83,18 @@ export default function PIXPayment({ agendamentoId, pixToken, petNome, tipoExame
 
   async function gerarPix() {
     const cpfClean = cpf.replace(/\D/g, '')
-    if (cpfClean.length !== 11) { setErro('Digite um CPF válido com 11 dígitos.'); return }
-    if (!validarCPF(cpf)) { setErro('CPF inválido — verifique os dígitos.'); return }
+    if (outroCpf) {
+      if (cpfClean.length !== 11) { setErro('Digite um CPF válido com 11 dígitos.'); return }
+      if (!validarCPF(cpf)) { setErro('CPF inválido — verifique os dígitos.'); return }
+    }
     setErro('')
     setEstado('gerando')
 
     const res  = await fetch('/api/pagamentos/criar-pix', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pix_token: pixToken, cpf: cpfClean, device_id: deviceId }),
+      // Sem CPF digitado, o backend emite com o CPF cadastrado do tutor.
+      body: JSON.stringify({ pix_token: pixToken, device_id: deviceId, ...(outroCpf ? { cpf: cpfClean } : {}) }),
     })
     const data = await res.json()
 
@@ -166,14 +172,29 @@ export default function PIXPayment({ agendamentoId, pixToken, petNome, tipoExame
             <div>
               <p className="text-sm font-medium text-[#19202d] mb-1">Seu CPF</p>
               <p className="text-xs text-gray-400 mb-3">Necessário para emissão do PIX</p>
-              <input
-                type="text"
-                inputMode="numeric"
-                placeholder="000.000.000-00"
-                value={cpf}
-                onChange={e => setCpf(formatCPFInput(e.target.value))}
-                className="w-full border border-gray-200 rounded-lg px-4 py-3 text-[#19202d] text-base focus:outline-none focus:ring-2 focus:ring-[#c4a35a]"
-              />
+              {outroCpf ? (
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="000.000.000-00"
+                  value={cpf}
+                  onChange={e => setCpf(formatCPFInput(e.target.value))}
+                  className="w-full border border-gray-200 rounded-lg px-4 py-3 text-[#19202d] text-base focus:outline-none focus:ring-2 focus:ring-[#c4a35a]"
+                />
+              ) : (
+                <>
+                  <div className="w-full border border-gray-200 bg-gray-50 rounded-lg px-4 py-3 text-[#19202d] text-base font-mono">
+                    {cpfMascarado}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setOutroCpf(true); setErro('') }}
+                    className="mt-2 text-xs text-gray-500 underline hover:text-[#19202d]"
+                  >
+                    Usar outro CPF
+                  </button>
+                </>
+              )}
               {erro && <p className="text-red-500 text-xs mt-1">{erro}</p>}
             </div>
             <button

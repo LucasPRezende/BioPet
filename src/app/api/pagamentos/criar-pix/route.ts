@@ -6,8 +6,8 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null)
   const { pix_token, cpf, device_id } = body ?? {}
 
-  if (!pix_token || !cpf) {
-    return NextResponse.json({ error: 'Token e CPF obrigatórios.' }, { status: 400 })
+  if (!pix_token) {
+    return NextResponse.json({ error: 'Token obrigatório.' }, { status: 400 })
   }
 
   // Valida formato UUID antes de qualquer consulta ao banco
@@ -15,14 +15,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Link de pagamento inválido.' }, { status: 403 })
   }
 
-  const cpfClean = String(cpf).replace(/\D/g, '')
-  if (cpfClean.length !== 11) {
+  // CPF digitado é opcional: a página só mostra o do tutor mascarado, então o
+  // caminho normal é não vir nenhum e usarmos o que está cadastrado.
+  const cpfDigitado = cpf ? String(cpf).replace(/\D/g, '') : ''
+  if (cpf && cpfDigitado.length !== 11) {
     return NextResponse.json({ error: 'CPF inválido.' }, { status: 400 })
   }
 
   const { data: ag } = await supabase
     .from('agendamentos')
-    .select('id, tipo_exame, valor, data_hora, status_pagamento, forma_pagamento, entrega_pagamento, pets(nome), tutores(nome)')
+    .select('id, tipo_exame, valor, data_hora, status_pagamento, forma_pagamento, entrega_pagamento, pets(nome), tutores(nome, cpf)')
     .eq('pix_token', String(pix_token))
     .single()
 
@@ -45,9 +47,14 @@ export async function POST(request: NextRequest) {
     ? (ag.pets[0] as { nome: string })?.nome
     : (ag.pets as { nome: string } | null)?.nome
 
-  const tutorNome = Array.isArray(ag.tutores)
-    ? (ag.tutores[0] as { nome: string | null })?.nome
-    : (ag.tutores as { nome: string | null } | null)?.nome
+  const tutor = (Array.isArray(ag.tutores) ? ag.tutores[0] : ag.tutores) as
+    { nome: string | null; cpf: string | null } | null
+  const tutorNome = tutor?.nome
+
+  const cpfClean = cpfDigitado || (tutor?.cpf ?? '').replace(/\D/g, '')
+  if (cpfClean.length !== 11) {
+    return NextResponse.json({ error: 'Informe o CPF do responsável para emitir o PIX.' }, { status: 400 })
+  }
 
   const nomeParts = (tutorNome ?? '').trim().split(' ')
   const firstName = nomeParts[0] || 'Cliente'

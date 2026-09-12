@@ -11,6 +11,7 @@ import {
   insertBioquimica,
   insertTestesRapidos,
   precificarExames,
+  resolverComissoes,
   type ExameInput,
   type BioquimicaInput,
   type TesteRapidoInput,
@@ -155,8 +156,11 @@ export async function POST(request: NextRequest) {
   }
 
   // 4. Recalcula os preços no backend (fonte de verdade) e cria o agendamento
-  const bioPayload     = Array.isArray(bioquimica_selecionados) ? bioquimica_selecionados as BioquimicaInput[] : []
-  const testePayload   = Array.isArray(testes_rapidos_selecionados) ? testes_rapidos_selecionados as TesteRapidoInput[] : []
+  // A comissão de cada item vem do catálogo no banco, nunca do corpo da requisição.
+  const { bio: bioPayload, testes: testePayload } = await resolverComissoes(
+    Array.isArray(bioquimica_selecionados) ? bioquimica_selecionados as BioquimicaInput[] : [],
+    Array.isArray(testes_rapidos_selecionados) ? testes_rapidos_selecionados as TesteRapidoInput[] : [],
+  )
   const examesPrecificados = await precificarExames(examesArr, {
     forma:           formaEfetiva(pagamento_responsavel, forma_pagamento),
     gratuito:        (forma_pagamento ?? '').toLowerCase() === 'gratuito',

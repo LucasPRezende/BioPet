@@ -21,6 +21,9 @@ interface ExameInfo {
   valor_especial_cartao: number | null
 }
 
+// `comissao` só vem pra admin; a clínica recebe `repasse_pix` já líquido
+// (preço PIX − comissão) — a margem em si não sai do backend. Ver
+// /api/comissoes/bioquimica.
 interface BioquimicaExame {
   id:           number
   nome:         string
@@ -28,6 +31,7 @@ interface BioquimicaExame {
   preco_pix:    number
   preco_cartao: number
   comissao?:    number
+  repasse_pix?: number
 }
 
 interface TesteRapidoExame {
@@ -36,7 +40,8 @@ interface TesteRapidoExame {
   descricao:    string | null
   preco_pix:    number
   preco_cartao: number
-  comissao:     number
+  comissao?:    number
+  repasse_pix?: number
 }
 
 interface VetOpt    { id: number; nome: string }
@@ -272,36 +277,28 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
     const b = bioquimicaExames.find(x => x.id === id)
     return s + (b ? (formaPagamento === 'cartao' ? b.preco_cartao : b.preco_pix) : 0)
   }, 0)
-  const totalBioquimicaPix = bioquimicaSelecionados.reduce((s, id) => {
-    const b = bioquimicaExames.find(x => x.id === id)
-    return s + (b?.preco_pix ?? 0)
-  }, 0)
   const totalTesteRapido  = testeRapidoSelecionados.reduce((s, id) => {
     const t = testeRapidoExames.find(x => x.id === id)
     return s + (t ? (formaPagamento === 'cartao' ? t.preco_cartao : t.preco_pix) : 0)
   }, 0)
-  const totalTesteRapidoPix = testeRapidoSelecionados.reduce((s, id) => {
-    const t = testeRapidoExames.find(x => x.id === id)
-    return s + (t?.preco_pix ?? 0)
-  }, 0)
-  // Comissão da clínica coletora (abate o repasse quando o pagamento é pela clínica)
-  const totalComissaoTeste = testeRapidoSelecionados.reduce((s, id) => {
-    const t = testeRapidoExames.find(x => x.id === id)
-    return s + (t?.comissao ?? 0)
-  }, 0)
-  const totalComissaoBio = bioquimicaSelecionados.reduce((s, id) => {
-    const b = bioquimicaExames.find(x => x.id === id)
-    return s + (b?.comissao ?? 0)
-  }, 0)
+  // Repasse à BioPet quando quem recebe do tutor é a clínica: preço PIX menos a
+  // comissão da clínica coletora. O backend manda `repasse_pix` pronto (clínica)
+  // ou `comissao` (admin) — o total é o mesmo nos dois casos.
+  const repassePix = (x?: { preco_pix: number; comissao?: number; repasse_pix?: number }) =>
+    x ? (x.repasse_pix ?? Math.max(0, x.preco_pix - (x.comissao ?? 0))) : 0
+  const totalRepasseTeste = testeRapidoSelecionados.reduce((s, id) =>
+    s + repassePix(testeRapidoExames.find(x => x.id === id)), 0)
+  const totalRepasseBio = bioquimicaSelecionados.reduce((s, id) =>
+    s + repassePix(bioquimicaExames.find(x => x.id === id)), 0)
   const valorUnitarioAcrescimo = acrescimoExame
     ? calcularValorExame(acrescimoExame, pagamentoResp === 'clinica' ? 'pix' : formaPagamento, especial)
     : 0
   const valorAcrescimo = estudosAdicionaisDesc.length * valorUnitarioAcrescimo
   // valor bruto (sem desconto) de um exame selecionado
   const valorBrutoExame = (e: ExameInfo) => e.tipo_exame === 'Bioquímica'
-    ? (pagamentoResp === 'clinica' ? Math.max(0, totalBioquimicaPix - totalComissaoBio) : totalBioquimica)
+    ? (pagamentoResp === 'clinica' ? totalRepasseBio : totalBioquimica)
     : e.tipo_exame === 'Teste Rápido'
-    ? (pagamentoResp === 'clinica' ? Math.max(0, totalTesteRapidoPix - totalComissaoTeste) : totalTesteRapido)
+    ? (pagamentoResp === 'clinica' ? totalRepasseTeste : totalTesteRapido)
     : calcularValorExame(e, pagamentoResp === 'clinica' ? 'pix' : formaPagamento, especial)
   const podeDescontar = modo === 'admin' && isAdmin && !gratuito
   const descontoTotal = podeDescontar
@@ -547,13 +544,14 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
         })
       }
     }
+    // Sem `comissao`: quem resolve o repasse pelo id é o backend (resolverComissoes).
     const bioquimicaPayload = bioquimicaSelecionados.map(id => {
       const b = bioquimicaExames.find(x => x.id === id)!
-      return { bioquimica_exame_id: id, valor_pix: b.preco_pix, valor_cartao: b.preco_cartao, comissao: b.comissao ?? 0 }
+      return { bioquimica_exame_id: id, valor_pix: b.preco_pix, valor_cartao: b.preco_cartao }
     })
     const testesRapidosPayload = testeRapidoSelecionados.map(id => {
       const t = testeRapidoExames.find(x => x.id === id)!
-      return { teste_rapido_id: id, valor_pix: t.preco_pix, valor_cartao: t.preco_cartao, comissao: t.comissao }
+      return { teste_rapido_id: id, valor_pix: t.preco_pix, valor_cartao: t.preco_cartao }
     })
     const base: Record<string, unknown> = {
       telefone:              telefone.trim(),

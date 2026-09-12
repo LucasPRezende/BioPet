@@ -52,6 +52,28 @@ export function agoraLocalISO(): string {
   return `${data}T${hora}`
 }
 
+// Validade do link público de pagamento PIX já pago, contada da data do exame.
+export const PIX_LINK_VALIDADE_DIAS = 7
+
+/**
+ * Quanto tempo o link PIX ainda abre DEPOIS de pago: 7 dias contados do exame.
+ * O link circula no WhatsApp do tutor e fica lá pra sempre, então o recibo não
+ * pode ficar de pé indefinidamente. Vale só para o que já foi pago — enquanto o
+ * pagamento está em aberto o link continua válido, porque a cobrança pode ser
+ * feita retroativamente.
+ *
+ * Como `data_hora` é naive (Brasília, sem offset), o "agora" é montado no mesmo
+ * formato — comparar contra UTC real adiantaria a expiração em 3h.
+ */
+export function pixLinkExpirado(dataHora: string | null | undefined): boolean {
+  if (!dataHora) return false
+  const naive = String(dataHora).replace(/(\.\d+)?(Z|[+-]\d{2}:?\d{2})?$/, '')
+  const exame = new Date(naive)
+  if (isNaN(exame.getTime())) return false
+  const agora = new Date(agoraLocalISO())
+  return agora.getTime() > exame.getTime() + PIX_LINK_VALIDADE_DIAS * 24 * 60 * 60 * 1000
+}
+
 // Retorna o id do agendamento conflitante, ou null se não houver conflito.
 export async function verificarConflito(
   dataHora: string,
@@ -147,6 +169,38 @@ export async function insertTestesRapidos(agendamentoId: number, testes: TesteRa
       comissao:        t.comissao ?? 0,
     })),
   )
+}
+
+/**
+ * Sobrescreve a `comissao` de cada sub-exame de bioquímica e de cada teste
+ * rápido com o valor do catálogo no banco. O catálogo público não devolve mais
+ * essa coluna (ver /api/comissoes/bioquimica), então o cliente não teria como
+ * mandar o número — e, mesmo que mande, é ignorado: quem define o repasse à
+ * clínica é o banco. Id fora do catálogo → comissão 0.
+ */
+export async function resolverComissoes(
+  bio: BioquimicaInput[],
+  testes: TesteRapidoInput[],
+): Promise<{ bio: BioquimicaInput[]; testes: TesteRapidoInput[] }> {
+  const [bioRes, testeRes] = await Promise.all([
+    bio.length > 0
+      ? supabase.from('bioquimica_exames').select('id, comissao').in('id', bio.map(b => Number(b.bioquimica_exame_id)))
+      : null,
+    testes.length > 0
+      ? supabase.from('testes_rapidos').select('id, comissao').in('id', testes.map(t => Number(t.teste_rapido_id)))
+      : null,
+  ])
+
+  const paraMapa = (rows: { id: number; comissao: number | null }[] | null | undefined) =>
+    new Map<number, number>((rows ?? []).map(r => [Number(r.id), Number(r.comissao ?? 0)]))
+
+  const mapaBio   = paraMapa(bioRes?.data as { id: number; comissao: number | null }[] | null)
+  const mapaTeste = paraMapa(testeRes?.data as { id: number; comissao: number | null }[] | null)
+
+  return {
+    bio:    bio.map(b => ({ ...b, comissao: mapaBio.get(Number(b.bioquimica_exame_id)) ?? 0 })),
+    testes: testes.map(t => ({ ...t, comissao: mapaTeste.get(Number(t.teste_rapido_id)) ?? 0 })),
+  }
 }
 
 // ─── Pricing como fonte de verdade no backend (Fase 2) ──────────────────────────
