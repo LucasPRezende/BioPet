@@ -1,5 +1,5 @@
 // Usa Web Crypto (globalThis.crypto) + consulta ao banco para validar a sessão.
-import { fetchSenhaHashFresh, getSenhaHashCached } from './session-cache'
+import { fetchContaFresh, getContaCached } from './session-cache'
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000 // 30 dias
 
@@ -40,8 +40,8 @@ async function makeHmac(payload: string): Promise<string> {
 }
 
 export async function createVetSession(vetId: number): Promise<string> {
-  const senhaHash = await fetchSenhaHashFresh('veterinarios', vetId)
-  const tag = await pwdTag(senhaHash)
+  const conta = await fetchContaFresh('veterinarios', vetId)
+  const tag = await pwdTag(conta?.senha_hash)
   const exp = Date.now() + SESSION_TTL_MS
   const payload = `v2:${vetId}:${exp}`
   const hmac = await makeHmac(`${payload}:${tag}`)
@@ -57,10 +57,10 @@ export async function parseVetSession(token: string): Promise<number | null> {
   const exp = parseInt(parts[2])
   if (isNaN(exp) || Date.now() > exp) return null
 
-  const senhaHash = await getSenhaHashCached('veterinarios', vetId)
-  if (senhaHash === undefined) return null
+  const conta = await getContaCached('veterinarios', vetId)
+  if (conta === undefined) return null
 
-  const tag = await pwdTag(senhaHash)
+  const tag = await pwdTag(conta.senha_hash)
   const expected = await makeHmac(`v2:${vetId}:${parts[2]}:${tag}`)
   return parts[3] === expected ? vetId : null
 }

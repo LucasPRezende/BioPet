@@ -8,6 +8,7 @@ import {
   gerarTokenConvite,
 } from '@/lib/clinica-auth'
 import { sendClinicaInvite } from '@/lib/evolution'
+import { invalidarConta } from '@/lib/session-cache'
 
 async function requireAdmin() {
   const cookie = (await cookies()).get('sys_session')?.value
@@ -58,6 +59,10 @@ export async function PATCH(
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  // Derruba o cache para que desativar/resetar senha valha já na próxima
+  // requisição desta instância (outras respeitam o TTL de 60s).
+  invalidarConta('clinicas', clinicaId)
+
   // Atualiza vínculos de vets (zera todos e redefine)
   if (Array.isArray(vet_ids)) {
     // Remove clínica de todos vets que tinham essa clínica
@@ -107,6 +112,8 @@ export async function POST(
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  invalidarConta('clinicas', clinicaId)
 
   if (clinica.telefone) {
     await sendClinicaInvite(clinica.telefone, clinica.nome, novoToken, novaSenha)

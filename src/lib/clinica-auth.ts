@@ -5,8 +5,12 @@
 //   hmac = HMAC-SHA256(secret, "v2:clinicaId:ps:exp:{pwdTag}")
 //   pwdTag = derivado do senha_hash atual → trocar a senha invalida sessões antigas
 // Cookie name: clinica_session
+//
+// O status da conta é relido do banco na validação: desativar uma clínica
+// derruba a sessão já aberta em até 60s (TTL do cache), sem depender da
+// expiração do cookie nem da troca de senha.
 
-import { fetchSenhaHashFresh, getSenhaHashCached } from './session-cache'
+import { fetchContaFresh, getContaCached } from './session-cache'
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000 // 30 dias
 
@@ -49,8 +53,8 @@ export async function createClinicaSession(
   clinicaId: number,
   primeiraSenha: boolean,
 ): Promise<string> {
-  const senhaHash = await fetchSenhaHashFresh('clinicas', clinicaId)
-  const tag = await pwdTag(senhaHash)
+  const conta = await fetchContaFresh('clinicas', clinicaId)
+  const tag = await pwdTag(conta?.senha_hash)
   const ps  = primeiraSenha ? '1' : '0'
   const exp = Date.now() + SESSION_TTL_MS
   const payload = `v2:${clinicaId}:${ps}:${exp}`
@@ -70,10 +74,13 @@ export async function parseClinicaSession(token: string): Promise<ClinicaSession
   const exp = parseInt(expStr)
   if (isNaN(exp) || Date.now() > exp) return null
 
-  const senhaHash = await getSenhaHashCached('clinicas', clinicaId)
-  if (senhaHash === undefined) return null
+  const conta = await getContaCached('clinicas', clinicaId)
+  if (conta === undefined) return null
+  // Clínica desativada: sessão morta, mesmo com cookie válido e não expirado.
+  // Mesmo critério do login (ativo nulo também barra, a coluna é nullable).
+  if (!conta.ativo) return null
 
-  const tag = await pwdTag(senhaHash)
+  const tag = await pwdTag(conta.senha_hash)
   const expectedHmac = await makeHmac(`v2:${clinicaId}:${ps}:${expStr}:${tag}`)
   if (hmac !== expectedHmac) return null
 
