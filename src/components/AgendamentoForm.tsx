@@ -281,6 +281,16 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
     const t = testeRapidoExames.find(x => x.id === id)
     return s + (t ? (formaPagamento === 'cartao' ? t.preco_cartao : t.preco_pix) : 0)
   }, 0)
+  // Preço de tabela no pix — é o valor que a BioPet sugere que a clínica cobre
+  // do tutor quando ela mesma recebe (a comissão dela já está embutida aqui).
+  const totalBioquimicaPix = bioquimicaSelecionados.reduce((s, id) => {
+    const b = bioquimicaExames.find(x => x.id === id)
+    return s + (b?.preco_pix ?? 0)
+  }, 0)
+  const totalTesteRapidoPix = testeRapidoSelecionados.reduce((s, id) => {
+    const t = testeRapidoExames.find(x => x.id === id)
+    return s + (t?.preco_pix ?? 0)
+  }, 0)
   // Repasse à BioPet quando quem recebe do tutor é a clínica: preço PIX menos a
   // comissão da clínica coletora. O backend manda `repasse_pix` pronto (clínica)
   // ou `comissao` (admin) — o total é o mesmo nos dois casos.
@@ -306,6 +316,15 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
     : 0
   const totalBruto = gratuito ? 0 : examesSelecionados.reduce((s, e) => s + valorBrutoExame(e) * quantidadeExame(e.tipo_exame), 0) + valorAcrescimo
   const totalValor = Math.max(0, totalBruto - descontoTotal)
+  // Quanto a clínica deve cobrar do tutor (preço de tabela, sem abater a
+  // comissão dela) — o repasse à BioPet é o outro número, menor.
+  const valorSugeridoExame = (e: ExameInfo) => e.tipo_exame === 'Bioquímica'
+    ? totalBioquimicaPix
+    : e.tipo_exame === 'Teste Rápido'
+    ? totalTesteRapidoPix
+    : calcularValorExame(e, 'pix', especial)
+  const totalSugeridoTutor = gratuito ? 0 : examesSelecionados.reduce(
+    (s, e) => s + valorSugeridoExame(e) * quantidadeExame(e.tipo_exame), 0) + valorAcrescimo
 
   // Detecta admin (desconto é exclusivo de admin no modo admin)
   useEffect(() => {
@@ -939,19 +958,20 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
                             })}
                           </div>
                         )}
-                        {bioquimicaSelecionados.length > 0 && pagamentoResp === 'tutor' && (
+                        {bioquimicaSelecionados.length > 0 && (
                           <div className="mt-2 pt-2 border-t border-[#8a6e36]/20 space-y-1">
                             {bioquimicaSelecionados.map(id => {
                               const b = bioquimicaExames.find(x => x.id === id)!
                               return (
                                 <div key={id} className="flex justify-between text-xs text-[#8a6e36]">
                                   <span>{b.nome}</span>
-                                  <span className="font-semibold">{brl(formaPagamento === 'cartao' ? b.preco_cartao : b.preco_pix)}</span>
+                                  <span className="font-semibold">{brl(pagamentoResp === 'clinica' ? b.preco_pix : formaPagamento === 'cartao' ? b.preco_cartao : b.preco_pix)}</span>
                                 </div>
                               )
                             })}
                             <div className="flex justify-between text-xs font-bold text-[#19202d] border-t border-[#8a6e36]/20 pt-1">
-                              <span>Total Bioquímica</span><span>{brl(totalBioquimica)}</span>
+                              <span>{pagamentoResp === 'clinica' ? 'Sugerido ao tutor' : 'Total Bioquímica'}</span>
+                              <span>{brl(pagamentoResp === 'clinica' ? totalBioquimicaPix : totalBioquimica)}</span>
                             </div>
                           </div>
                         )}
@@ -983,19 +1003,20 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
                             })}
                           </div>
                         )}
-                        {testeRapidoSelecionados.length > 0 && pagamentoResp === 'tutor' && (
+                        {testeRapidoSelecionados.length > 0 && (
                           <div className="mt-2 pt-2 border-t border-[#8a6e36]/20 space-y-1">
                             {testeRapidoSelecionados.map(id => {
                               const t = testeRapidoExames.find(x => x.id === id)!
                               return (
                                 <div key={id} className="flex justify-between text-xs text-[#8a6e36]">
                                   <span>{t.nome}</span>
-                                  <span className="font-semibold">{brl(formaPagamento === 'cartao' ? t.preco_cartao : t.preco_pix)}</span>
+                                  <span className="font-semibold">{brl(pagamentoResp === 'clinica' ? t.preco_pix : formaPagamento === 'cartao' ? t.preco_cartao : t.preco_pix)}</span>
                                 </div>
                               )
                             })}
                             <div className="flex justify-between text-xs font-bold text-[#19202d] border-t border-[#8a6e36]/20 pt-1">
-                              <span>Total Teste Rápido</span><span>{brl(totalTesteRapido)}</span>
+                              <span>{pagamentoResp === 'clinica' ? 'Sugerido ao tutor' : 'Total Teste Rápido'}</span>
+                              <span>{brl(pagamentoResp === 'clinica' ? totalTesteRapidoPix : totalTesteRapido)}</span>
                             </div>
                           </div>
                         )}
@@ -1030,6 +1051,16 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
                 <div className="flex justify-between text-[#8a6e36] font-semibold">
                   <span>Total ({formaPagamento === 'cartao' ? 'cartão' : 'pix'})</span><span>{brl(totalValor)}</span>
                 </div>
+              )}
+              {pagamentoResp === 'clinica' && totalSugeridoTutor > 0 && (
+                <>
+                  <div className="flex justify-between text-[#8a6e36]">
+                    <span>Sugerido ao tutor (pix)</span><span className="font-semibold">{brl(totalSugeridoTutor)}</span>
+                  </div>
+                  <div className="flex justify-between text-[#8a6e36] font-semibold">
+                    <span>Repasse BioPet</span><span>{brl(totalValor)}</span>
+                  </div>
+                </>
               )}
             </div>
           )}
@@ -1377,7 +1408,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
             vetNome           ? { label: 'Veterinário', value: vetNome } : null,
             sedacaoNecessaria ? { label: 'Sedação',     value: '⚠️ Necessária' } : null,
             petInternado      ? { label: 'Internado',   value: '🏥 Sim' } : null,
-            { label: 'Pagamento', value: gratuito ? '🎁 Gratuito' : pagamentoResp === 'clinica' ? `Clínica: ${clinicas.find(c => String(c.id) === clinicaId)?.nome ?? '—'} · Repasse BioPet: ${brl(totalValor)}` : `Tutor — ${formaPagamento === 'cartao' ? 'Cartão' : 'Pix'} · ${entregaPagamento === 'link' ? 'Link WhatsApp' : 'Presencial'} · ${brl(totalValor)}` },
+            { label: 'Pagamento', value: gratuito ? '🎁 Gratuito' : pagamentoResp === 'clinica' ? `Clínica: ${clinicas.find(c => String(c.id) === clinicaId)?.nome ?? '—'} · Cobrar do tutor: ${brl(totalSugeridoTutor)} · Repasse BioPet: ${brl(totalValor)}` : `Tutor — ${formaPagamento === 'cartao' ? 'Cartão' : 'Pix'} · ${entregaPagamento === 'link' ? 'Link WhatsApp' : 'Presencial'} · ${brl(totalValor)}` },
             modo === 'admin' ? { label: 'Notificar', value: notificar ? '📱 Sim (WhatsApp)' : '🔕 Não' } : null,
             observacoes ? { label: 'Observações', value: observacoes } : null,
           ].filter(Boolean).map(row => (
@@ -1396,7 +1427,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
                 ⚠️ Este agendamento ficará como <strong>pendente</strong> até a BioPet confirmar.
                 {pagamentoResp === 'tutor' && entregaPagamento === 'link' && ' Após confirmação, o link de pagamento será enviado pelo WhatsApp.'}
                 {pagamentoResp === 'tutor' && entregaPagamento === 'presencial' && ' O tutor realizará o pagamento presencialmente na BioPet.'}
-                {pagamentoResp === 'clinica' && <> A clínica receberá o pagamento do tutor. O valor de repasse esperado pela BioPet é <strong>{brl(totalValor)}</strong>.</>}
+                {pagamentoResp === 'clinica' && <> A clínica receberá o pagamento do tutor — o valor sugerido de cobrança é <strong>{brl(totalSugeridoTutor)}</strong>, e o repasse esperado pela BioPet é <strong>{brl(totalValor)}</strong>.</>}
               </>
             )}
           </p>
