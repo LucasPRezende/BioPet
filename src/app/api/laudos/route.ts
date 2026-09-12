@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
+import { ilikeOrFilter } from '@/lib/search-utils'
 import { savePdf, deletePdf } from '@/lib/pdf-storage'
 
 async function getComissao(tipoExame: string | null, agendamentoId?: number | null) {
@@ -54,7 +55,10 @@ export async function GET(request: NextRequest) {
   if (session.role !== 'admin') {
     query = query.eq('system_user_id', session.userId)
   }
-  if (busca) query = query.or(`nome_pet.ilike.%${busca}%,tutor.ilike.%${busca}%,telefone.ilike.%${busca}%`)
+  if (busca) {
+    const filtroBusca = ilikeOrFilter(['nome_pet', 'tutor', 'telefone'], busca)
+    if (filtroBusca) query = query.or(filtroBusca)
+  }
   if (tipo)  query = query.eq('tipo', tipo)
   if (dataIni) query = query.gte('criado_em', dataIni)
   if (dataFim) query = query.lte('criado_em', dataFim + 'T23:59:59')
