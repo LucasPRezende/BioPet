@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
+import { ilikeOrFilter, sanitizeOrTerm } from '@/lib/search-utils'
 
 export async function GET(request: NextRequest) {
   const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value
@@ -11,10 +12,13 @@ export async function GET(request: NextRequest) {
   const busca = request.nextUrl.searchParams.get('busca')?.trim()
   if (!busca) return NextResponse.json([])
 
+  const filtroTutor = ilikeOrFilter(['nome', 'telefone'], busca)
+  if (!filtroTutor) return NextResponse.json([])
+
   // Busca tutores e pets pelo termo
   const [{ data: tutores }, { data: pets }] = await Promise.all([
-    supabase.from('tutores').select('id').or(`nome.ilike.%${busca}%,telefone.ilike.%${busca}%`).limit(20),
-    supabase.from('pets').select('id').ilike('nome', `%${busca}%`).limit(20),
+    supabase.from('tutores').select('id').or(filtroTutor).limit(20),
+    supabase.from('pets').select('id').ilike('nome', `%${sanitizeOrTerm(busca)}%`).limit(20),
   ])
 
   const tutorIds = (tutores ?? []).map(t => t.id)

@@ -5,3 +5,14 @@
 export function sanitizeOrTerm(termo: string): string {
   return termo.replace(/[,()]/g, ' ').replace(/\s+/g, ' ').trim()
 }
+
+// Monta o filtro .or() de uma busca textual já sanitizada.
+// Use SEMPRE isto em vez de interpolar o termo na string do .or() à mão:
+// é o único ponto onde o termo do usuário encosta no parser do PostgREST.
+// Devolve null quando o termo vira vazio depois da limpeza (ex.: ",,,"),
+// caso em que o chamador deve simplesmente não aplicar o filtro.
+export function ilikeOrFilter(colunas: string[], termo: string): string | null {
+  const safe = sanitizeOrTerm(termo)
+  if (!safe) return null
+  return colunas.map(col => `${col}.ilike.%${safe}%`).join(',')
+}
