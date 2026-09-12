@@ -4,6 +4,8 @@ import { supabase } from '@/lib/supabase'
 import { parseClinicaSession, CLINICA_COOKIE_NAME } from '@/lib/clinica-auth'
 import { sanitizeOrTerm } from '@/lib/search-utils'
 import { normalizeTelefone } from '@/lib/telefone'
+// Telemetria temporária — remover junto com o bloco marcado lá embaixo.
+import { registrarBusca, medirEscopoDoNome, type FormatoDaBusca } from '@/lib/telemetria-busca-tutor'
 
 export async function GET(request: NextRequest) {
   const token = (await cookies()).get(CLINICA_COOKIE_NAME)?.value
@@ -40,6 +42,24 @@ export async function GET(request: NextRequest) {
     }
 
     const { data } = await query
+
+    // ─── Telemetria temporária — REMOVER depois da decisão sobre o escopo ───
+    // Não altera a resposta. Dispara solta para não atrasar a requisição.
+    const formato: FormatoDaBusca = {
+      clinicaId:  session.clinicaId,
+      ramo:       isPhone ? 'telefone' : 'nome',
+      palavras:   q.split(/\s+/).filter(Boolean).length,
+      tamanho:    q.length,
+      digitos:    digits.length,
+      resultados: data?.length ?? 0,
+    }
+    if (isPhone) {
+      registrarBusca(formato)
+    } else {
+      void medirEscopoDoNome(formato, (data ?? []).map(t => t.id))
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
     return NextResponse.json(data ?? [])
   }
 
