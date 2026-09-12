@@ -1,0 +1,39 @@
+#!/bin/sh
+#
+# Barra commit que contenha credencial em texto puro.
+#
+# Instalar (uma vez por clone):
+#   git config core.hooksPath scripts/hooks
+#
+# Emergencia (use com consciencia):
+#   git commit --no-verify
+
+set -e
+
+# So o conteudo que esta sendo commitado (staged), nao a arvore inteira.
+ARQUIVOS=$(git diff --cached --name-only --diff-filter=ACM)
+[ -z "$ARQUIVOS" ] && exit 0
+
+# Padroes de segredo: JWT completo (Supabase anon/service_role), PAT do Supabase,
+# chaves de API comuns do projeto. Exige as 3 partes do JWT para nao acusar
+# trechos truncados em documentacao.
+PADRAO='eyJhbGciOi[A-Za-z0-9_-]{10,}[.][A-Za-z0-9_-]{20,}[.][A-Za-z0-9_-]{20,}|sbp_[0-9a-f]{40}|sk-ant-[A-Za-z0-9_-]{20,}|sk-or-v1-[A-Za-z0-9]{20,}|APP_USR-[0-9]{10,}'
+
+ACHADOS=""
+for f in $ARQUIVOS; do
+  # A versao staged do arquivo, nao a do disco.
+  if git show ":$f" 2>/dev/null | grep -nE "$PADRAO" >/dev/null 2>&1; then
+    LINHAS=$(git show ":$f" | grep -nE "$PADRAO" | cut -c1-100)
+    ACHADOS="$ACHADOS\n  $f:\n$LINHAS"
+  fi
+done
+
+if [ -n "$ACHADOS" ]; then
+  printf '\n\033[31mCOMMIT BLOQUEADO: credencial em texto puro detectada.\033[0m\n'
+  printf '%b\n' "$ACHADOS"
+  printf '\nTire o segredo do arquivo e leia de process.env (ver scripts/env.ts).\n'
+  printf 'Se for falso positivo, rode: git commit --no-verify\n\n'
+  exit 1
+fi
+
+exit 0

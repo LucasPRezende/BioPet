@@ -1,0 +1,3 @@
+# core.autocrlf=true converteria os hooks para CRLF no checkout e o /bin/sh
+# recusaria o shebang ("bad interpreter: /bin/sh^M"). Hooks ficam sempre em LF.
+scripts/hooks/* text eol=lf
