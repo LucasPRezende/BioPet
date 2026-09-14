@@ -67,6 +67,13 @@ const HORARIOS_LIVRES = [
   { hora: '17:30', especial: true },
 ]
 
+/** Data ISO (YYYY-MM-DD) relativa a hoje — evita fixture com prazo fixo que expira sozinho com o tempo real. */
+function isoOffset(dias: number): string {
+  const d = new Date()
+  d.setDate(d.getDate() + dias)
+  return d.toISOString().slice(0, 10)
+}
+
 const CONTEXTO = {
   tutor: { id: 1, nome: 'Maria', telefone: TELEFONE, atendimento_humano: false },
   pets: [
@@ -77,13 +84,15 @@ const CONTEXTO = {
   // Duas revisões: a do Rex tem restricao_horario (exame original foi em
   // horário comercial); a do Fido NÃO tem (exame original foi em horário
   // especial) — usadas pra testar os dois lados da regra de restrição.
+  // Datas relativas a hoje (não fixas) — um prazo_limite fixo no passado já
+  // causou teste quebrado sozinho conforme o tempo real passava.
   revisoes_disponiveis: [
     {
       agendamento_original_id: 900,
       pet_nome: 'Rex',
       tipo_exame: 'Ultrassom Abdominal Total',
-      data_original: '2026-08-10',
-      prazo_limite: '2026-09-10',
+      data_original: isoOffset(-30),
+      prazo_limite: isoOffset(30),
       horario_restrito: true,
       restricao_horario:
         'exame original foi em horário comercial — a revisão SÓ pode ser agendada em horário comercial (seg–sex, começando entre 09:00 e 16:30)',
@@ -92,8 +101,8 @@ const CONTEXTO = {
       agendamento_original_id: 901,
       pet_nome: 'Fido',
       tipo_exame: 'Ultrassom Abdominal Total',
-      data_original: '2026-08-10',
-      prazo_limite: '2026-09-10',
+      data_original: isoOffset(-30),
+      prazo_limite: isoOffset(30),
       horario_restrito: false,
       restricao_horario: null,
     },
@@ -107,9 +116,10 @@ const LAUDOS = {
   ],
 }
 
-function fakeResultado(nome: string, input: Record<string, any>): unknown {
+function fakeResultado(nome: string, input: Record<string, any>, opts: { novoCliente?: boolean } = {}): unknown {
   switch (nome) {
-    case 'identificar_tutor':   return CONTEXTO
+    case 'identificar_tutor':
+      return opts.novoCliente ? { tutor: null, pets: [], atendimento_humano: false } : CONTEXTO
     case 'consultar_precos':    return PRECOS
     case 'listar_veterinarios': return { veterinarios: [{ id: 3, nome: 'Dra. Ana' }] }
     case 'horarios_livres':
@@ -122,7 +132,18 @@ function fakeResultado(nome: string, input: Record<string, any>): unknown {
         horarios_livres: HORARIOS_LIVRES,
       }
     case 'cadastrar_tutor':     return { id: 1, nome: input.nome, telefone: TELEFONE }
-    case 'cadastrar_pet':       return { id: 8, nome: input.nome, especie: input.especie }
+    case 'cadastrar_pet': {
+      // Espelha o backend real: FK falha se o tutor_id não é o que cadastrar_tutor
+      // devolveu (caso real: Aline/Pérola chutou um tutor_id antes da tool responder).
+      if (Number(input.tutor_id) !== 1) {
+        return {
+          erro: true,
+          status: 500,
+          error: 'insert or update on table "pets" violates foreign key constraint "pets_tutor_id_fkey"',
+        }
+      }
+      return { id: 8, nome: input.nome, especie: input.especie }
+    }
     case 'agendar': {
       // Espelha o backend real: Raio-X nunca agenda automático, sempre exige atendente.
       const tipos: string[] = input.exames
@@ -142,7 +163,13 @@ function fakeResultado(nome: string, input: Record<string, any>): unknown {
       // Espelha a checagem real de src/app/api/agente/agendar-revisao/route.ts:
       // revisão de exame original em horário comercial só pode cair em
       // horário comercial (09:00–16:30). id 900 = Rex (restrito); 901 = Fido
-      // (sem restrição, original foi em horário especial).
+      // (sem restrição, original foi em horário especial). Qualquer outro id
+      // é "chutado" e o backend real devolve 404 (caso real: Arlene/Scott,
+      // Renato/Belinha, Júlia/Hope, Valeska/Jade — todos chutaram um id
+      // diferente do que já tinham em mãos).
+      if (![900, 901].includes(Number(input.agendamento_original_id))) {
+        return { erro: true, status: 404, error: 'Agendamento original não encontrado.' }
+      }
       const hora = String(input.data_hora ?? '').split('T')[1]?.slice(0, 5) ?? ''
       const restrito = Number(input.agendamento_original_id) === 900
       const dentroComercial = hora >= '09:00' && hora <= '16:30'
@@ -194,7 +221,10 @@ export type ResponderFn = (
 ) => Promise<{ resposta: string; historico: any[]; uso?: { custoUSD?: number } }>
 
 /** Cria uma conversa stateful com tools fake que registram as chamadas. */
-export function novaConversa(responderFn: ResponderFn = responder): Conversa {
+export function novaConversa(
+  responderFn: ResponderFn = responder,
+  opts: { novoCliente?: boolean } = {},
+): Conversa {
   const calls: ToolCall[] = []
   const respostas: string[] = []
   const dialogo: { de: 'cliente' | 'bot'; texto: string; tools?: string[] }[] = []
@@ -202,7 +232,7 @@ export function novaConversa(responderFn: ResponderFn = responder): Conversa {
   let custo = 0
 
   const executar: ToolExecutor = async (nome, input) => {
-    const resultado = fakeResultado(nome, input)
+    const resultado = fakeResultado(nome, input, opts)
     calls.push({ nome, input, resultado })
     return resultado
   }
