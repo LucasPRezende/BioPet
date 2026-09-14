@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
 import { generateTesteRapidoPDF, type TesteRapidoPDFData } from '@/lib/generate-teste-rapido-pdf'
 import { savePdf, deletePdf } from '@/lib/pdf-storage'
+import { jaTemLaudo } from '@/lib/laudo-duplicado'
 
 export async function POST(request: NextRequest) {
   const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value
@@ -43,16 +44,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Nenhum resultado informado.' }, { status: 400 })
   }
 
-  // Evita laudo duplicado para o mesmo agendamento
-  if (agendamento_id) {
-    const { data: existente } = await supabase
-      .from('laudos')
-      .select('id')
-      .eq('agendamento_id', agendamento_id)
-      .maybeSingle()
-    if (existente) {
-      return NextResponse.json({ error: 'Este agendamento já possui um laudo.' }, { status: 409 })
-    }
+  // Evita laudo duplicado para o mesmo agendamento + tipo de exame
+  if (agendamento_id && await jaTemLaudo(agendamento_id, 'Teste Rápido')) {
+    return NextResponse.json({ error: 'Este agendamento já possui um laudo de Teste Rápido.' }, { status: 409 })
   }
 
   try {

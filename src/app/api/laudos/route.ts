@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
 import { ilikeOrFilter } from '@/lib/search-utils'
 import { savePdf, deletePdf } from '@/lib/pdf-storage'
+import { jaTemLaudo } from '@/lib/laudo-duplicado'
 
 async function getComissao(tipoExame: string | null, agendamentoId?: number | null) {
   if (!tipoExame) return { preco_exame: null, custo_exame: null, valor_comissao: null }
@@ -103,36 +104,11 @@ export async function POST(request: NextRequest) {
   }
 
   // Impede laudo duplicado para o mesmo agendamento+tipo_exame
-  if (agendamentoId) {
-    if (tipoExame) {
-      // Verifica quantos laudos já existem para este tipo_exame neste agendamento
-      const { data: laudosDoTipo } = await supabase
-        .from('laudos')
-        .select('id')
-        .eq('agendamento_id', Number(agendamentoId))
-        .eq('tipo_exame', tipoExame)
-      // Verifica quantas rows de agendamento_exames existem para este tipo_exame
-      const { data: examesDoTipo } = await supabase
-        .from('agendamento_exames')
-        .select('id')
-        .eq('agendamento_id', Number(agendamentoId))
-        .eq('tipo_exame', tipoExame)
-      const laudosCount = (laudosDoTipo ?? []).length
-      const examesCount = Math.max(1, (examesDoTipo ?? []).length)
-      if (laudosCount >= examesCount) {
-        return NextResponse.json({ error: 'Este agendamento já possui um laudo para este exame.' }, { status: 409 })
-      }
-    } else {
-      // Sem tipo_exame — comportamento legado: bloqueia qualquer laudo duplicado
-      const { data: existente } = await supabase
-        .from('laudos')
-        .select('id')
-        .eq('agendamento_id', Number(agendamentoId))
-        .maybeSingle()
-      if (existente) {
-        return NextResponse.json({ error: 'Este agendamento já possui um laudo.' }, { status: 409 })
-      }
-    }
+  if (agendamentoId && await jaTemLaudo(Number(agendamentoId), tipoExame)) {
+    const msg = tipoExame
+      ? 'Este agendamento já possui um laudo para este exame.'
+      : 'Este agendamento já possui um laudo.'
+    return NextResponse.json({ error: msg }, { status: 409 })
   }
 
   const token    = uuidv4()
