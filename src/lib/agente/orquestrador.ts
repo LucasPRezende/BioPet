@@ -72,7 +72,7 @@ export const TOOLS: Anthropic.Tool[] = [
   {
     name: 'horarios_livres',
     description:
-      'Lista os horários livres em uma data. Só ofereça horários retornados por esta tool. Cada horário já vem com "especial" (true/false, calculado no backend a partir de início+duração) — use esse campo pra saber se é horário especial, não calcule de cabeça.',
+      'Lista os horários livres em uma data. Só ofereça horários retornados por esta tool. Cada horário já vem com "especial" (true/false, calculado no backend a partir de início+duração) — use esse campo pra saber se é horário especial, não calcule de cabeça. Ao SUGERIR horários pro cliente (ele perguntou "quais horários têm" sem dizer manhã ou tarde), priorize sutilmente os da manhã — ofereça primeiro as opções de manhã, e só cite tarde se a manhã não tiver nada bom ou se o cliente pedir. Se ele já pediu um período específico (manhã ou tarde), respeite o pedido normalmente, sem empurrar manhã.',
     input_schema: {
       type: 'object',
       properties: {
@@ -97,7 +97,7 @@ export const TOOLS: Anthropic.Tool[] = [
     input_schema: {
       type: 'object',
       properties: {
-        tutor_id: { type: 'number' },
+        tutor_id: { type: 'number', description: 'Id real vindo de cadastrar_tutor ou identificar_tutor — NUNCA chutado. Se acabou de chamar cadastrar_tutor, espere o resultado voltar antes de chamar cadastrar_pet.' },
         nome: { type: 'string' },
         especie: { type: 'string', description: 'Ex: Canino, Felino' },
         raca: { type: 'string' },
@@ -149,7 +149,7 @@ export const TOOLS: Anthropic.Tool[] = [
     input_schema: {
       type: 'object',
       properties: {
-        agendamento_original_id: { type: 'number', description: 'Id do agendamento original, de revisoes_disponiveis.' },
+        agendamento_original_id: { type: 'number', description: 'Id real vindo de revisoes_disponiveis ou identificar_tutor — NUNCA chutado/inventado. Se não tiver esse número em mãos, chame identificar_tutor ANTES e use o que ele devolver.' },
         data_hora: { type: 'string', description: 'YYYY-MM-DDTHH:MM:00 (horário local)' },
         veterinario_id: { type: 'number', description: 'Opcional — se não informado, usa o mesmo veterinário do exame original.' },
         laudo_solicitado: { type: 'boolean', description: 'true SÓ se o cliente pedir um laudo escrito extra (tem custo). Default: false (revisão sem laudo, gratuita).' },
