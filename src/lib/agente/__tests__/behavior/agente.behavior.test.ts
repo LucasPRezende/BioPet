@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import { novaConversa } from './harness'
+import { responder } from '@/lib/agente/orquestrador'
 
 // Contato de emergência usado pelo prompt — fixado para a asserção do teste.
 beforeAll(() => {
@@ -240,6 +241,69 @@ run('comportamento do agente (IA real, tools fake)', () => {
     expect(t).toMatch(/ainda não é a confirmação|falta.{0,20}confirma|aguard.{0,20}confirma/i)
     // Nunca sugerir que já pode considerar certo / ir fazer o exame.
     expect(t).not.toMatch(/aproveite que (você )?já está/i)
+  })
+
+  // Casos reais (Arlene/Scott, Renato/Belinha, Júlia/Hope, Valeska/Jade): a IA
+  // chutava um agendamento_original_id diferente do que já tinha recebido na
+  // oferta proativa, tomava 404 do backend, e só então corrigia. O fake agora
+  // espelha esse 404 pra id errado (harness.ts) — este teste garante que o
+  // PRIMEIRO agendar_revisao já usa o id certo (901, da Fido, sem restrição).
+  it('agendar_revisao usa o agendamento_original_id certo de primeira, sem chutar', OPTS, async () => {
+    const c = novaConversa()
+    await c.enviar('Oi, quero marcar a revisão gratuita do ultrassom do Fido pra quinta às 10h')
+    for (let i = 0; i < 3 && !c.nomes().includes('agendar_revisao'); i++) {
+      await c.enviar('Isso mesmo, pode confirmar quinta às 10h')
+    }
+
+    const chamadas = c.calls.filter((x) => x.nome === 'agendar_revisao')
+    expect(chamadas.length).toBeGreaterThan(0)
+    // Nenhuma tentativa pode ter tomado o 404 de "agendamento não encontrado".
+    for (const ch of chamadas) {
+      expect((ch.resultado as any)?.erro).not.toBe(true)
+    }
+  })
+
+  // Caso real (Aline/Pérola, 09/09): cadastrar_tutor e cadastrar_pet foram
+  // chamados no mesmo turno com um tutor_id chutado (2286) em vez do id real
+  // que cadastrar_tutor ia devolver (368) — deu erro de FK. O fake agora
+  // espelha esse erro pra tutor_id errado (harness.ts) — este teste garante
+  // que cadastrar_pet usa o tutor_id real de cadastrar_tutor de primeira.
+  it('cadastrar_pet usa o tutor_id real de cadastrar_tutor, sem chutar', OPTS, async () => {
+    const c = novaConversa(responder, { novoCliente: true })
+    await c.enviar('Oi, meu nome é Bianca, quero marcar um ultrassom abdominal pro meu cachorro Bidu')
+    for (let i = 0; i < 6 && !c.nomes().includes('cadastrar_pet'); i++) {
+      await c.enviar(
+        'Pode marcar pra amanhã de manhã, qualquer horário. Pagamento no PIX, pode confirmar e cadastrar tudo.',
+      )
+    }
+
+    const chamadas = c.calls.filter((x) => x.nome === 'cadastrar_pet')
+    expect(chamadas.length).toBeGreaterThan(0)
+    // Nenhuma tentativa pode ter tomado o erro de FK por tutor_id inventado.
+    for (const ch of chamadas) {
+      expect((ch.resultado as any)?.erro).not.toBe(true)
+    }
+  })
+
+  // Pedido da Andreza/Luciana (14/09/2026): quando o cliente não especifica
+  // manhã ou tarde, priorizar sutilmente sugerir manhã primeiro (sem recusar
+  // tarde se ele pedir). A janela fake tem manhã (9h/9h30) e tarde (15h+).
+  it('sugere horário sem preferência do cliente: prioriza manhã', OPTS, async () => {
+    const c = novaConversa()
+    await c.enviar(
+      'Meu nome é Maria, quero marcar ultrassom abdominal do Rex na quinta-feira, pode sugerir um horário bom pra mim? Não tenho preferência.',
+    )
+    for (let i = 0; i < 3 && !c.nomes().includes('horarios_livres'); i++) {
+      await c.enviar('Sou cliente sim. Pode sugerir você mesmo, qualquer horário serve.')
+    }
+
+    expect(c.nomes()).toContain('horarios_livres')
+    const t = c.textos()
+    const idxManha = t.search(/9h|09h|9:00|09:00/)
+    const idxTarde = t.search(/15h|15:00/)
+    // A opção de manhã tem que aparecer, e antes da de tarde (quando ambas aparecem).
+    expect(idxManha).toBeGreaterThan(-1)
+    if (idxTarde > -1) expect(idxManha).toBeLessThan(idxTarde)
   })
 
   // Caso real: perguntada de forma genérica "vocês atendem fim de semana?" (antes
