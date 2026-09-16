@@ -292,9 +292,13 @@ run('comportamento do agente (IA real, tools fake)', () => {
   })
 
   // Pedido da Andreza/Luciana (14/09/2026): quando o cliente não especifica
-  // manhã ou tarde, priorizar sutilmente sugerir manhã primeiro (sem recusar
-  // tarde se ele pedir). A janela fake tem manhã (9h/9h30) e tarde (15h+).
-  it('sugere horário sem preferência do cliente: prioriza manhã', OPTS, async () => {
+  // manhã ou tarde, dar os horários EXATOS só da manhã, e só mencionar tarde
+  // de forma vaga (sem listar horas) — nem esconder que existe (perderia
+  // cliente que só pode à tarde) nem listar horas de tarde de cara (viraria
+  // opção igualmente atraente e ninguém escolhe manhã de verdade). Decisão
+  // 16/09/2026, revisando a 1ª versão (que listava os dois períodos lado a
+  // lado). A janela fake tem manhã (9h/9h30) e tarde (15h+).
+  it('sugere horário sem preferência do cliente: dá horas exatas só de manhã, tarde só vagamente', OPTS, async () => {
     const c = novaConversa()
     await c.enviar(
       'Meu nome é Maria, quero marcar ultrassom abdominal do Rex na quinta-feira, pode sugerir um horário bom pra mim? Não tenho preferência.',
@@ -305,11 +309,11 @@ run('comportamento do agente (IA real, tools fake)', () => {
 
     expect(c.nomes()).toContain('horarios_livres')
     const t = c.textos()
-    const idxManha = t.search(/9h|09h|9:00|09:00/)
-    const idxTarde = t.search(/15h|15:00/)
-    // A opção de manhã tem que aparecer, e antes da de tarde (quando ambas aparecem).
-    expect(idxManha).toBeGreaterThan(-1)
-    if (idxTarde > -1) expect(idxManha).toBeLessThan(idxTarde)
+    // Dá horário exato de manhã...
+    expect(t).toMatch(/9h|09h|9:00|09:00/)
+    // ...e NUNCA lista as horas exatas de tarde do fake (15h/15:30/16h/16:30/17h)
+    // de cara — só se o cliente pedir tarde ou dizer que manhã não serve.
+    expect(t).not.toMatch(/15h|15:00|15h30|15:30|16h|16:00|16h30|16:30/)
   })
 
   // Caso real: perguntada de forma genérica "vocês atendem fim de semana?" (antes
