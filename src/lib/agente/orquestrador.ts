@@ -72,7 +72,7 @@ export const TOOLS: Anthropic.Tool[] = [
   {
     name: 'horarios_livres',
     description:
-      'Lista os horários livres em uma data. Só ofereça horários retornados por esta tool. Cada horário já vem com "especial" (true/false, calculado no backend a partir de início+duração) — use esse campo pra saber se é horário especial, não calcule de cabeça. Ao SUGERIR horários pro cliente (ele perguntou "quais horários têm" sem dizer manhã ou tarde), priorize sutilmente os da manhã — ofereça primeiro as opções de manhã, e só cite tarde se a manhã não tiver nada bom ou se o cliente pedir. Se ele já pediu um período específico (manhã ou tarde), respeite o pedido normalmente, sem empurrar manhã.',
+      'Lista os horários livres em uma data. Só ofereça horários retornados por esta tool. Cada horário já vem com "especial" (true/false, calculado no backend a partir de início+duração) — use esse campo pra saber se é horário especial, não calcule de cabeça. Ao SUGERIR horários pro cliente (ele perguntou "quais horários têm" ou pediu pra você sugerir, sem dizer manhã ou tarde), dê os horários EXATOS só da manhã (até 12h), e feche com uma menção BREVE e vaga de que também tem à tarde, sem listar os horários dela (ex.: "Tenho 9h, 9h30 ou 10h de manhã. Também tenho à tarde, se preferir." — nunca liste os horários de tarde de cara). Só dê os horários exatos de tarde se o cliente pedir tarde especificamente ou disser que nenhum da manhã serve. Se ele já pediu um período específico (manhã ou tarde) ou um horário exato, respeite o pedido normalmente, sem empurrar manhã.',
     input_schema: {
       type: 'object',
       properties: {

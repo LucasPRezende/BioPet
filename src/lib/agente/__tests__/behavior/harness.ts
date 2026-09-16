@@ -59,6 +59,10 @@ const PRECOS = {
 const HORARIOS_LIVRES = [
   { hora: '09:00', especial: false },
   { hora: '09:30', especial: false },
+  { hora: '10:00', especial: false },
+  { hora: '10:30', especial: false },
+  { hora: '11:00', especial: false },
+  { hora: '11:30', especial: false },
   { hora: '15:00', especial: false },
   { hora: '15:30', especial: false },
   { hora: '16:00', especial: false },
@@ -72,6 +76,18 @@ function isoOffset(dias: number): string {
   const d = new Date()
   d.setDate(d.getDate() + dias)
   return d.toISOString().slice(0, 10)
+}
+
+const DIAS_SEMANA = [
+  'domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado',
+]
+
+/** Espelha diaDaSemana da API real (horarios-livres/route.ts) — o fake tinha
+ * "segunda-feira" fixo, o que confundia o modelo quando a data pedida era
+ * outro dia (ele desconfiava do próprio cálculo e reconferia à toa). */
+function diaDaSemana(dataISO: string): string {
+  const [year, month, day] = dataISO.split('-').map(Number)
+  return DIAS_SEMANA[new Date(year, month - 1, day).getDay()]
 }
 
 /**
@@ -141,7 +157,7 @@ function fakeResultado(nome: string, input: Record<string, any>, opts: { novoCli
     case 'horarios_livres':
       return {
         data: input.data,
-        dia_semana: 'segunda-feira',
+        dia_semana: diaDaSemana(input.data),
         duracao_minutos: input.duracao ?? 30,
         expediente: { inicio: '08:00', fim: '18:00' },
         total_livres: HORARIOS_LIVRES.length,
