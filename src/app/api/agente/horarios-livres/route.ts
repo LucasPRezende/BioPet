@@ -67,12 +67,21 @@ export async function GET(request: NextRequest) {
   const expedienteFim = new Date(`${data}T00:00:00`)
   expedienteFim.setHours(hFim, mFim, 0, 0)
 
-  // Para HOJE, não oferecer horários que já passaram (hora de Brasília).
+  // Para HOJE, não oferecer horários com menos de 1h de antecedência (equipe
+  // precisa de tempo pra se preparar — pedido da Andreza/Luciana, 15/09/2026).
   const tz = 'America/Sao_Paulo'
   const agora = new Date()
+  const antecedenciaMinima = new Date(agora.getTime() + 60 * 60_000)
   const hojeSP = agora.toLocaleDateString('en-CA', { timeZone: tz })           // YYYY-MM-DD
-  const horaSP = agora.toLocaleTimeString('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit' }) // HH:MM
+  const horaMinimaSP = antecedenciaMinima.toLocaleTimeString('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit' }) // HH:MM
   const ehHoje = data === hojeSP
+
+  // Horário de almoço: ninguém disponível pra atender exame entre 12:30 e
+  // 13:30, nenhum dia (pedido da Andreza/Luciana, 15/09/2026).
+  const almocoInicio = new Date(`${data}T00:00:00`)
+  almocoInicio.setHours(12, 30, 0, 0)
+  const almocoFim = new Date(`${data}T00:00:00`)
+  almocoFim.setHours(13, 30, 0, 0)
 
   const horarios_livres: { hora: string; especial: boolean }[] = []
   const cursor = new Date(expedienteInicio)
@@ -83,11 +92,12 @@ export async function GET(request: NextRequest) {
     // Slot não pode ultrapassar o fim do expediente
     if (slotFim <= expedienteFim) {
       const conflito = ocupados.some(oc => cursor < oc.fim && slotFim > oc.inicio)
+      const noAlmoco = cursor < almocoFim && slotFim > almocoInicio
       const hh = String(cursor.getHours()).padStart(2, '0')
       const mm = String(cursor.getMinutes()).padStart(2, '0')
       const horaStr = `${hh}:${mm}`
-      const passou = ehHoje && horaStr <= horaSP
-      if (!conflito && !passou) {
+      const semAntecedencia = ehHoje && horaStr < horaMinimaSP
+      if (!conflito && !noAlmoco && !semAntecedencia) {
         // Mesma regra usada no cálculo real do preço (agendamento-helpers):
         // especial quando início+duração ultrapassa o horário configurado em
         // Feriados — não apenas o horário de início.

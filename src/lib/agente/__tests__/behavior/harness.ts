@@ -74,6 +74,22 @@ function isoOffset(dias: number): string {
   return d.toISOString().slice(0, 10)
 }
 
+/**
+ * Espelha isHorarioEspecial (src/lib/feriados.ts) pro fake: fim de semana é
+ * sempre especial; dia útil usa a mesma tabela HORARIOS_LIVRES (ou, se a hora
+ * não estiver nela, cai fora do comercial 09:00–16:30 = especial).
+ */
+function horarioEhEspecial(dataHoraISO: string): boolean {
+  const [data, horaCompleta] = String(dataHoraISO).split('T')
+  const [y, m, d] = data.split('-').map(Number)
+  const dow = new Date(y, m - 1, d).getDay()
+  if (dow === 0 || dow === 6) return true
+  const hora = (horaCompleta ?? '').slice(0, 5)
+  const doFixture = HORARIOS_LIVRES.find((h) => h.hora === hora)
+  if (doFixture) return doFixture.especial
+  return hora < '09:00' || hora >= '16:30'
+}
+
 const CONTEXTO = {
   tutor: { id: 1, nome: 'Maria', telefone: TELEFONE, atendimento_humano: false },
   pets: [
@@ -157,6 +173,15 @@ function fakeResultado(nome: string, input: Record<string, any>, opts: { novoCli
           mensagem: 'O exame "Raio-X" não pode ser agendado automaticamente — deve ser feito por um atendente. Use transferir_humano.',
         }
       }
+      // Espelha o backend real: horário especial também nunca agenda automático (15/09/2026).
+      if (horarioEhEspecial(input.data_hora)) {
+        return {
+          erro: true,
+          status: 422,
+          error: 'precisa_atendente',
+          mensagem: 'Horário especial (fim de semana, feriado ou fora do horário comercial) precisa ser confirmado por um atendente — a equipe nem sempre está disponível nesses horários. Use transferir_humano.',
+        }
+      }
       return { agendamento_id: 123 }
     }
     case 'agendar_revisao': {
@@ -169,6 +194,17 @@ function fakeResultado(nome: string, input: Record<string, any>, opts: { novoCli
       // diferente do que já tinham em mãos).
       if (![900, 901].includes(Number(input.agendamento_original_id))) {
         return { erro: true, status: 404, error: 'Agendamento original não encontrado.' }
+      }
+      // Espelha o backend real: horário especial também nunca agenda automático
+      // pra revisão, mesmo quando horario_restrito=false permite ESCOLHER
+      // esse horário (15/09/2026) — a marcação em si ainda precisa de atendente.
+      if (horarioEhEspecial(input.data_hora)) {
+        return {
+          erro: true,
+          status: 422,
+          error: 'precisa_atendente',
+          mensagem: 'Horário especial (fim de semana, feriado ou fora do horário comercial) precisa ser confirmado por um atendente — a equipe nem sempre está disponível nesses horários. Use transferir_humano.',
+        }
       }
       const hora = String(input.data_hora ?? '').split('T')[1]?.slice(0, 5) ?? ''
       const restrito = Number(input.agendamento_original_id) === 900

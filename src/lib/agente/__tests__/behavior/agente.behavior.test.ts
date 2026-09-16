@@ -152,7 +152,12 @@ run('comportamento do agente (IA real, tools fake)', () => {
   // "horario_comercial": {inicio, fim} solto de horarios_livres e reforçando a
   // ressalva em consultar_precos (nota_horario_comercial) — sem tocar na lista
   // de regras do prompt.
-  it('horário que começa em cima do limite comercial (16h30) mas termina depois: cota o preço de horário especial, não o comercial', OPTS, async () => {
+  // Atualizado em 15/09/2026: horário especial não é mais agendado pela IA
+  // (regra HORÁRIO ESPECIAL — PRECISA DE ATENDENTE), então o teste não espera
+  // mais que ela cote R$240 e prossiga — o que importa é ela reconhecer que
+  // 16:30 é especial (30min começando aí termina às 17h, passa do limite) e
+  // NÃO tratar como comercial nem agendar direto.
+  it('horário que começa em cima do limite comercial (16h30) mas termina depois: reconhece que é especial, não confunde com comercial', OPTS, async () => {
     const c = novaConversa()
     await c.enviar(
       'oi, sou tutor do Rex, o veterinário pediu um ultrassom abdominal pra ele, dá pra marcar segunda às 16:30?',
@@ -164,10 +169,11 @@ run('comportamento do agente (IA real, tools fake)', () => {
 
     expect(c.nomes()).toContain('horarios_livres')
     const t = c.textos()
-    // Preço de horário especial (fora do comercial): R$240 PIX / R$260 cartão.
-    expect(t).toMatch(/240/)
-    // Não pode ter ficado no preço comercial (R$180) pra esse horário.
-    expect(t).not.toMatch(/\b180\b/)
+    // Reconhece que é especial/fora do comercial — não pode ter tratado como
+    // se fosse um horário comercial normal.
+    expect(t).toMatch(/especial|fora do (hor[áa]rio )?comercial/i)
+    // Não fecha esse agendamento sozinha (precisa de atendente).
+    expect(c.nomes()).not.toContain('agendar')
   })
 
   // Controle do teste acima: um horário claramente dentro do comercial (15h,
@@ -344,15 +350,60 @@ run('comportamento do agente (IA real, tools fake)', () => {
     expect(t).toMatch(/150/)
   })
 
-  // NOTA: existe uma contraparte natural do teste acima — tutor com uma revisão
-  // SEM restricao_horario (ex.: exame original em horário especial), que devia
-  // poder confirmar em horário especial normalmente. Testado manualmente: quando
-  // o mesmo tutor tem DUAS revisões simultâneas (uma restrita, outra não — caso
-  // do harness com Rex+Fido), a IA às vezes "contamina" o julgamento e recusa
-  // horário especial até pra quem tem direito. Ficou bem melhor depois do campo
-  // booleano "horario_restrito" em revisoes_disponiveis, mas não 100% (~1/3 de
-  // falha). Decisão (2026-08-24): aceitar como limitação conhecida — é o sentido
-  // OPOSTO do bug original (recusa horário válido, não confirma nada errado; sem
-  // risco de dado incorreto), e não vale o custo de mais rodadas de ajuste agora.
-  // Sem teste automatizado pra não ficar "falhando" pra sempre na suíte.
+  // NOTA (histórico, pré-15/09/2026): existia uma contraparte natural do teste
+  // acima — tutor com uma revisão SEM restricao_horario (ex.: exame original em
+  // horário especial), que antes devia poder CONFIRMAR em horário especial
+  // normalmente. Isso mudou: agora NENHUM horário especial é fechado pela IA
+  // (regra HORÁRIO ESPECIAL — PRECISA DE ATENDENTE, pedido da Andreza/Luciana,
+  // 15/09/2026) — restrito ou não, horário especial sempre vai pra atendente.
+  // A observação de "contaminação de julgamento" (Rex+Fido com revisões
+  // simultâneas) deixou de fazer sentido pra esse cenário específico, já que o
+  // comportamento correto convergiu pros dois lados (nunca confirmar especial
+  // sozinha) — mantido aqui só como referência histórica.
+
+  // Pedido da Andreza/Luciana (15/09/2026): fim de semana/feriado/fora do
+  // comercial "nem sempre a equipe está disponível" — a IA não fecha mais esse
+  // agendamento sozinha (mesmo tratamento do Raio-X), mas continua coletando os
+  // dados e cadastrando o cliente normalmente, só a marcação em si que espera
+  // atendente. 17h já é "especial":true no fake (harness.ts).
+  it('horário especial: cadastra o cliente normalmente, mas não agenda sozinha nem promete o horário', OPTS, async () => {
+    const c = novaConversa(responder, { novoCliente: true })
+    await c.enviar(
+      'Meu nome é Bianca, quero marcar um ultrassom abdominal pro meu cachorro Bidu às 17h de quinta-feira, pagamento pix.',
+    )
+    for (let i = 0; i < 5 && !c.nomes().includes('transferir_humano'); i++) {
+      await c.enviar(
+        'Isso mesmo, 17h de quinta-feira, só posso nesse horário. Pagamento PIX. Pode cadastrar tudo e resolver.',
+      )
+    }
+
+    // Cadastrou o cliente/pet normalmente...
+    expect(c.nomes()).toContain('cadastrar_tutor')
+    expect(c.nomes()).toContain('cadastrar_pet')
+    // ...mas não fechou o agendamento sozinha — foi pra atendente.
+    expect(c.nomes()).not.toContain('agendar')
+    expect(c.nomes()).toContain('transferir_humano')
+    // Nunca deu a entender que o horário já estava marcado/certo.
+    const t = c.textos()
+    expect(t).not.toMatch(/agendamento (solicitado|confirmado)/i)
+  })
+
+  // Mesma regra, lado revisão: Fido (horario_restrito=false) antes podia
+  // confirmar horário especial normalmente; agora, mesmo sem restrição de
+  // elegibilidade, a MARCAÇÃO em horário especial também precisa de atendente.
+  it('revisão em horário especial (mesmo sem restrição de elegibilidade): não confirma sozinha, transfere pra atendente', OPTS, async () => {
+    const c = novaConversa()
+    await c.enviar('Oi, quero marcar a revisão gratuita do ultrassom do Fido às 17h de quinta-feira')
+    for (let i = 0; i < 4 && !c.nomes().includes('transferir_humano'); i++) {
+      await c.enviar('Isso mesmo, 17h de quinta, só posso nesse horário, pode resolver')
+    }
+
+    // Pode até tentar chamar a tool (o backend barra), mas nunca pode ter
+    // conseguido uma revisão de verdade nesse horário.
+    const chamadas = c.calls.filter((x) => x.nome === 'agendar_revisao')
+    for (const ch of chamadas) expect((ch.resultado as any)?.erro).toBe(true)
+    expect(c.nomes()).toContain('transferir_humano')
+    const t = c.textos()
+    expect(t).not.toMatch(/revis[ãa]o.*(confirmada|marcada|solicitada)|agendamento (solicitado|confirmado)/i)
+  })
 })
