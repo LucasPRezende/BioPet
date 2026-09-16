@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { verifyAgentKey } from '@/lib/agent-auth'
-import { gerarFeriadosPorAno } from '@/lib/feriados'
+import { gerarFeriadosPorAno, isHorarioEspecial } from '@/lib/feriados'
 import { calcularElegibilidadeRevisao, dentroJanelaComercial } from '@/lib/revisao-elegibilidade'
 import { normalizeTelefone } from '@/lib/telefone'
 
@@ -131,6 +131,19 @@ export async function POST(request: NextRequest) {
   const horarioInicio = horarioMap['horario_especial_inicio'] ?? '08:00'
   const horarioFim = horarioMap['horario_especial_fim'] ?? '17:00'
   const duracao = original.duracao_minutos ?? 30
+
+  // Horário especial (fim de semana, feriado ou fora do comercial) agora
+  // exige atendente — a equipe nem sempre está disponível nesses horários,
+  // então a IA não fecha a revisão sozinha (pedido da Andreza/Luciana,
+  // 15/09/2026). Mesma fonte de verdade usada em horarios-livres/agendar.
+  const [dataRevisao, horaRevisaoRaw] = String(data_hora).split('T')
+  const horaRevisao = (horaRevisaoRaw ?? '').slice(0, 5)
+  if (isHorarioEspecial(horaRevisao, duracao, dataRevisao, feriados, horarioFim, horarioInicio)) {
+    return NextResponse.json({
+      error: 'precisa_atendente',
+      mensagem: 'Horário especial (fim de semana, feriado ou fora do horário comercial) precisa ser confirmado por um atendente — a equipe nem sempre está disponível nesses horários. Use transferir_humano.',
+    }, { status: 422 })
+  }
 
   // Mesma semântica do painel admin (/api/revisoes): conta o horário de INÍCIO.
   const originalComercial = dentroJanelaComercial(original.data_hora, horarioInicio, horarioFim, feriados)

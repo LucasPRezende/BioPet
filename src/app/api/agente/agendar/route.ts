@@ -11,6 +11,7 @@ import {
 import type { FormaPagamento } from '@/lib/pricing'
 import { raioXPrecisaAtendente, type ItemRaioX } from '@/lib/agente/raiox'
 import { exameBloqueado } from '@/lib/agente/exames-guard'
+import { isHorarioEspecial } from '@/lib/feriados'
 
 type ExameAgente = ItemRaioX
 
@@ -190,6 +191,30 @@ export async function POST(request: NextRequest) {
   })
   const totalDuracao = entrada.reduce((s, e) => s + (e.duracao_minutos ?? 0), 0)
   const tipoExameStr = listaExames.map(e => e.tipo_exame).join(', ')
+
+  // Horário especial (fim de semana, feriado ou fora do comercial) agora
+  // exige atendente — a equipe nem sempre está disponível nesses horários,
+  // então a IA não fecha esse agendamento sozinha (pedido da Andreza/Luciana,
+  // 15/09/2026). Mesma fonte de verdade usada em horarios-livres/precos.
+  const [dataParte, horaParteRaw] = String(data_hora).split('T')
+  const horaParte = (horaParteRaw ?? '').slice(0, 5)
+  const [{ data: feriadosRows }, { data: horarioCfgRows }] = await Promise.all([
+    supabase.from('feriados').select('data'),
+    supabase.from('system_config').select('key, value').in('key', ['horario_especial_inicio', 'horario_especial_fim']),
+  ])
+  const feriadosData = (feriadosRows ?? []).map(f => f.data as string)
+  const cfgMap = Object.fromEntries((horarioCfgRows ?? []).map(r => [r.key as string, r.value as string]))
+  const horarioEspecialInicio = cfgMap['horario_especial_inicio'] ?? '08:00'
+  const horarioEspecialFim    = cfgMap['horario_especial_fim']    ?? '17:00'
+  if (isHorarioEspecial(horaParte, totalDuracao, dataParte, feriadosData, horarioEspecialFim, horarioEspecialInicio)) {
+    return NextResponse.json(
+      {
+        error: 'precisa_atendente',
+        mensagem: 'Horário especial (fim de semana, feriado ou fora do horário comercial) precisa ser confirmado por um atendente — a equipe nem sempre está disponível nesses horários. Use transferir_humano.',
+      },
+      { status: 422 },
+    )
+  }
 
   // Verifica conflito de horário
   const conflito = await verificarConflito(data_hora, totalDuracao)
