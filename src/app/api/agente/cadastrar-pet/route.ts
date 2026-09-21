@@ -17,13 +17,21 @@ export async function POST(request: NextRequest) {
   }
 
   // Verifica se já existe pet com o mesmo nome para este tutor
-  const { data: existing } = await supabase
+  const { data: existing, error: existingError } = await supabase
     .from('pets')
     .select('id, nome, especie, raca')
     .eq('tutor_id', Number(tutor_id))
     .ilike('nome', nome)
     .maybeSingle()
 
+  // Se essa checagem falhar, NÃO pode seguir pro insert — criaria um pet
+  // duplicado caso o pet já existisse de verdade e a falha tenha escondido isso.
+  if (existingError) {
+    return NextResponse.json(
+      { erro: true, mensagem: 'Falha ao verificar pet existente. Tente novamente em instantes.' },
+      { status: 500 },
+    )
+  }
   if (existing) return NextResponse.json(existing, { status: 200 })
 
   const { data, error } = await supabase

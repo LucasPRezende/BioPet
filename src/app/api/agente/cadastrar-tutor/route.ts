@@ -24,11 +24,17 @@ export async function POST(request: NextRequest) {
   if (error) {
     // Conflito de telefone — retorna o existente
     if (error.code === '23505') {
-      const { data: existing } = await supabase
+      const { data: existing, error: existingError } = await supabase
         .from('tutores')
         .select('id, nome, telefone')
         .eq('telefone', telefone)
-        .single()
+        .maybeSingle()
+      if (existingError || !existing) {
+        return NextResponse.json(
+          { erro: true, mensagem: 'Falha ao buscar tutor existente. Tente novamente em instantes.' },
+          { status: 500 },
+        )
+      }
       return NextResponse.json(existing, { status: 200 })
     }
     return NextResponse.json({ error: error.message }, { status: 500 })

@@ -35,13 +35,25 @@ export async function GET(request: NextRequest) {
   const digits  = telefone.replace(/\D/g, '')
   const telNorm = normalizeTelefone(digits)
 
-  // Busca tutor pelo telefone
-  const { data: tutor } = await supabase
+  // Busca tutor pelo telefone. maybeSingle (não single): zero linhas é um caso
+  // legítimo (tutor não cadastrado ainda), não deve virar erro.
+  const { data: tutor, error: tutorError } = await supabase
     .from('tutores')
     .select('id')
     .or(`telefone.eq.${telNorm},telefone.eq.${digits}`)
-    .limit(1)
-    .single()
+    .maybeSingle()
+
+  // Falha real na consulta (rede/banco) é diferente de "tutor não existe" —
+  // sem essa distinção, uma falha pontual fazia a IA achar que o cliente não
+  // tinha NENHUM agendamento, mesmo quando tinha um bem ativo (caso real:
+  // Leonisia/Gringa, 21/09/2026, revisão que já estava marcada sumiu da
+  // resposta e gerou uma conversa inteira de confusão).
+  if (tutorError) {
+    return NextResponse.json(
+      { erro: true, mensagem: 'Falha ao consultar tutor. Tente novamente em instantes.' },
+      { status: 500 },
+    )
+  }
 
   if (!tutor) {
     return NextResponse.json({ agendamentos: [] })

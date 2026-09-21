@@ -28,22 +28,28 @@ export async function POST(request: NextRequest) {
   const digits  = telefone.replace(/\D/g, '')
   const telNorm = normalizeTelefone(digits)
 
-  const { data: tutor } = await supabase
+  const { data: tutor, error: tutorError } = await supabase
     .from('tutores')
     .select('id')
     .or(`telefone.eq.${telNorm},telefone.eq.${digits}`)
     .maybeSingle()
 
+  if (tutorError) {
+    return NextResponse.json({ erro: true, mensagem: 'Falha ao consultar tutor. Tente novamente em instantes.' }, { status: 500 })
+  }
   if (!tutor) {
     return NextResponse.json({ error: 'Tutor não encontrado.' }, { status: 404 })
   }
 
-  const { data: laudo } = await supabase
+  const { data: laudo, error: laudoError } = await supabase
     .from('laudos')
     .select('id, tutor_id, nome_pet, filename, original_name')
     .eq('id', laudoId)
     .maybeSingle()
 
+  if (laudoError) {
+    return NextResponse.json({ erro: true, mensagem: 'Falha ao consultar laudo. Tente novamente em instantes.' }, { status: 500 })
+  }
   if (!laudo || laudo.tutor_id !== tutor.id) {
     // Não vaza existência de laudos de outros tutores.
     return NextResponse.json({ error: 'Laudo não encontrado para este tutor.' }, { status: 404 })

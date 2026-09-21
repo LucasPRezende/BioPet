@@ -240,10 +240,13 @@ export async function executarTool(
     case 'consultar_precos':
       return chamarApi('/api/agente/precos', 'GET')
     case 'listar_veterinarios': {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('veterinarios')
         .select('id, nome')
         .order('nome')
+      // Não pode virar "nenhum veterinário cadastrado" numa falha de consulta —
+      // a IA prosseguiria sem vet_id achando que a lista está genuinamente vazia.
+      if (error) return { erro: true, mensagem: 'Falha ao consultar veterinários. Tente novamente.' }
       return { veterinarios: data ?? [] }
     }
     case 'horarios_livres':
