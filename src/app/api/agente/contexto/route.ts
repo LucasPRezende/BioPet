@@ -18,11 +18,22 @@ export async function GET(request: NextRequest) {
   const digits  = telefone.replace(/\D/g, '')
   const telNorm = normalizeTelefone(digits)
 
-  const { data: tutor } = await supabase
+  const { data: tutor, error: tutorError } = await supabase
     .from('tutores')
     .select('id, nome, telefone, atendimento_humano, atendimento_humano_ate')
     .or(`telefone.eq.${telNorm},telefone.eq.${digits}`)
     .maybeSingle()
+
+  // Distinguir "não achou" (tutor null, sem erro — genuinamente novo) de uma
+  // falha real na consulta: sem isso, um erro pontual de rede/banco faz a IA
+  // achar que um cliente EXISTENTE é novo e tentar cadastrar de novo (risco
+  // de tutor duplicado).
+  if (tutorError) {
+    return NextResponse.json(
+      { erro: true, mensagem: 'Falha ao consultar tutor. Tente novamente em instantes.' },
+      { status: 500 },
+    )
+  }
 
   if (!tutor) {
     return NextResponse.json({ tutor: null, pets: [], atendimento_humano: false })
@@ -41,11 +52,18 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const { data: pets } = await supabase
+  const { data: pets, error: petsError } = await supabase
     .from('pets')
     .select('id, nome, especie, raca, sexo, falecido, falecido_em')
     .eq('tutor_id', tutor.id)
     .order('nome')
+
+  if (petsError) {
+    return NextResponse.json(
+      { erro: true, mensagem: 'Falha ao consultar pets do tutor. Tente novamente em instantes.' },
+      { status: 500 },
+    )
+  }
 
   const todosOsPets   = pets ?? []
   const petsAtivos    = todosOsPets.filter(p => !p.falecido)

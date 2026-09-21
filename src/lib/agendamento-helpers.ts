@@ -84,12 +84,17 @@ export async function verificarConflito(
   const novaIni = new Date(dataHora)
   const novaFim = new Date(novaIni.getTime() + duracaoMin * 60_000)
 
-  const { data: existentes } = await supabase
+  const { data: existentes, error } = await supabase
     .from('agendamentos')
     .select('id, data_hora, duracao_minutos, encaixe')
     .gte('data_hora', `${diaStr}T00:00:00`)
     .lte('data_hora', `${diaStr}T23:59:59`)
     .neq('status', 'cancelado')
+
+  // Não pode tratar falha de consulta como "sem conflito" — isso permitiria
+  // dois agendamentos no mesmo horário. Lança pra o handler da rota virar um
+  // 500 explícito em vez de um agendamento criado silenciosamente sobreposto.
+  if (error) throw new Error(`verificarConflito: falha ao consultar agendamentos — ${error.message}`)
 
   const conflito = (existentes ?? []).find(ag => {
     if (ignorarEncaixe && ag.encaixe) return false

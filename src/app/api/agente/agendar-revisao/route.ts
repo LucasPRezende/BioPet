@@ -72,11 +72,17 @@ export async function POST(request: NextRequest) {
   }
 
   const tiposNoAgendamento = original.tipo_exame.split(',').map((t: string) => t.trim())
-  const { data: configs } = await supabase
+  const { data: configs, error: configsError } = await supabase
     .from('revisao_config')
     .select('*')
     .in('tipo_exame', tiposNoAgendamento)
     .eq('permite_revisao', true)
+  if (configsError) {
+    return NextResponse.json(
+      { erro: true, mensagem: 'Falha ao consultar configuração de revisão. Tente novamente em instantes.' },
+      { status: 500 },
+    )
+  }
   const config = tiposNoAgendamento
     .map((t: string) => (configs ?? []).find(c => c.tipo_exame === t))
     .find(Boolean) ?? null

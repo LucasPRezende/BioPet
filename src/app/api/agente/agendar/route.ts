@@ -22,10 +22,13 @@ type ExameAgente = ItemRaioX
 async function resolverDuracoes(tipos: string[]): Promise<Map<string, number>> {
   const m = new Map<string, number>()
   if (tipos.length === 0) return m
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('comissoes_exame')
     .select('tipo_exame, duracao_minutos')
     .in('tipo_exame', Array.from(new Set(tipos)))
+  // Não pode cair pro default de 30min silenciosamente numa falha de consulta —
+  // duração errada pode calcular horário especial/preço errado sem avisar ninguém.
+  if (error) throw new Error(`resolverDuracoes: falha ao consultar comissoes_exame — ${error.message}`)
   for (const r of data ?? []) m.set(r.tipo_exame, r.duracao_minutos ?? 30)
   return m
 }

@@ -28,7 +28,13 @@ export async function PATCH(request: NextRequest) {
     .eq('id', id)
     .single()
 
-  if (fetchError || !atual) {
+  if (fetchError) {
+    return NextResponse.json(
+      { erro: true, mensagem: 'Falha ao consultar agendamento. Tente novamente em instantes.' },
+      { status: 500 },
+    )
+  }
+  if (!atual) {
     return NextResponse.json({ error: 'Agendamento não encontrado.' }, { status: 404 })
   }
 

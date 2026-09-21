@@ -20,11 +20,20 @@ export async function GET(request: NextRequest) {
   const telNorm = normalizeTelefone(digits)
 
   // Busca tutor pelo telefone (aceita com ou sem 55)
-  const { data: tutor } = await supabase
+  const { data: tutor, error: tutorError } = await supabase
     .from('tutores')
     .select('id')
     .or(`telefone.eq.${telNorm},telefone.eq.${digits}`)
     .maybeSingle()
+
+  // Falha real na consulta não pode virar "sem laudo nenhum" pro cliente —
+  // ele receberia a informação errada de que não tem nada disponível.
+  if (tutorError) {
+    return NextResponse.json(
+      { erro: true, mensagem: 'Falha ao consultar tutor. Tente novamente em instantes.' },
+      { status: 500 },
+    )
+  }
 
   if (!tutor) {
     return NextResponse.json({ tem_laudo: false, laudos: [], pendentes: [] })

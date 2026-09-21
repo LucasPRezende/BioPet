@@ -55,7 +55,13 @@ export async function PATCH(request: NextRequest) {
     .eq('id', id)
     .single()
 
-  if (fetchError || !atual) {
+  if (fetchError) {
+    return NextResponse.json(
+      { erro: true, mensagem: 'Falha ao consultar agendamento. Tente novamente em instantes.' },
+      { status: 500 },
+    )
+  }
+  if (!atual) {
     return NextResponse.json({ error: 'Agendamento não encontrado.' }, { status: 404 })
   }
 
@@ -84,13 +90,22 @@ export async function PATCH(request: NextRequest) {
     const novaFim    = new Date(novaInicio.getTime() + (atual.duracao_minutos ?? 30) * 60_000)
     const diaStr     = (nova_data_hora as string).split('T')[0]
 
-    const { data: existentes } = await supabase
+    const { data: existentes, error: conflitoError } = await supabase
       .from('agendamentos')
       .select('id, data_hora, duracao_minutos')
       .gte('data_hora', `${diaStr}T00:00:00`)
       .lte('data_hora', `${diaStr}T23:59:59`)
       .neq('status', 'cancelado')
       .neq('id', id)
+
+    // Não pode seguir sem essa checagem — poderia dar dois agendamentos no
+    // mesmo horário se a consulta falhar silenciosamente e "achar" que está livre.
+    if (conflitoError) {
+      return NextResponse.json(
+        { erro: true, mensagem: 'Falha ao checar conflito de horário. Tente novamente em instantes.' },
+        { status: 500 },
+      )
+    }
 
     const conflito = (existentes ?? []).find(ag => {
       const agInicio = new Date(ag.data_hora)
