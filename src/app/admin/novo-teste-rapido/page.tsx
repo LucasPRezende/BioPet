@@ -313,6 +313,7 @@ function NovoTesteRapidoInner() {
       agendamento_id:     agendamentoId ? Number(agendamentoId) : null,
       preco_exame:        totalPix,
       comissao:           totalComissao,
+      testes_ids:         incluidosOrdenados.map(c => c.id),
     }
 
     const res = await fetch('/api/laudos/gerar-teste-rapido', {

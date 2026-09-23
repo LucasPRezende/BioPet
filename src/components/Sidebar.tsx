@@ -49,6 +49,7 @@ const NAV: NavGroup[] = [
     items: [
       { icon: '📊', label: 'Dashboard',  href: '/admin/dashboard', adminOnly: true },
       { icon: '💰', label: 'Preços',     href: '/admin/comissoes', adminOnly: true },
+      { icon: '📦', label: 'Estoque',    href: '/admin/estoque',   adminOnly: true },
       { icon: '🩸', label: 'Extrações',  href: '/admin/extracoes'  },
     ],
   },

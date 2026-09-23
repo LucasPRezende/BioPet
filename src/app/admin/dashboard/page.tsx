@@ -32,6 +32,8 @@ interface Resumo {
 }
 
 interface Alertas {
+  estoque_baixo?:              { id: number; nome: string; unidade: string; estoque: number; reservado: number; disponivel: number; estoque_minimo: number }[]
+  estoque_validade?:           { id: number; nome: string; validade: string; vencido: boolean }[]
   laudos_sem_agendamento:      number
   falta_laudo:                 number
   falta_laudo_lista:           { id: number; tipo_exame: string; data_hora: string; pet_nome: string }[]
@@ -670,7 +672,10 @@ export default function DashboardPage() {
     ? inicio.split('-').reverse().join('/')
     : `${inicio.split('-').reverse().join('/')} — ${fim.split('-').reverse().join('/')}`
 
-  const hasAlertas = alertas && (alertas.laudos_sem_agendamento > 0 || alertas.falta_laudo > 0 || alertas.falta_pagamento > 0)
+  const estoqueBaixo    = alertas?.estoque_baixo    ?? []
+  const estoqueValidade = alertas?.estoque_validade ?? []
+  const hasAlertas = alertas && (alertas.laudos_sem_agendamento > 0 || alertas.falta_laudo > 0 || alertas.falta_pagamento > 0
+    || estoqueBaixo.length > 0 || estoqueValidade.length > 0)
 
   // Comissão de teste rápido que a BioPet ainda deve a clínicas parceiras
   // (recebimento foi direto — ver [[feature_comissao_clinica_biopet_direto]]).
@@ -756,6 +761,39 @@ export default function DashboardPage() {
                     ))}
                   </div>
                 )}
+              </div>
+            )}
+            {(estoqueBaixo.length > 0 || estoqueValidade.length > 0) && (
+              <div className="bg-orange-50 border border-orange-200 border-l-4 border-l-orange-600 rounded-xl px-5 py-3">
+                <div className="flex items-center gap-3">
+                  <span className="text-orange-500 text-lg">📦</span>
+                  <p className="text-sm font-semibold text-orange-800 flex-1">
+                    Estoque de consumíveis
+                    {estoqueBaixo.length > 0 && ` — ${estoqueBaixo.length} ${estoqueBaixo.length > 1 ? 'itens' : 'item'} para repor`}
+                    {estoqueValidade.length > 0 && ` — ${estoqueValidade.length} com validade próxima`}
+                  </p>
+                  <Link href="/admin/estoque" className="text-xs text-orange-700 underline font-semibold whitespace-nowrap">Ver estoque →</Link>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {estoqueBaixo.map(c => (
+                    <span key={`b${c.id}`} className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
+                      c.disponivel < 0 ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-800'
+                    }`}>
+                      {c.disponivel < 0 ? '🔴' : '🟠'} {c.nome}: {c.estoque} em estoque
+                      {c.reservado > 0 && ` · ${c.reservado} agendado${c.reservado > 1 ? 's' : ''}`}
+                      {c.disponivel < 0
+                        ? ` → faltam ${-c.disponivel}`
+                        : c.estoque_minimo > 0 ? ` (mín. ${c.estoque_minimo})` : ''}
+                    </span>
+                  ))}
+                  {estoqueValidade.map(c => (
+                    <span key={`v${c.id}`} className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
+                      c.vencido ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800'
+                    }`}>
+                      ⏳ {c.nome}: {c.vencido ? 'vencido em' : 'vence'} {formatDate(c.validade)}
+                    </span>
+                  ))}
+                </div>
               </div>
             )}
             {alertas.falta_pagamento > 0 && (

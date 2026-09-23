@@ -5,6 +5,7 @@ import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
 import { generateTesteRapidoPDF, type TesteRapidoPDFData } from '@/lib/generate-teste-rapido-pdf'
 import { savePdf, deletePdf } from '@/lib/pdf-storage'
 import { jaTemLaudo } from '@/lib/laudo-duplicado'
+import { baixarConsumoLaudo } from '@/lib/estoque'
 
 export async function POST(request: NextRequest) {
   const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value
@@ -27,6 +28,7 @@ export async function POST(request: NextRequest) {
     agendamento_id: number | null
     preco_exame:    number | null
     comissao:       number | null
+    testes_ids?:    number[]        // testes rápidos do laudo — dão baixa no estoque
   }
   try {
     body = await request.json()
@@ -36,6 +38,9 @@ export async function POST(request: NextRequest) {
 
   const { pdfData, tutor, telefone, sexo, raca, medico_responsavel, data_laudo,
           veterinario_id, tutor_id, pet_id, agendamento_id, preco_exame, comissao } = body
+  const testesIds = Array.isArray(body.testes_ids)
+    ? body.testes_ids.map(Number).filter(n => Number.isInteger(n) && n > 0)
+    : []
 
   if (!pdfData?.nome_pet || !pdfData?.especie || !tutor || !telefone) {
     return NextResponse.json({ error: 'Campos obrigatórios ausentes.' }, { status: 400 })
@@ -90,6 +95,14 @@ export async function POST(request: NextRequest) {
     if (error) {
       await deletePdf(filename)
       throw new Error(error.message)
+    }
+
+    // Baixa de estoque + custo do laudo. Nunca derruba a emissão: o laudo já
+    // está salvo, então uma falha aqui só fica registrada no log.
+    try {
+      data.custo_exame = await baixarConsumoLaudo(data.id, testesIds, session.userId)
+    } catch (err) {
+      console.error(`[gerar-teste-rapido] falha na baixa de estoque do laudo ${data.id}:`, err)
     }
 
     // Conclui o agendamento quando todos os laudos foram emitidos

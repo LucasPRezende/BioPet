@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
+import { resumoEstoque, precisaRepor, DIAS_ALERTA_VALIDADE } from '@/lib/estoque'
 
 function subtract2BusinessDays(from: Date, feriadoSet: Set<string>): Date {
   const d = new Date(from)
@@ -84,7 +85,33 @@ export async function GET(request: NextRequest) {
     .neq('forma_pagamento', 'gratuito')
     .order('data_hora', { ascending: true })
 
+  // 4) Estoque de consumíveis: abaixo do mínimo (ou negativo) e lotes com
+  //    validade vencida / vencendo. Falha aqui não derruba os outros alertas.
+  let estoqueBaixo: { id: number; nome: string; unidade: string; estoque: number; reservado: number; disponivel: number; estoque_minimo: number }[] = []
+  let validadeProxima: { id: number; nome: string; validade: string; vencido: boolean }[] = []
+  try {
+    const consumiveis = (await resumoEstoque()).filter(c => c.ativo)
+    const limite = new Date(hoje)
+    limite.setDate(limite.getDate() + DIAS_ALERTA_VALIDADE)
+    const limiteStr = limite.toISOString().slice(0, 10)
+    // Considera os kits já comprometidos com agendamentos. Consumível sem
+    // estoque, sem mínimo e sem agendamento não entra: é só cadastro vazio.
+    estoqueBaixo = consumiveis
+      .filter(precisaRepor)
+      .map(c => ({
+        id: c.id, nome: c.nome, unidade: c.unidade, estoque: c.estoque,
+        reservado: c.reservado, disponivel: c.disponivel, estoque_minimo: c.estoque_minimo,
+      }))
+    validadeProxima = consumiveis
+      .filter(c => c.proxima_validade && c.proxima_validade <= limiteStr)
+      .map(c => ({ id: c.id, nome: c.nome, validade: c.proxima_validade!, vencido: c.proxima_validade! < hojeStr }))
+  } catch (err) {
+    console.error('[dashboard/alertas] estoque:', err)
+  }
+
   return NextResponse.json({
+    estoque_baixo:             estoqueBaixo,
+    estoque_validade:          validadeProxima,
     laudos_sem_agendamento:    laudosSemAg ?? 0,
     falta_laudo:               faltaLaudoLista.length,
     falta_laudo_lista:         faltaLaudoLista,

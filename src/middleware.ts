@@ -3,7 +3,7 @@ import { parseVetSession } from '@/lib/vet-auth'
 import { parseSystemSession } from '@/lib/system-auth'
 import { parseClinicaSession } from '@/lib/clinica-auth'
 
-const ADMIN_ONLY = ['/admin/dashboard', '/admin/usuarios', '/admin/comissoes']
+const ADMIN_ONLY = ['/admin/dashboard', '/admin/usuarios', '/admin/comissoes', '/admin/estoque']
 
 // Constrói URL de redirect a partir dos headers do proxy — nextUrl pode retornar localhost em self-hosted
 function redir(request: NextRequest, path: string) {
