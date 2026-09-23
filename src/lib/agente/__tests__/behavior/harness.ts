@@ -71,6 +71,13 @@ const HORARIOS_LIVRES = [
   { hora: '17:30', especial: true },
 ]
 
+// Espelha "horarios_para_sugerir_tarde" da API real (route.ts): tarde
+// filtrada até 15h — é isso que a IA deve usar ao MONTAR uma lista
+// espontânea de horários de tarde (ver regra do teto de 15h no orquestrador).
+const HORARIOS_PARA_SUGERIR_TARDE = HORARIOS_LIVRES
+  .map(h => h.hora)
+  .filter(hora => hora >= '12:00' && hora <= '15:00')
+
 /** Data ISO (YYYY-MM-DD) relativa a hoje — evita fixture com prazo fixo que expira sozinho com o tempo real. */
 function isoOffset(dias: number): string {
   const d = new Date()
@@ -162,6 +169,7 @@ function fakeResultado(nome: string, input: Record<string, any>, opts: { novoCli
         expediente: { inicio: '08:00', fim: '18:00' },
         total_livres: HORARIOS_LIVRES.length,
         horarios_livres: HORARIOS_LIVRES,
+        horarios_para_sugerir_tarde: HORARIOS_PARA_SUGERIR_TARDE,
       }
     case 'cadastrar_tutor':     return { id: 1, nome: input.nome, telefone: TELEFONE }
     case 'cadastrar_pet': {

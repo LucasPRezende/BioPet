@@ -316,6 +316,39 @@ run('comportamento do agente (IA real, tools fake)', () => {
     expect(t).not.toMatch(/15h|15:00|15h30|15:30|16h|16:00|16h30|16:30/)
   })
 
+  // Pedido do Lucas (23/09/2026): mesmo quando o cliente pede tarde
+  // explicitamente, a lista de sugestões não pode passar de 15h — corta
+  // 15h30/16h/16h30 etc. mesmo que estejam livres. Mas se o cliente pedir um
+  // horário específico depois das 15h, a IA ainda pode conferir e agendar.
+  it('cliente pede tarde: lista de sugestões não passa de 15h', OPTS, async () => {
+    const c = novaConversa()
+    await c.enviar(
+      'Meu nome é Maria, quero marcar ultrassom abdominal do Rex na quinta-feira à tarde.',
+    )
+    for (let i = 0; i < 3 && !c.nomes().includes('horarios_livres'); i++) {
+      await c.enviar('Sou cliente sim. Qualquer horário de tarde serve.')
+    }
+
+    expect(c.nomes()).toContain('horarios_livres')
+    const t = c.textos()
+    expect(t).toMatch(/15h|15:00/)
+    expect(t).not.toMatch(/15h30|15:30|16h|16:00|16h30|16:30|17h|17:00|17h30|17:30/)
+  })
+
+  it('cliente pede horário específico depois das 15h: confere e agenda normalmente', OPTS, async () => {
+    const c = novaConversa()
+    await c.enviar(
+      'Meu nome é Maria, o Rex é SRD. Quero marcar ultrassom abdominal do Rex na quinta-feira às 16h.',
+    )
+    for (let i = 0; i < 6 && !c.nomes().includes('agendar'); i++) {
+      await c.enviar('Sim, 16h mesmo. Pagamento no PIX, pode confirmar e cadastrar tudo.')
+    }
+
+    expect(c.nomes()).toContain('agendar')
+    const chamadas = c.calls.filter((x) => x.nome === 'agendar')
+    expect(chamadas.some((ch) => (ch.input as any)?.data_hora?.includes('16:00'))).toBe(true)
+  })
+
   // Caso real: perguntada de forma genérica "vocês atendem fim de semana?" (antes
   // de qualquer tentativa de marcar algo específico), a IA respondeu "não
   // atendemos aos sábados/domingos, só de segunda a sexta" — sem chamar NENHUMA

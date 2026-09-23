@@ -83,6 +83,16 @@ export async function GET(request: NextRequest) {
   const almocoFim = new Date(`${data}T00:00:00`)
   almocoFim.setHours(13, 30, 0, 0)
 
+  // Teto de 15h na lista de sugestões de tarde (pedido do Lucas, 23/09/2026):
+  // a IA não deve listar horários de tarde depois das 15h como sugestão
+  // espontânea, mas ainda pode confirmar um horário específico que o cliente
+  // peça depois disso. Por isso NÃO removemos nada de "horarios_livres" (a
+  // lista completa continua servindo pra checar um horário específico) — em
+  // vez disso mandamos "horarios_para_sugerir_tarde" já pronta e filtrada,
+  // pra IA não precisar comparar hora nenhuma de cabeça nem confundir com o
+  // campo "especial" (que é sobre preço, não sobre a lista de sugestão).
+  const TETO_SUGESTAO_TARDE = '15:00'
+
   const horarios_livres: { hora: string; especial: boolean }[] = []
   const cursor = new Date(expedienteInicio)
 
@@ -109,6 +119,10 @@ export async function GET(request: NextRequest) {
     cursor.setMinutes(cursor.getMinutes() + intervalo)
   }
 
+  const horarios_para_sugerir_tarde = horarios_livres
+    .map(h => h.hora)
+    .filter(hora => hora >= '12:00' && hora <= TETO_SUGESTAO_TARDE)
+
   return NextResponse.json({
     data,
     dia_semana: diaDaSemana(data),
@@ -116,5 +130,6 @@ export async function GET(request: NextRequest) {
     expediente: { inicio, fim },
     total_livres: horarios_livres.length,
     horarios_livres,
+    horarios_para_sugerir_tarde,
   })
 }
