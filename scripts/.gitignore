@@ -1,0 +1,24 @@
+# Scripts avulsos ficam FORA do git por padrao.
+#
+# Este diretorio acumula scripts de uso unico (recuperacao de dados, consultas
+# manuais, sync de VPS) que costumam nascer com credencial em texto puro. Em vez
+# de listar arquivo por arquivo no .gitignore da raiz, aqui a regra e invertida:
+# tudo e ignorado e so entra no git o que for explicitamente liberado abaixo.
+#
+# Para versionar um script novo: garanta que ele nao tem segredo nenhum
+# (le tudo de process.env, via scripts/env.ts) e acrescente um "!nome.ts" na lista.
+
+*
+
+!.gitignore
+!env.ts
+!migrate.mjs
+!seed-admins.ts
+!pricing-equivalence.ts
+!pricing-invariant.ts
+!test-fase2.ts
+!test-reconciliar.ts
+
+# Hooks de git versionados (git config core.hooksPath scripts/hooks)
+!hooks/
+!hooks/*

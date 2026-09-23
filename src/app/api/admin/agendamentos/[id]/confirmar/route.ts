@@ -51,7 +51,7 @@ export async function POST(
       clinica_id,
       tutores(nome, telefone),
       pets(nome, especie, raca),
-      clinicas(nome, telefone)
+      clinicas!agendamentos_clinica_id_fkey(nome, telefone)
     `)
     .eq('id', agId)
     .single()

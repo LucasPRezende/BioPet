@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
 import { generateBioquimicaPDF, type BioquimicaPDFData } from '@/lib/generate-bioquimica-pdf'
 import { savePdf, deletePdf } from '@/lib/pdf-storage'
+import { jaTemLaudo } from '@/lib/laudo-duplicado'
 
 async function getComissao() {
   const { data } = await supabase
@@ -53,14 +54,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Nenhum resultado informado.' }, { status: 400 })
   }
 
-  if (agendamento_id) {
-    const { data: existente } = await supabase
-      .from('laudos').select('id')
-      .eq('agendamento_id', agendamento_id)
-      .eq('tipo_exame', 'Hemogasometria')
-      .maybeSingle()
-    if (existente)
-      return NextResponse.json({ error: 'Já existe um laudo de Hemogasometria para este agendamento.' }, { status: 409 })
+  if (agendamento_id && await jaTemLaudo(agendamento_id, 'Hemogasometria')) {
+    return NextResponse.json({ error: 'Já existe um laudo de Hemogasometria para este agendamento.' }, { status: 409 })
   }
 
   try {

@@ -1,10 +1,16 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { verifyAgentOrSystemSession } from '@/lib/agent-auth'
 
 export const dynamic = 'force-dynamic'
 
-// Rota pública — sem autenticação
-export async function GET() {
+// Tabela de preços: lida pelo agente (chave) e pela tela de admin (sessão).
+// Já foi aberta à internet — não é informação para ficar pública.
+export async function GET(request: NextRequest) {
+  if (!(await verifyAgentOrSystemSession(request))) {
+    return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 })
+  }
+
   const [{ data, error }, { data: bioData }] = await Promise.all([
     supabase
       .from('comissoes_exame')

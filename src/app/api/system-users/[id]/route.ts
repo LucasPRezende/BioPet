@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { hashPassword } from '@/lib/vet-auth'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
+import { invalidarConta } from '@/lib/session-cache'
 
 async function requireAdmin(request: NextRequest) {
   const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value
@@ -82,6 +83,10 @@ export async function PATCH(
     }
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
+
+  // Derruba o cache para que desativar/rebaixar/resetar senha valha já na
+  // próxima requisição desta instância (outras respeitam o TTL de 60s).
+  invalidarConta('system_users', id)
 
   return NextResponse.json(data)
 }

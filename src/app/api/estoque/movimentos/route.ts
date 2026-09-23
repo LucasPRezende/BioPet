@@ -1,29 +1,54 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
+import { consumir } from '@/lib/estoque'
 
-async function requireAuth(request: NextRequest) {
+async function requireAdmin(request: NextRequest) {
   const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value
   if (!cookie) return null
-  return parseSystemSession(cookie)
+  const session = await parseSystemSession(cookie)
+  if (!session || session.role !== 'admin') return null
+  return session
 }
 
-// Ledger de movimentos — filtro opcional por insumo. Ordenado do mais recente.
+// GET — saídas de estoque, mais recentes primeiro. ?consumivel_id= filtra.
 export async function GET(request: NextRequest) {
-  const session = await requireAuth(request)
-  if (!session) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 })
+  const admin = await requireAdmin(request)
+  if (!admin) return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 })
 
-  const insumoId = request.nextUrl.searchParams.get('insumo_id')
-
+  const consumivelId = Number(new URL(request.url).searchParams.get('consumivel_id')) || null
   let query = supabase
-    .from('insumo_movimento')
-    .select('*, insumos(nome)')
+    .from('consumivel_movimentos')
+    .select('*, consumiveis(nome, unidade), laudos(nome_pet, tutor), system_users(nome), consumivel_compras(data_compra)')
     .order('criado_em', { ascending: false })
-    .limit(200)
-
-  if (insumoId) query = query.eq('insumo_id', parseInt(insumoId))
+    .order('id', { ascending: false })
+    .limit(300)
+  if (consumivelId) query = query.eq('consumivel_id', consumivelId)
 
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
+  return NextResponse.json(data ?? [])
+}
+
+// POST — baixa manual (perda, vencido, teste repetido, uso interno...)
+export async function POST(request: NextRequest) {
+  const admin = await requireAdmin(request)
+  if (!admin) return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 })
+
+  const body = await request.json().catch(() => null)
+  const { consumivel_id, quantidade, observacao } = body ?? {}
+
+  const qtd = Number(quantidade)
+  if (!Number(consumivel_id))             return NextResponse.json({ error: 'Selecione o consumível.' }, { status: 400 })
+  if (!Number.isInteger(qtd) || qtd <= 0) return NextResponse.json({ error: 'Quantidade deve ser um número inteiro maior que zero.' }, { status: 400 })
+  if (!observacao?.trim())                return NextResponse.json({ error: 'Informe o motivo da baixa.' }, { status: 400 })
+
+  try {
+    const custo = await consumir(Number(consumivel_id), qtd, {
+      tipo: 'perda', observacao: observacao.trim(), userId: admin.userId,
+    })
+    return NextResponse.json({ custo }, { status: 201 })
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Erro ao registrar a baixa.' }, { status: 500 })
+  }
 }

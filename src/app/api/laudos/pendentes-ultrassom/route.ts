@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
       id, data_hora, tipo_exame, laudo_dispensado, is_revisao, laudo_revisao_solicitado,
       pets(nome, especie, raca, sexo, pelagem, data_nascimento, castrado, temperamento),
       tutores(nome, telefone),
-      veterinarios(nome)
+      veterinarios!veterinario_id(nome)
     `)
     .in('status', ['agendado', 'concluído', 'em atendimento'])
     .lt('data_hora', agoraISO)

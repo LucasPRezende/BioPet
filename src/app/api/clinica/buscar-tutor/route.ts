@@ -4,6 +4,8 @@ import { supabase } from '@/lib/supabase'
 import { parseClinicaSession, CLINICA_COOKIE_NAME } from '@/lib/clinica-auth'
 import { sanitizeOrTerm } from '@/lib/search-utils'
 import { normalizeTelefone } from '@/lib/telefone'
+// Telemetria temporária — remover junto com o bloco marcado lá embaixo.
+import { registrarBusca, medirEscopoDoNome, type FormatoDaBusca } from '@/lib/telemetria-busca-tutor'
 
 export async function GET(request: NextRequest) {
   const token = (await cookies()).get(CLINICA_COOKIE_NAME)?.value
@@ -26,7 +28,7 @@ export async function GET(request: NextRequest) {
   if (q) {
     let query = supabase
       .from('tutores')
-      .select('id, nome, telefone, cpf, pets(id, nome, especie, raca)')
+      .select('id, nome, telefone, cpf, pets(id, nome, especie, raca, falecido)')
       .order('nome')
       .limit(8)
 
@@ -40,7 +42,32 @@ export async function GET(request: NextRequest) {
     }
 
     const { data } = await query
-    return NextResponse.json(data ?? [])
+
+    // ─── Telemetria temporária — REMOVER depois da decisão sobre o escopo ───
+    // Não altera a resposta. Dispara solta para não atrasar a requisição.
+    const formato: FormatoDaBusca = {
+      clinicaId:  session.clinicaId,
+      ramo:       isPhone ? 'telefone' : 'nome',
+      palavras:   q.split(/\s+/).filter(Boolean).length,
+      tamanho:    q.length,
+      digitos:    digits.length,
+      resultados: data?.length ?? 0,
+    }
+    if (isPhone) {
+      registrarBusca(formato)
+    } else {
+      void medirEscopoDoNome(formato, (data ?? []).map(t => t.id))
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
+    // Pet falecido não pode aparecer como opção de agendamento. O filtro é aqui
+    // (e não no select) porque o PostgREST não filtra linha embutida sem !inner,
+    // o que esconderia o tutor que só tem pet falecido.
+    const tutores = (data ?? []).map(t => {
+      const { pets, ...tutor } = t as { pets?: { falecido?: boolean | null }[] }
+      return { ...tutor, pets: (pets ?? []).filter(p => !p.falecido) }
+    })
+    return NextResponse.json(tutores)
   }
 
   // Busca direta por telefone — retorna { tutor, pets } (compatibilidade)
@@ -56,6 +83,7 @@ export async function GET(request: NextRequest) {
     .from('pets')
     .select('id, nome, especie, raca')
     .eq('tutor_id', tutor.id)
+    .not('falecido', 'is', true)   // a coluna é nullable: null e false continuam valendo
     .order('nome')
 
   return NextResponse.json({ tutor, pets: pets ?? [] })

@@ -55,9 +55,10 @@ const NAV: NavGroup[] = [
         children: [
           { icon: '📖', label: 'Catálogo', href: '/admin/labs' },
           { icon: '📦', label: 'Pedidos',  href: '/admin/labs/pedidos' },
-          { icon: '📋', label: 'Estoque',  href: '/admin/estoque' },
+          { icon: '🧫', label: 'Tubos e caixas', href: '/admin/labs/insumos' },
         ],
       },
+      { icon: '📦', label: 'Estoque',    href: '/admin/estoque',   adminOnly: true },
       { icon: '🩸', label: 'Extrações',  href: '/admin/extracoes'  },
     ],
   },

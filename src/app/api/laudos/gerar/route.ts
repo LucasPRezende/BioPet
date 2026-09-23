@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { generateLaudoPDF, type LaudoFormData } from '@/lib/generate-pdf'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
 import { savePdf, deletePdf } from '@/lib/pdf-storage'
+import { jaTemLaudo } from '@/lib/laudo-duplicado'
 
 async function getComissao(tipoExame: string | null) {
   if (!tipoExame) return { preco_exame: null, custo_exame: null, valor_comissao: null }
@@ -80,24 +81,11 @@ export async function POST(request: NextRequest) {
   }
 
   // Impede laudo duplicado para o mesmo agendamento+tipo_exame
-  if (agendamentoId) {
-    if (tipoExame) {
-      const [{ data: laudosDoTipo }, { data: examesDoTipo }] = await Promise.all([
-        supabase.from('laudos').select('id').eq('agendamento_id', agendamentoId).eq('tipo_exame', tipoExame),
-        supabase.from('agendamento_exames').select('id').eq('agendamento_id', agendamentoId).eq('tipo_exame', tipoExame),
-      ])
-      const laudosCount = (laudosDoTipo ?? []).length
-      const examesCount = Math.max(1, (examesDoTipo ?? []).length)
-      if (laudosCount >= examesCount) {
-        return NextResponse.json({ error: 'Este agendamento já possui um laudo para este exame.' }, { status: 409 })
-      }
-    } else {
-      const { data: existente } = await supabase
-        .from('laudos').select('id').eq('agendamento_id', agendamentoId).maybeSingle()
-      if (existente) {
-        return NextResponse.json({ error: 'Este agendamento já possui um laudo.' }, { status: 409 })
-      }
-    }
+  if (agendamentoId && await jaTemLaudo(Number(agendamentoId), tipoExame)) {
+    const msg = tipoExame
+      ? 'Este agendamento já possui um laudo para este exame.'
+      : 'Este agendamento já possui um laudo.'
+    return NextResponse.json({ error: msg }, { status: 409 })
   }
 
   try {

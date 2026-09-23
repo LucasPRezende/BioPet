@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await supabase
     .from('agendamentos')
-    .select('id, data_hora, tipo_exame, tutores(nome), pets(nome), clinicas(nome)')
+    .select('id, data_hora, tipo_exame, tutores(nome), pets(nome), clinicas!agendamentos_clinica_id_fkey(nome)')
     .eq('status', 'pendente')
     .gte('data_hora', inicioHoje)
     .order('data_hora')

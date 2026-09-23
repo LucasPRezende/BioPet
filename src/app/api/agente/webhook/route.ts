@@ -16,6 +16,7 @@ import { sendWhatsAppText, getBase64FromMedia } from '@/lib/evolution'
 import { transcreverAudio, lerImagemEncaminhamento } from '@/lib/agente/midia'
 import { classificarFromMe, registrarHumano, contextoPendente } from '@/lib/agente/outbound'
 import { montarInfoClienteNovo } from '@/lib/agente/revisoes-disponiveis'
+import { verificarSegredoWebhook, logarRecusa } from '@/lib/agente/webhook-auth'
 
 /**
  * Webhook de recepção do WhatsApp (Evolution API) — agente com IA.
@@ -235,6 +236,15 @@ async function tratarEnviada(msg: MensagemRecebida) {
 }
 
 export async function POST(request: NextRequest) {
+  // Segredo compartilhado ANTES de olhar o corpo: o `remoteJid` do payload é a
+  // identidade que o agente usa para cancelar/remarcar/enviar laudo, então um
+  // POST anônimo equivaleria a se passar por qualquer tutor.
+  const auth = verificarSegredoWebhook(request)
+  if (!auth.ok) {
+    logarRecusa(auth.motivo)
+    return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 })
+  }
+
   const body = await request.json().catch(() => null)
   const msg = parseEvolutionWebhook(body)
 

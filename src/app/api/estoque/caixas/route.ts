@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
 
   let body: {
     nome?: string; altura_cm?: number; largura_cm?: number; comprimento_cm?: number
-    peso_kg?: number; kit_json?: { insumo_id: number; quantidade: number }[]
+    peso_kg?: number; kit_json?: { consumivel_id: number; quantidade: number }[]
   }
   try {
     body = await request.json()
@@ -67,7 +67,7 @@ export async function PUT(request: NextRequest) {
   let body: {
     id: number
     nome?: string; altura_cm?: number; largura_cm?: number; comprimento_cm?: number
-    peso_kg?: number; kit_json?: { insumo_id: number; quantidade: number }[]; ativo?: boolean
+    peso_kg?: number; kit_json?: { consumivel_id: number; quantidade: number }[]; ativo?: boolean
   }[]
   try {
     body = await request.json()

@@ -15,7 +15,7 @@ Novo Index/
 context-pdfs/.gemini-cache.json
 
 .vercel
-scripts/atualizar-env-vps.sh
+# scripts/ e ignorado por padrao (deny-by-default): ver scripts/.gitignore
 storage/laudos/
 storage/etiquetas-frete/
 

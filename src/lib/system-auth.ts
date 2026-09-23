@@ -5,8 +5,13 @@
 //   hmac = HMAC-SHA256(secret, "v2:userId:role:ps:exp:{pwdTag}")
 //   pwdTag = derivado do senha_hash atual → trocar a senha invalida sessões antigas
 // Cookie name: sys_session
+//
+// O role dentro do token é apenas dado assinado redundante (entra no HMAC).
+// A autorização usa o role LIDO DO BANCO na validação, junto com ativo — assim
+// rebaixar ou desativar alguém derruba a sessão em até 60s (TTL do cache), sem
+// depender da expiração do cookie nem da troca de senha.
 
-import { fetchSenhaHashFresh, getSenhaHashCached } from './session-cache'
+import { fetchContaFresh, getContaCached } from './session-cache'
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000 // 30 dias
 
@@ -52,8 +57,8 @@ export async function createSystemSession(
   role: string,
   primeiraSSenha: boolean,
 ): Promise<string> {
-  const senhaHash = await fetchSenhaHashFresh('system_users', userId)
-  const tag = await pwdTag(senhaHash)
+  const conta = await fetchContaFresh('system_users', userId)
+  const tag = await pwdTag(conta?.senha_hash)
   const ps  = primeiraSSenha ? '1' : '0'
   const exp = Date.now() + SESSION_TTL_MS
   const payload = `v2:${userId}:${role}:${ps}:${exp}`
@@ -74,15 +79,22 @@ export async function parseSystemSession(token: string): Promise<SystemSessionDa
   const exp = parseInt(expStr)
   if (isNaN(exp) || Date.now() > exp) return null
 
-  const senhaHash = await getSenhaHashCached('system_users', userId)
-  if (senhaHash === undefined) return null
+  const conta = await getContaCached('system_users', userId)
+  if (conta === undefined) return null
+  // Conta desativada: sessão morta, mesmo com cookie válido e não expirado.
+  // Mesmo critério do login (ativo nulo também barra, a coluna é nullable).
+  if (!conta.ativo) return null
 
-  const tag = await pwdTag(senhaHash)
+  const tag = await pwdTag(conta.senha_hash)
   const payload = `v2:${userId}:${role}:${ps}:${expStr}`
   const expectedHmac = await makeHmac(`${payload}:${tag}`)
   if (hmac !== expectedHmac) return null
 
-  return { userId, role, primeiraSSenha: ps === '1' }
+  // Papel do banco, não do cookie. Qualquer valor inesperado cai no menor
+  // privilégio ('user') em vez de herdar o que estava assinado no token.
+  const roleAtual = conta.role === 'admin' ? 'admin' : 'user'
+
+  return { userId, role: roleAtual, primeiraSSenha: ps === '1' }
 }
 
 export const SESSION_COOKIE_NAME = 'sys_session'

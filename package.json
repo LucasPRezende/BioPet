@@ -6,8 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "vitest run src/lib/agente/__tests__/unit",
-    "test:watch": "vitest src/lib/agente/__tests__/unit",
+    "test": "vitest run src/lib/agente/__tests__/unit src/lib/__tests__",
+    "test:watch": "vitest src/lib/agente/__tests__/unit src/lib/__tests__",
     "test:agent": "vitest run src/lib/agente/__tests__/behavior/agente.behavior.test.ts",
     "test:compare": "vitest run src/lib/agente/__tests__/behavior/comparar-modelos.test.ts",
     "test:transcricao": "vitest run src/lib/agente/__tests__/behavior/transcricao.test.ts"

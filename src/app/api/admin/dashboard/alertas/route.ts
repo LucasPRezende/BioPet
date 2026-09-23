@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
+import { resumoEstoque, precisaRepor, DIAS_ALERTA_VALIDADE } from '@/lib/estoque'
 
 function subtract2BusinessDays(from: Date, feriadoSet: Set<string>): Date {
   const d = new Date(from)
@@ -78,13 +79,39 @@ export async function GET(request: NextRequest) {
   // 3) Todos os agendamentos com pagamento pendente (não só hoje)
   const { data: pagPend } = await supabase
     .from('agendamentos')
-    .select('id, tipo_exame, valor, status_pagamento, data_hora, pets(nome), tutores(nome)')
+    .select('id, tipo_exame, valor, status_pagamento, pagamento_responsavel, data_hora, pets(nome), tutores(nome)')
     .in('status_pagamento', ['pendente', 'a_receber'])
     .neq('status', 'cancelado')
     .neq('forma_pagamento', 'gratuito')
     .order('data_hora', { ascending: true })
 
+  // 4) Estoque de consumíveis: abaixo do mínimo (ou negativo) e lotes com
+  //    validade vencida / vencendo. Falha aqui não derruba os outros alertas.
+  let estoqueBaixo: { id: number; nome: string; unidade: string; estoque: number; reservado: number; disponivel: number; estoque_minimo: number }[] = []
+  let validadeProxima: { id: number; nome: string; validade: string; vencido: boolean }[] = []
+  try {
+    const consumiveis = (await resumoEstoque()).filter(c => c.ativo)
+    const limite = new Date(hoje)
+    limite.setDate(limite.getDate() + DIAS_ALERTA_VALIDADE)
+    const limiteStr = limite.toISOString().slice(0, 10)
+    // Considera os kits já comprometidos com agendamentos. Consumível sem
+    // estoque, sem mínimo e sem agendamento não entra: é só cadastro vazio.
+    estoqueBaixo = consumiveis
+      .filter(precisaRepor)
+      .map(c => ({
+        id: c.id, nome: c.nome, unidade: c.unidade, estoque: c.estoque,
+        reservado: c.reservado, disponivel: c.disponivel, estoque_minimo: c.estoque_minimo,
+      }))
+    validadeProxima = consumiveis
+      .filter(c => c.proxima_validade && c.proxima_validade <= limiteStr)
+      .map(c => ({ id: c.id, nome: c.nome, validade: c.proxima_validade!, vencido: c.proxima_validade! < hojeStr }))
+  } catch (err) {
+    console.error('[dashboard/alertas] estoque:', err)
+  }
+
   return NextResponse.json({
+    estoque_baixo:             estoqueBaixo,
+    estoque_validade:          validadeProxima,
     laudos_sem_agendamento:    laudosSemAg ?? 0,
     falta_laudo:               faltaLaudoLista.length,
     falta_laudo_lista:         faltaLaudoLista,
@@ -95,6 +122,9 @@ export async function GET(request: NextRequest) {
       tipo_exame:      ag.tipo_exame,
       valor:           ag.valor,
       status_pagamento: ag.status_pagamento,
+      // 'clinica' = repasse devido pela clínica parceira (ela cobrou o tutor,
+      // ainda não repassou); qualquer outro valor = a BioPet cobra do tutor direto.
+      origem:          ag.pagamento_responsavel === 'clinica' ? 'clinica' : 'tutor',
       data_hora:       ag.data_hora,
       pet_nome:        (Array.isArray(ag.pets) ? ag.pets[0] : ag.pets as { nome: string } | null)?.nome ?? '—',
       vencido:         ag.data_hora.slice(0, 10) < hojeStr && Number(ag.valor ?? 0) > 0,

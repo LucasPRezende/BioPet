@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { supabase } from '@/lib/supabase'
 import { parseClinicaSession, CLINICA_COOKIE_NAME } from '@/lib/clinica-auth'
+import { ilikeOrFilter } from '@/lib/search-utils'
 
 export async function GET(request: NextRequest) {
   const session = (await cookies()).get(CLINICA_COOKIE_NAME)?.value
@@ -46,7 +47,8 @@ export async function GET(request: NextRequest) {
     .order('criado_em', { ascending: false })
 
   if (busca) {
-    query = query.or(`nome_pet.ilike.%${busca}%,tutor.ilike.%${busca}%`)
+    const filtroBusca = ilikeOrFilter(['nome_pet', 'tutor'], busca)
+    if (filtroBusca) query = query.or(filtroBusca)
   }
   if (vetId) {
     query = query.eq('veterinario_id', parseInt(vetId))

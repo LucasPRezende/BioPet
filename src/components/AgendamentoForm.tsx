@@ -21,6 +21,9 @@ interface ExameInfo {
   valor_especial_cartao: number | null
 }
 
+// `comissao` só vem pra admin; a clínica recebe `repasse_pix` já líquido
+// (preço PIX − comissão) — a margem em si não sai do backend. Ver
+// /api/comissoes/bioquimica.
 interface BioquimicaExame {
   id:           number
   nome:         string
@@ -28,6 +31,7 @@ interface BioquimicaExame {
   preco_pix:    number
   preco_cartao: number
   comissao?:    number
+  repasse_pix?: number
 }
 
 interface TesteRapidoExame {
@@ -36,11 +40,12 @@ interface TesteRapidoExame {
   descricao:    string | null
   preco_pix:    number
   preco_cartao: number
-  comissao:     number
+  comissao?:    number
+  repasse_pix?: number
 }
 
 interface VetOpt    { id: number; nome: string }
-interface PetOpt    { id: number; nome: string; especie: string | null; raca: string | null }
+interface PetOpt    { id: number; nome: string; especie: string | null; raca: string | null; falecido?: boolean }
 interface TutorInfo { id: number; nome: string | null; telefone: string; cpf?: string | null }
 
 export interface AgendamentoFormProps {
@@ -216,6 +221,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
   const [petInternado,         setPetInternado]         = useState(false)
   const [pagamentoResp,        setPagamentoResp]        = useState<'tutor' | 'clinica'>('tutor')
   const [clinicaId,            setClinicaId]            = useState('')
+  const [clinicaComissaoId,    setClinicaComissaoId]    = useState('')
   const [clinicas,             setClinicas]             = useState<{ id: number; nome: string }[]>([])
   const [formaPagamento,       setFormaPagamento]       = useState<'pix' | 'cartao'>('pix')
   const [entregaPagamento,     setEntregaPagamento]     = useState<'link' | 'presencial'>('link')
@@ -271,36 +277,38 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
     const b = bioquimicaExames.find(x => x.id === id)
     return s + (b ? (formaPagamento === 'cartao' ? b.preco_cartao : b.preco_pix) : 0)
   }, 0)
-  const totalBioquimicaPix = bioquimicaSelecionados.reduce((s, id) => {
-    const b = bioquimicaExames.find(x => x.id === id)
-    return s + (b?.preco_pix ?? 0)
-  }, 0)
   const totalTesteRapido  = testeRapidoSelecionados.reduce((s, id) => {
     const t = testeRapidoExames.find(x => x.id === id)
     return s + (t ? (formaPagamento === 'cartao' ? t.preco_cartao : t.preco_pix) : 0)
+  }, 0)
+  // Preço de tabela no pix — é o valor que a BioPet sugere que a clínica cobre
+  // do tutor quando ela mesma recebe (a comissão dela já está embutida aqui).
+  const totalBioquimicaPix = bioquimicaSelecionados.reduce((s, id) => {
+    const b = bioquimicaExames.find(x => x.id === id)
+    return s + (b?.preco_pix ?? 0)
   }, 0)
   const totalTesteRapidoPix = testeRapidoSelecionados.reduce((s, id) => {
     const t = testeRapidoExames.find(x => x.id === id)
     return s + (t?.preco_pix ?? 0)
   }, 0)
-  // Comissão da clínica coletora (abate o repasse quando o pagamento é pela clínica)
-  const totalComissaoTeste = testeRapidoSelecionados.reduce((s, id) => {
-    const t = testeRapidoExames.find(x => x.id === id)
-    return s + (t?.comissao ?? 0)
-  }, 0)
-  const totalComissaoBio = bioquimicaSelecionados.reduce((s, id) => {
-    const b = bioquimicaExames.find(x => x.id === id)
-    return s + (b?.comissao ?? 0)
-  }, 0)
+  // Repasse à BioPet quando quem recebe do tutor é a clínica: preço PIX menos a
+  // comissão da clínica coletora. O backend manda `repasse_pix` pronto (clínica)
+  // ou `comissao` (admin) — o total é o mesmo nos dois casos.
+  const repassePix = (x?: { preco_pix: number; comissao?: number; repasse_pix?: number }) =>
+    x ? (x.repasse_pix ?? Math.max(0, x.preco_pix - (x.comissao ?? 0))) : 0
+  const totalRepasseTeste = testeRapidoSelecionados.reduce((s, id) =>
+    s + repassePix(testeRapidoExames.find(x => x.id === id)), 0)
+  const totalRepasseBio = bioquimicaSelecionados.reduce((s, id) =>
+    s + repassePix(bioquimicaExames.find(x => x.id === id)), 0)
   const valorUnitarioAcrescimo = acrescimoExame
     ? calcularValorExame(acrescimoExame, pagamentoResp === 'clinica' ? 'pix' : formaPagamento, especial)
     : 0
   const valorAcrescimo = estudosAdicionaisDesc.length * valorUnitarioAcrescimo
   // valor bruto (sem desconto) de um exame selecionado
   const valorBrutoExame = (e: ExameInfo) => e.tipo_exame === 'Bioquímica'
-    ? (pagamentoResp === 'clinica' ? Math.max(0, totalBioquimicaPix - totalComissaoBio) : totalBioquimica)
+    ? (pagamentoResp === 'clinica' ? totalRepasseBio : totalBioquimica)
     : e.tipo_exame === 'Teste Rápido'
-    ? (pagamentoResp === 'clinica' ? Math.max(0, totalTesteRapidoPix - totalComissaoTeste) : totalTesteRapido)
+    ? (pagamentoResp === 'clinica' ? totalRepasseTeste : totalTesteRapido)
     : calcularValorExame(e, pagamentoResp === 'clinica' ? 'pix' : formaPagamento, especial)
   const podeDescontar = modo === 'admin' && isAdmin && !gratuito
   const descontoTotal = podeDescontar
@@ -308,6 +316,15 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
     : 0
   const totalBruto = gratuito ? 0 : examesSelecionados.reduce((s, e) => s + valorBrutoExame(e) * quantidadeExame(e.tipo_exame), 0) + valorAcrescimo
   const totalValor = Math.max(0, totalBruto - descontoTotal)
+  // Quanto a clínica deve cobrar do tutor (preço de tabela, sem abater a
+  // comissão dela) — o repasse à BioPet é o outro número, menor.
+  const valorSugeridoExame = (e: ExameInfo) => e.tipo_exame === 'Bioquímica'
+    ? totalBioquimicaPix
+    : e.tipo_exame === 'Teste Rápido'
+    ? totalTesteRapidoPix
+    : calcularValorExame(e, 'pix', especial)
+  const totalSugeridoTutor = gratuito ? 0 : examesSelecionados.reduce(
+    (s, e) => s + valorSugeridoExame(e) * quantidadeExame(e.tipo_exame), 0) + valorAcrescimo
 
   // Detecta admin (desconto é exclusivo de admin no modo admin)
   useEffect(() => {
@@ -409,7 +426,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
     setTutorNome(t.nome ?? '')
     setCpfTutor(t.cpf ? formatCPFInput(t.cpf) : '')
     setCpfSomenteLeitura(!!t.cpf)
-    setPetsDisponiveis(t.pets ?? [])
+    setPetsDisponiveis((t.pets ?? []).filter(p => !p.falecido))
     setPetSelecionado(null)
     setNovoPet(false)
     setBuscaResultados([])
@@ -443,10 +460,19 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
         else { setTutorNovo(true); setNovoPet(true); if (digits.length >= 8) setTelefone(q); else setTutorNome(q) }
       }
     } else {
-      const res = await fetch(`/api/agente/contexto?telefone=${tel}`, { headers: { 'x-api-key': 'biopet_agent_2026' } })
+      // Rota autenticada por SESSAO (mesma da busca dinamica acima). Antes aqui
+      // havia uma chamada a /api/agente/contexto com a AGENT_API_KEY escrita no
+      // codigo — como este arquivo e 'use client', a chave ia inteira para o
+      // bundle do navegador.
+      const res = await fetch(`/api/tutores/buscar?q=${encodeURIComponent(q)}`, { credentials: 'include' })
       if (res.ok) {
-        const d = await res.json()
-        if (d.tutor) { selecionarTutor({ ...d.tutor, pets: d.pets ?? [] }) }
+        const lista = await res.json()
+        // Busca por telefone: prefere o casamento exato; senao, o primeiro.
+        const exato = Array.isArray(lista)
+          ? lista.find((t: TutorInfo) => normalizeTelefone(t.telefone) === tel)
+          : null
+        const achado = exato ?? (Array.isArray(lista) && lista.length > 0 ? lista[0] : null)
+        if (achado) { selecionarTutor(achado) }
         else { setTutorNovo(true); setNovoPet(true); if (digits.length >= 8) setTelefone(q); else setTutorNome(q) }
       } else { setTutorNovo(true); setNovoPet(true); if (digits.length >= 8) setTelefone(q) }
     }
@@ -537,13 +563,14 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
         })
       }
     }
+    // Sem `comissao`: quem resolve o repasse pelo id é o backend (resolverComissoes).
     const bioquimicaPayload = bioquimicaSelecionados.map(id => {
       const b = bioquimicaExames.find(x => x.id === id)!
-      return { bioquimica_exame_id: id, valor_pix: b.preco_pix, valor_cartao: b.preco_cartao, comissao: b.comissao ?? 0 }
+      return { bioquimica_exame_id: id, valor_pix: b.preco_pix, valor_cartao: b.preco_cartao }
     })
     const testesRapidosPayload = testeRapidoSelecionados.map(id => {
       const t = testeRapidoExames.find(x => x.id === id)!
-      return { teste_rapido_id: id, valor_pix: t.preco_pix, valor_cartao: t.preco_cartao, comissao: t.comissao }
+      return { teste_rapido_id: id, valor_pix: t.preco_pix, valor_cartao: t.preco_cartao }
     })
     const base: Record<string, unknown> = {
       telefone:              telefone.trim(),
@@ -563,6 +590,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
       forma_pagamento:       gratuito ? 'gratuito' : pagamentoResp === 'tutor' ? formaPagamento : 'a confirmar',
       entrega_pagamento:     gratuito ? null : pagamentoResp === 'tutor' ? entregaPagamento : null,
       clinica_id:            pagamentoResp === 'clinica' && clinicaId ? Number(clinicaId) : null,
+      comissao_clinica_id:   pagamentoResp === 'tutor' && temTesteRapido && clinicaComissaoId ? Number(clinicaComissaoId) : null,
       valor:                 totalValor,
       bioquimica_selecionados: bioquimicaPayload,
       testes_rapidos_selecionados: testesRapidosPayload,
@@ -930,19 +958,20 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
                             })}
                           </div>
                         )}
-                        {bioquimicaSelecionados.length > 0 && pagamentoResp === 'tutor' && (
+                        {bioquimicaSelecionados.length > 0 && (
                           <div className="mt-2 pt-2 border-t border-[#8a6e36]/20 space-y-1">
                             {bioquimicaSelecionados.map(id => {
                               const b = bioquimicaExames.find(x => x.id === id)!
                               return (
                                 <div key={id} className="flex justify-between text-xs text-[#8a6e36]">
                                   <span>{b.nome}</span>
-                                  <span className="font-semibold">{brl(formaPagamento === 'cartao' ? b.preco_cartao : b.preco_pix)}</span>
+                                  <span className="font-semibold">{brl(pagamentoResp === 'clinica' ? b.preco_pix : formaPagamento === 'cartao' ? b.preco_cartao : b.preco_pix)}</span>
                                 </div>
                               )
                             })}
                             <div className="flex justify-between text-xs font-bold text-[#19202d] border-t border-[#8a6e36]/20 pt-1">
-                              <span>Total Bioquímica</span><span>{brl(totalBioquimica)}</span>
+                              <span>{pagamentoResp === 'clinica' ? 'Sugerido ao tutor' : 'Total Bioquímica'}</span>
+                              <span>{brl(pagamentoResp === 'clinica' ? totalBioquimicaPix : totalBioquimica)}</span>
                             </div>
                           </div>
                         )}
@@ -974,19 +1003,20 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
                             })}
                           </div>
                         )}
-                        {testeRapidoSelecionados.length > 0 && pagamentoResp === 'tutor' && (
+                        {testeRapidoSelecionados.length > 0 && (
                           <div className="mt-2 pt-2 border-t border-[#8a6e36]/20 space-y-1">
                             {testeRapidoSelecionados.map(id => {
                               const t = testeRapidoExames.find(x => x.id === id)!
                               return (
                                 <div key={id} className="flex justify-between text-xs text-[#8a6e36]">
                                   <span>{t.nome}</span>
-                                  <span className="font-semibold">{brl(formaPagamento === 'cartao' ? t.preco_cartao : t.preco_pix)}</span>
+                                  <span className="font-semibold">{brl(pagamentoResp === 'clinica' ? t.preco_pix : formaPagamento === 'cartao' ? t.preco_cartao : t.preco_pix)}</span>
                                 </div>
                               )
                             })}
                             <div className="flex justify-between text-xs font-bold text-[#19202d] border-t border-[#8a6e36]/20 pt-1">
-                              <span>Total Teste Rápido</span><span>{brl(totalTesteRapido)}</span>
+                              <span>{pagamentoResp === 'clinica' ? 'Sugerido ao tutor' : 'Total Teste Rápido'}</span>
+                              <span>{brl(pagamentoResp === 'clinica' ? totalTesteRapidoPix : totalTesteRapido)}</span>
                             </div>
                           </div>
                         )}
@@ -1021,6 +1051,16 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
                 <div className="flex justify-between text-[#8a6e36] font-semibold">
                   <span>Total ({formaPagamento === 'cartao' ? 'cartão' : 'pix'})</span><span>{brl(totalValor)}</span>
                 </div>
+              )}
+              {pagamentoResp === 'clinica' && totalSugeridoTutor > 0 && (
+                <>
+                  <div className="flex justify-between text-[#8a6e36]">
+                    <span>Sugerido ao tutor (pix)</span><span className="font-semibold">{brl(totalSugeridoTutor)}</span>
+                  </div>
+                  <div className="flex justify-between text-[#8a6e36] font-semibold">
+                    <span>Repasse BioPet</span><span>{brl(totalValor)}</span>
+                  </div>
+                </>
               )}
             </div>
           )}
@@ -1124,7 +1164,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
             <RadioGroup<'tutor' | 'clinica'>
               label="Responsável pelo pagamento *"
               value={pagamentoResp}
-              onChange={v => { setPagamentoResp(v); if (v !== 'clinica') setClinicaId('') }}
+              onChange={v => { setPagamentoResp(v); if (v !== 'clinica') setClinicaId(''); if (v !== 'tutor') setClinicaComissaoId('') }}
               options={[
                 { value: 'tutor',   label: 'Tutor paga diretamente à BioPet' },
                 { value: 'clinica', label: 'Clínica já pagou / vai pagar' },
@@ -1140,6 +1180,23 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
                     <option key={c.id} value={String(c.id)}>{c.nome}</option>
                   ))}
                 </select>
+              </div>
+            )}
+
+            {pagamentoResp === 'tutor' && temTesteRapido && modo === 'admin' && clinicas.length > 0 && (
+              <div>
+                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+                  Clínica parceira (comissão do teste rápido)
+                </label>
+                <select value={clinicaComissaoId} onChange={e => setClinicaComissaoId(e.target.value)} className={INPUT}>
+                  <option value="">Nenhuma / não aplicável</option>
+                  {clinicas.map(c => (
+                    <option key={c.id} value={String(c.id)}>{c.nome}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-400 mt-1">
+                  Se uma clínica parceira coletou o material, selecione-a para a BioPet dever a comissão a ela.
+                </p>
               </div>
             )}
 
@@ -1351,7 +1408,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
             vetNome           ? { label: 'Veterinário', value: vetNome } : null,
             sedacaoNecessaria ? { label: 'Sedação',     value: '⚠️ Necessária' } : null,
             petInternado      ? { label: 'Internado',   value: '🏥 Sim' } : null,
-            { label: 'Pagamento', value: gratuito ? '🎁 Gratuito' : pagamentoResp === 'clinica' ? `Clínica: ${clinicas.find(c => String(c.id) === clinicaId)?.nome ?? '—'} · Repasse BioPet: ${brl(totalValor)}` : `Tutor — ${formaPagamento === 'cartao' ? 'Cartão' : 'Pix'} · ${entregaPagamento === 'link' ? 'Link WhatsApp' : 'Presencial'} · ${brl(totalValor)}` },
+            { label: 'Pagamento', value: gratuito ? '🎁 Gratuito' : pagamentoResp === 'clinica' ? `Clínica: ${clinicas.find(c => String(c.id) === clinicaId)?.nome ?? '—'} · Cobrar do tutor: ${brl(totalSugeridoTutor)} · Repasse BioPet: ${brl(totalValor)}` : `Tutor — ${formaPagamento === 'cartao' ? 'Cartão' : 'Pix'} · ${entregaPagamento === 'link' ? 'Link WhatsApp' : 'Presencial'} · ${brl(totalValor)}` },
             modo === 'admin' ? { label: 'Notificar', value: notificar ? '📱 Sim (WhatsApp)' : '🔕 Não' } : null,
             observacoes ? { label: 'Observações', value: observacoes } : null,
           ].filter(Boolean).map(row => (
@@ -1370,7 +1427,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
                 ⚠️ Este agendamento ficará como <strong>pendente</strong> até a BioPet confirmar.
                 {pagamentoResp === 'tutor' && entregaPagamento === 'link' && ' Após confirmação, o link de pagamento será enviado pelo WhatsApp.'}
                 {pagamentoResp === 'tutor' && entregaPagamento === 'presencial' && ' O tutor realizará o pagamento presencialmente na BioPet.'}
-                {pagamentoResp === 'clinica' && <> A clínica receberá o pagamento do tutor. O valor de repasse esperado pela BioPet é <strong>{brl(totalValor)}</strong>.</>}
+                {pagamentoResp === 'clinica' && <> A clínica receberá o pagamento do tutor — o valor sugerido de cobrança é <strong>{brl(totalSugeridoTutor)}</strong>, e o repasse esperado pela BioPet é <strong>{brl(totalValor)}</strong>.</>}
               </>
             )}
           </p>

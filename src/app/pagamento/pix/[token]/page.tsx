@@ -1,7 +1,17 @@
 import { notFound } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { isPixTokenValido } from '@/lib/pix-token'
+import { pixLinkExpirado } from '@/lib/agendamento-helpers'
 import PIXPayment from './PIXPayment'
+import PagamentoConfirmado from './PagamentoConfirmado'
+
+// Só o suficiente pro tutor reconhecer o próprio CPF: 123.456.789-01 → ***.456.789-**
+// O número completo nunca vai pro HTML — o backend usa o que está no banco.
+function mascararCPF(cpf: string): string {
+  const d = cpf.replace(/\D/g, '')
+  if (d.length !== 11) return ''
+  return `***.${d.slice(3, 6)}.${d.slice(6, 9)}-**`
+}
 
 export default async function PIXPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
@@ -21,6 +31,15 @@ export default async function PIXPage({ params }: { params: Promise<{ token: str
   const forma    = (ag.forma_pagamento ?? '').toLowerCase()
   const entrega  = (ag.entrega_pagamento ?? '').toLowerCase()
   if (!forma.includes('pix') || entrega !== 'link') notFound()
+
+  // Já pago: não existe mais nada a fazer aqui. Nos primeiros 7 dias depois do
+  // exame o link ainda abre um recibo sem dado pessoal — nada de CPF, pet,
+  // exame ou valor; passado isso ele simplesmente some.
+  // Link EM ABERTO não expira: a cobrança pode ser feita retroativamente.
+  if (ag.status_pagamento === 'pago') {
+    if (pixLinkExpirado(ag.data_hora)) notFound()
+    return <PagamentoConfirmado />
+  }
 
   const petNome = Array.isArray(ag.pets)
     ? (ag.pets[0] as { nome: string })?.nome ?? '—'
@@ -48,7 +67,7 @@ export default async function PIXPage({ params }: { params: Promise<{ token: str
       valor={valor}
       dataHora={ag.data_hora}
       statusInicial={ag.status_pagamento ?? ''}
-      cpfInicial={cpfTutor}
+      cpfMascarado={mascararCPF(cpfTutor)}
     />
   )
 }

@@ -59,7 +59,7 @@ export async function cotarFretePedido(pedidoId: number): Promise<CotacaoPorLab[
 
   const origem = await enderecoOrigemBioPet()
   const caixa  = await caixaPresetPadrao()
-  if (!caixa) throw new Error('Nenhum preset de caixa cadastrado — configure em /admin/estoque.')
+  if (!caixa) throw new Error('Nenhum preset de caixa cadastrado — configure em Labs Parceiros › Tubos e caixas.')
   const resultado: CotacaoPorLab[] = []
 
   for (const lab of labs) {
@@ -95,7 +95,7 @@ export async function comprarFretePedido(pedidoId: number, laboratorioId: number
   if (!lab) throw new Error('Este laboratório não tem itens neste pedido.')
 
   const caixa = await caixaPresetPadrao()
-  if (!caixa) throw new Error('Nenhum preset de caixa cadastrado — configure em /admin/estoque.')
+  if (!caixa) throw new Error('Nenhum preset de caixa cadastrado — configure em Labs Parceiros › Tubos e caixas.')
 
   const opcoes   = await cotarFrete(origem, destino, caixa.pacote, lab.valorItens)
   const escolhida = opcoes.find(o => o.id === serviceId)

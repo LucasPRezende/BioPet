@@ -1,15 +1,19 @@
 /**
- * lab-estoque.ts — baixa automática de insumos derivada das operações de
+ * lab-estoque.ts — baixa automática de consumíveis derivada das operações de
  * Labs Parceiros (consolidação de tubos, compra de frete) e o rollup de
- * custo real por pedido. O ledger genérico fica em estoque.ts — este módulo
- * é quem sabe como pedido_lab/lab-tubos/caixa_preset se conectam com ele.
+ * custo real por pedido. O estoque em si é o módulo único de consumíveis
+ * (estoque.ts, lotes com custo PEPS) — este módulo é quem sabe como
+ * pedido_lab/lab-tubos/caixa_preset se conectam com ele. As saídas ficam com
+ * origem_tipo='pedido_lab' e origem_id=<pedido>.
  */
 import { supabase } from './supabase'
-import { registrarMovimento } from './estoque'
+import { consumir } from './estoque'
 import { consolidarTubos, type ItemParaTubo } from './lab-tubos'
 import type { Pacote } from './melhor-envio'
 
-interface InsumoTuboRow {
+export const ORIGEM_PEDIDO_LAB = 'pedido_lab'
+
+interface ConsumivelTuboRow {
   id:       number
   cor_tubo: string | null
 }
@@ -19,10 +23,10 @@ function chaveComparacao(s: string): string {
 }
 
 /**
- * Baixa 1 unidade do insumo de tubo correspondente pra cada tubo físico
- * consolidado do pedido. Sem insumo cadastrado pra aquela cor, ignora — não
- * bloqueia a transição de status do pedido (cadastro de insumo é
- * responsabilidade separada, em /admin/estoque).
+ * Baixa 1 unidade do consumível de tubo correspondente pra cada tubo físico
+ * consolidado do pedido. Sem consumível cadastrado pra aquela cor, ignora — não
+ * bloqueia a transição de status do pedido (cadastro é responsabilidade
+ * separada, em /admin/estoque).
  */
 export async function baixarTubosDoPedido(pedidoId: number): Promise<void> {
   const { data: itens, error } = await supabase
@@ -33,26 +37,24 @@ export async function baixarTubosDoPedido(pedidoId: number): Promise<void> {
 
   const grupos = consolidarTubos(itens as ItemParaTubo[])
 
-  const { data: insumos } = await supabase
-    .from('insumos').select('id, cor_tubo').eq('tipo', 'tubo').eq('ativo', true)
-  const lista = (insumos ?? []) as InsumoTuboRow[]
+  const { data: tubos } = await supabase
+    .from('consumiveis').select('id, cor_tubo').eq('categoria', 'tubo').eq('ativo', true)
+  const lista = (tubos ?? []) as ConsumivelTuboRow[]
 
   for (const grupo of grupos) {
-    if (!grupo.cor_tubo) continue
-    const chave  = chaveComparacao(grupo.cor_tubo)
-    const insumo = lista.find(i => i.cor_tubo && chaveComparacao(i.cor_tubo) === chave)
-    if (!insumo) continue
+    if (!grupo.cor_tubo || grupo.tubos.length === 0) continue
+    const chave = chaveComparacao(grupo.cor_tubo)
+    const tubo  = lista.find(i => i.cor_tubo && chaveComparacao(i.cor_tubo) === chave)
+    if (!tubo) continue
 
-    for (let i = 0; i < grupo.tubos.length; i++) {
-      await registrarMovimento({
-        insumoId: insumo.id, tipo: 'saida', quantidade: 1,
-        pedidoId, motivo: `Coleta pedido #${pedidoId} — tubo ${grupo.cor_tubo}`,
-      })
-    }
+    await consumir(tubo.id, grupo.tubos.length, {
+      origemTipo: ORIGEM_PEDIDO_LAB, origemId: pedidoId,
+      observacao: `Coleta — tubo ${grupo.cor_tubo}`,
+    })
   }
 }
 
-interface ItemKit { insumo_id: number; quantidade: number }
+interface ItemKit { consumivel_id: number; quantidade: number }
 
 /** Preset de caixa usado no frete — por ora sempre o primeiro ativo (sem UI
  * de escolha por pedido ainda; ver LABS_PARCEIROS.md Fase 5/8). */
@@ -73,15 +75,16 @@ export async function caixaPresetPadrao(): Promise<{ id: number; nome: string; p
   }
 }
 
-/** Baixa o kit de insumos do preset de caixa usado no envio (isopor, gelo, etiqueta...). */
+/** Baixa o kit de consumíveis do preset de caixa usado no envio (isopor, gelo, etiqueta...). */
 export async function baixarKitCaixa(caixaPresetId: number, pedidoId: number): Promise<void> {
   const { data } = await supabase.from('caixa_preset').select('kit_json, nome').eq('id', caixaPresetId).single()
   const kit = Array.isArray(data?.kit_json) ? (data.kit_json as ItemKit[]) : []
   for (const item of kit) {
-    if (!item.insumo_id || !item.quantidade) continue
-    await registrarMovimento({
-      insumoId: item.insumo_id, tipo: 'saida', quantidade: item.quantidade,
-      pedidoId, motivo: `Envio pedido #${pedidoId} — kit caixa ${data?.nome ?? caixaPresetId}`,
+    const quantidade = Math.round(Number(item.quantidade))
+    if (!item.consumivel_id || !(quantidade > 0)) continue
+    await consumir(item.consumivel_id, quantidade, {
+      origemTipo: ORIGEM_PEDIDO_LAB, origemId: pedidoId,
+      observacao: `Envio — kit caixa ${data?.nome ?? caixaPresetId}`,
     })
   }
 }
@@ -93,21 +96,19 @@ export interface CustoRealPedido {
   custoTotal:   number
 }
 
-/** Custo real = custo_lab dos itens + valor_frete + insumos consumidos (tubo + kit da caixa). */
+/** Custo real = custo_lab dos itens + valor_frete + consumíveis gastos (tubo + kit da caixa),
+ *  cada um pelo custo do lote de onde saiu. */
 export async function custoRealPedido(pedidoId: number): Promise<CustoRealPedido> {
   const [itensRes, freteRes, insumosRes] = await Promise.all([
     supabase.from('pedido_lab_item').select('custo_snapshot').eq('pedido_id', pedidoId),
     supabase.from('pedido_lab_envio').select('valor_frete').eq('pedido_id', pedidoId),
-    supabase.from('insumo_movimento').select('quantidade, insumos(custo_unitario)').eq('pedido_id', pedidoId).eq('tipo', 'saida'),
+    supabase.from('consumivel_movimentos').select('quantidade, custo_unitario')
+      .eq('origem_tipo', ORIGEM_PEDIDO_LAB).eq('origem_id', pedidoId).eq('tipo', 'consumo'),
   ])
 
   const custoItens = (itensRes.data ?? []).reduce((s, i) => s + Number(i.custo_snapshot ?? 0), 0)
   const custoFrete = (freteRes.data ?? []).reduce((s, e) => s + Number(e.valor_frete ?? 0), 0)
-  const custoInsumos = (insumosRes.data ?? []).reduce((s, m) => {
-    const join = Array.isArray(m.insumos) ? m.insumos[0] : m.insumos
-    const custoUnit = Number((join as { custo_unitario?: number } | null)?.custo_unitario ?? 0)
-    return s + Number(m.quantidade) * custoUnit
-  }, 0)
+  const custoInsumos = (insumosRes.data ?? []).reduce((s, m) => s + Number(m.quantidade) * Number(m.custo_unitario), 0)
 
   return { custoItens, custoFrete, custoInsumos, custoTotal: custoItens + custoFrete + custoInsumos }
 }

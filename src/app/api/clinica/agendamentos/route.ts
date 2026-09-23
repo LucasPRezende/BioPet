@@ -11,6 +11,7 @@ import {
   insertBioquimica,
   insertTestesRapidos,
   precificarExames,
+  resolverComissoes,
   type ExameInput,
   type BioquimicaInput,
   type TesteRapidoInput,
@@ -155,8 +156,11 @@ export async function POST(request: NextRequest) {
   }
 
   // 4. Recalcula os preços no backend (fonte de verdade) e cria o agendamento
-  const bioPayload     = Array.isArray(bioquimica_selecionados) ? bioquimica_selecionados as BioquimicaInput[] : []
-  const testePayload   = Array.isArray(testes_rapidos_selecionados) ? testes_rapidos_selecionados as TesteRapidoInput[] : []
+  // A comissão de cada item vem do catálogo no banco, nunca do corpo da requisição.
+  const { bio: bioPayload, testes: testePayload } = await resolverComissoes(
+    Array.isArray(bioquimica_selecionados) ? bioquimica_selecionados as BioquimicaInput[] : [],
+    Array.isArray(testes_rapidos_selecionados) ? testes_rapidos_selecionados as TesteRapidoInput[] : [],
+  )
   const examesPrecificados = await precificarExames(examesArr, {
     forma:           formaEfetiva(pagamento_responsavel, forma_pagamento),
     gratuito:        (forma_pagamento ?? '').toLowerCase() === 'gratuito',
@@ -168,6 +172,12 @@ export async function POST(request: NextRequest) {
   })
   const tipoExameLabel = examesPrecificados.map(e => e.tipo_exame).join(', ')
   const valorTotal     = examesPrecificados.reduce((sum, e) => sum + (e.valor ?? 0), 0)
+
+  // Teste rápido feito pela própria clínica: se a BioPet recebe direto do
+  // tutor, a comissão do teste ainda é devida a esta clínica (automático,
+  // sem precisar escolher — é a mesma clínica que está logada).
+  const temTesteRapido = examesArr.some(e => e.tipo_exame === 'Teste Rápido')
+  const comissaoClinicaId = temTesteRapido && pagamento_responsavel !== 'clinica' ? session.clinicaId : null
 
   const { data: agendamento, error: errAg } = await supabase
     .from('agendamentos')
@@ -188,6 +198,7 @@ export async function POST(request: NextRequest) {
       status:                'pendente',
       origem:                'clinica',
       clinica_id:            session.clinicaId,
+      comissao_clinica_id:   comissaoClinicaId,
       status_pagamento:      'pendente',
     })
     .select('id')

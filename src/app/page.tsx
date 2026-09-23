@@ -89,8 +89,8 @@ export default function LandingPage() {
             <ServiceCard photo="/servico-elastografia.jpg" dark alt="Imagem de elastografia veterinária" title="Elastografia">
               Avalia a rigidez dos tecidos internos de forma não invasiva, auxiliando no diagnóstico e acompanhamento de diversas doenças.
             </ServiceCard>
-            <ServiceCard photo="/endoscopia.png" dark alt="Endoscópio veterinário" title="Endoscopia">
-              Exame minimamente invasivo para visualização direta do trato digestivo, respiratório e remoção de corpos estranhos.
+            <ServiceCard photo="/servico-testes-rapidos.jpg" alt="Testes rápidos veterinários por imunocromatografia" title="Testes Rápidos">
+              Detecção de FIV/FeLV, Cinomose, Giardia, Parvovirose, Leishmaniose, Leptospirose e doenças transmitidas por carrapato (Erliquiose, Anaplasmose, Borreliose, Dirofilariose). <strong>Resultado em minutos.</strong>
             </ServiceCard>
           </div>
         </div>
