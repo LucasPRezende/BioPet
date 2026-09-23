@@ -24,7 +24,7 @@ export async function PATCH(
   if (!consumivelId) return NextResponse.json({ error: 'ID inválido.' }, { status: 400 })
 
   const body = await request.json().catch(() => null)
-  const { nome, unidade, estoque_minimo, ativo, testes_ids } = body ?? {}
+  const { nome, unidade, categoria, estoque_minimo, ativo, testes_ids } = body ?? {}
 
   const updates: Record<string, unknown> = {}
   if (nome !== undefined) {
@@ -32,6 +32,7 @@ export async function PATCH(
     updates.nome = String(nome).trim()
   }
   if (unidade        !== undefined) updates.unidade        = String(unidade).trim() || 'un'
+  if (categoria      !== undefined) updates.categoria      = String(categoria).trim() || 'outro'
   if (estoque_minimo !== undefined) updates.estoque_minimo = Math.max(0, Math.floor(Number(estoque_minimo) || 0))
   if (ativo          !== undefined) updates.ativo          = Boolean(ativo)
 

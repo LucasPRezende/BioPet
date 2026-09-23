@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
   if (!admin) return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 })
 
   const body = await request.json().catch(() => null)
-  const { nome, unidade, estoque_minimo, testes_ids } = body ?? {}
+  const { nome, unidade, categoria, estoque_minimo, testes_ids } = body ?? {}
   if (!nome?.trim()) return NextResponse.json({ error: 'Nome é obrigatório.' }, { status: 400 })
 
   const { data, error } = await supabase
@@ -25,6 +25,7 @@ export async function POST(request: NextRequest) {
     .insert({
       nome:           nome.trim(),
       unidade:        unidade?.trim() || 'un',
+      categoria:      categoria?.trim() || 'outro',
       estoque_minimo: Math.max(0, Math.floor(Number(estoque_minimo) || 0)),
     })
     .select('*')

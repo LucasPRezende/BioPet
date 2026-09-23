@@ -9,6 +9,9 @@ import { agoraLocalISO } from './agendamento-helpers'
 
 export const DIAS_ALERTA_VALIDADE = 30
 
+// Agrupamento na tela de Estoque. Texto livre no banco; esta é a lista oferecida.
+export const CATEGORIAS = ['teste_rapido', 'tubo', 'caixa', 'reagente', 'outro'] as const
+
 // Agendamentos que ainda vão gastar kit: não cancelados/concluídos/faltou.
 const STATUS_EM_ABERTO = ['pendente', 'agendado', 'em atendimento']
 
@@ -22,6 +25,7 @@ export interface ConsumivelResumo {
   id:              number
   nome:            string
   unidade:         string
+  categoria:       string
   estoque_minimo:  number
   ativo:           boolean
   estoque:         number        // saldo dos lotes − saídas pendentes (pode ser negativo)
@@ -84,7 +88,7 @@ async function reservasPorConsumivel(testeConsumivel: Map<number, number>): Prom
 // Situação atual de todos os consumíveis (ativos e inativos).
 export async function resumoEstoque(): Promise<ConsumivelResumo[]> {
   const [cons, lotes, pend, testes] = await Promise.all([
-    supabase.from('consumiveis').select('id, nome, unidade, estoque_minimo, ativo').order('nome'),
+    supabase.from('consumiveis').select('id, nome, unidade, categoria, estoque_minimo, ativo').order('nome'),
     supabase.from('consumivel_compras')
       .select('consumivel_id, saldo, custo_unitario, validade, data_compra, id')
       .gt('saldo', 0)
@@ -159,20 +163,36 @@ export async function baixarConsumoLaudo(laudoId: number, testeIds: number[], us
 
   let custo = 0
   for (const [consumivelId, quantidade] of Array.from(porConsumivel)) {
-    const { data, error: rpcErr } = await supabase.rpc('consumir_estoque', {
-      p_consumivel_id: consumivelId,
-      p_quantidade:    quantidade,
-      p_tipo:          'consumo',
-      p_laudo_id:      laudoId,
-      p_observacao:    null,
-      p_user_id:       userId,
-    })
-    if (rpcErr) throw new Error(rpcErr.message)
-    custo += Number(data ?? 0)
+    custo += await consumir(consumivelId, quantidade, { laudoId, userId })
   }
 
   custo = Math.round(custo * 100) / 100
   const { error: updErr } = await supabase.from('laudos').update({ custo_exame: custo }).eq('id', laudoId)
   if (updErr) throw new Error(updErr.message)
   return custo
+}
+
+export interface OpcoesSaida {
+  tipo?:       'consumo' | 'perda'
+  laudoId?:    number | null
+  origemTipo?: string | null   // ex.: 'pedido_lab' — quando a saída não vem de um laudo
+  origemId?:   number | null
+  observacao?: string | null
+  userId?:     number | null
+}
+
+// Saída de estoque em PEPS (função SQL consumir_estoque). Devolve o custo da saída.
+export async function consumir(consumivelId: number, quantidade: number, opts: OpcoesSaida = {}): Promise<number> {
+  const { data, error } = await supabase.rpc('consumir_estoque', {
+    p_consumivel_id: consumivelId,
+    p_quantidade:    quantidade,
+    p_tipo:          opts.tipo ?? 'consumo',
+    p_laudo_id:      opts.laudoId ?? null,
+    p_observacao:    opts.observacao ?? null,
+    p_user_id:       opts.userId ?? null,
+    p_origem_tipo:   opts.origemTipo ?? null,
+    p_origem_id:     opts.origemId ?? null,
+  })
+  if (error) throw new Error(error.message)
+  return Number(data ?? 0)
 }

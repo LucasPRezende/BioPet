@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
+import { consumir } from '@/lib/estoque'
 
 async function requireAdmin(request: NextRequest) {
   const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value
@@ -42,14 +43,12 @@ export async function POST(request: NextRequest) {
   if (!Number.isInteger(qtd) || qtd <= 0) return NextResponse.json({ error: 'Quantidade deve ser um número inteiro maior que zero.' }, { status: 400 })
   if (!observacao?.trim())                return NextResponse.json({ error: 'Informe o motivo da baixa.' }, { status: 400 })
 
-  const { data, error } = await supabase.rpc('consumir_estoque', {
-    p_consumivel_id: Number(consumivel_id),
-    p_quantidade:    qtd,
-    p_tipo:          'perda',
-    p_laudo_id:      null,
-    p_observacao:    observacao.trim(),
-    p_user_id:       admin.userId,
-  })
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ custo: data }, { status: 201 })
+  try {
+    const custo = await consumir(Number(consumivel_id), qtd, {
+      tipo: 'perda', observacao: observacao.trim(), userId: admin.userId,
+    })
+    return NextResponse.json({ custo }, { status: 201 })
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Erro ao registrar a baixa.' }, { status: 500 })
+  }
 }

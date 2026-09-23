@@ -6,6 +6,7 @@ interface Consumivel {
   id:               number
   nome:             string
   unidade:          string
+  categoria:        string
   estoque_minimo:   number
   ativo:            boolean
   estoque:          number
@@ -44,6 +45,8 @@ interface Movimento {
   quantidade:         number
   custo_unitario:     number
   laudo_id:           number | null
+  origem_tipo:        string | null
+  origem_id:          number | null
   observacao:         string | null
   criado_em:          string
   consumiveis:        { nome: string; unidade: string } | null
@@ -53,6 +56,21 @@ interface Movimento {
 }
 
 type Aba = 'estoque' | 'compras' | 'saidas'
+
+// Mesma lista de CATEGORIAS em lib/estoque (texto livre no banco)
+const CATEGORIA_LABEL: Record<string, string> = {
+  teste_rapido: 'Testes rápidos',
+  tubo:         'Tubos de coleta',
+  caixa:        'Caixas e envio',
+  reagente:     'Reagentes',
+  outro:        'Outros',
+}
+const ORDEM_CATEGORIAS = Object.keys(CATEGORIA_LABEL)
+
+// Rótulo da origem de uma saída que não vem de laudo
+const ORIGEM_LABEL: Record<string, string> = {
+  pedido_lab: 'Pedido lab',
+}
 
 const INPUT = 'border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8a6e36] bg-white'
 
@@ -184,6 +202,9 @@ export default function EstoquePage() {
 
   const ativos     = consumiveis.filter(c => c.ativo)
   const visiveis   = mostrarInativos ? consumiveis : ativos
+  const grupos = Array.from(new Set(visiveis.map(c => c.categoria)))
+    .sort((a, b) => (ORDEM_CATEGORIAS.indexOf(a) + 1 || 99) - (ORDEM_CATEGORIAS.indexOf(b) + 1 || 99))
+    .map(cat => ({ cat, itens: visiveis.filter(c => c.categoria === cat) }))
   const valorTotal = ativos.reduce((s, c) => s + c.valor_estoque, 0)
   const paraRepor  = ativos.filter(precisaRepor).length
 
@@ -276,7 +297,16 @@ export default function EstoquePage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {visiveis.map(c => {
+                  {grupos.map(({ cat, itens }) => (
+                    <Fragment key={cat}>
+                      {grupos.length > 1 && (
+                        <tr className="bg-gray-50/70">
+                          <td colSpan={9} className="px-5 py-1.5 text-[11px] font-bold uppercase tracking-wide text-[#8a6e36]">
+                            {CATEGORIA_LABEL[cat] ?? cat}
+                          </td>
+                        </tr>
+                      )}
+                  {itens.map(c => {
                     const baixo = precisaRepor(c)
                     const dias  = c.proxima_validade ? diasAte(c.proxima_validade) : null
                     const aberto = abertoReservas === c.id
@@ -286,7 +316,9 @@ export default function EstoquePage() {
                         <td className="px-5 py-3">
                           <p className="font-semibold text-[#19202d]">{c.nome}{!c.ativo && ' (inativo)'}</p>
                           <p className="text-[11px] text-gray-400">
-                            {c.testes.length > 0 ? `Usado em: ${c.testes.map(t => t.nome).join(', ')}` : 'Sem teste vinculado — não dá baixa automática'}
+                            {c.testes.length > 0
+                              ? `Usado em: ${c.testes.map(t => t.nome).join(', ')}`
+                              : c.categoria === 'teste_rapido' ? 'Sem teste vinculado — não dá baixa automática' : c.unidade}
                           </p>
                           {c.pendente > 0 && (
                             <p className="text-[11px] text-red-600 mt-0.5">
@@ -352,6 +384,8 @@ export default function EstoquePage() {
                       </Fragment>
                     )
                   })}
+                    </Fragment>
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -485,10 +519,15 @@ export default function EstoquePage() {
                       <td className="px-5 py-2.5 whitespace-nowrap text-gray-600">{fmtData(m.criado_em)}</td>
                       <td className="px-3 py-2.5 font-medium text-[#19202d]">{m.consumiveis?.nome}</td>
                       <td className="px-3 py-2.5">
-                        {m.tipo === 'consumo' ? (
+                        {m.tipo === 'consumo' && m.laudo_id ? (
                           <span className="text-gray-700">
                             Laudo — {m.laudos?.nome_pet ?? `#${m.laudo_id}`}
                             {m.laudos?.tutor && <span className="text-gray-400"> ({m.laudos.tutor})</span>}
+                          </span>
+                        ) : m.tipo === 'consumo' ? (
+                          <span className="text-gray-700">
+                            {m.origem_tipo ? `${ORIGEM_LABEL[m.origem_tipo] ?? m.origem_tipo} #${m.origem_id}` : 'Consumo'}
+                            {m.observacao && <span className="text-gray-400"> — {m.observacao}</span>}
                           </span>
                         ) : (
                           <span className="text-gray-700">
@@ -585,6 +624,7 @@ function ModalConsumivel({ consumivel, testes, onClose, onSaved }: {
 }) {
   const [nome,    setNome]    = useState(consumivel?.nome ?? '')
   const [unidade, setUnidade] = useState(consumivel?.unidade ?? 'un')
+  const [categoria, setCategoria] = useState(consumivel?.categoria ?? 'teste_rapido')
   const [minimo,  setMinimo]  = useState(String(consumivel?.estoque_minimo ?? 0))
   const [ativo,   setAtivo]   = useState(consumivel?.ativo ?? true)
   const [vinculo, setVinculo] = useState<number[]>(consumivel?.testes.map(t => t.id) ?? [])
@@ -601,7 +641,10 @@ function ModalConsumivel({ consumivel, testes, onClose, onSaved }: {
     const res = await fetch(consumivel ? `/api/estoque/consumiveis/${consumivel.id}` : '/api/estoque/consumiveis', {
       method:  consumivel ? 'PATCH' : 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nome, unidade, estoque_minimo: Number(minimo), ativo, testes_ids: vinculo }),
+      body: JSON.stringify({
+        nome, unidade, categoria, estoque_minimo: Number(minimo), ativo,
+        testes_ids: categoria === 'teste_rapido' ? vinculo : [],
+      }),
     })
     if (res.ok) onSaved()
     else {
@@ -616,6 +659,11 @@ function ModalConsumivel({ consumivel, testes, onClose, onSaved }: {
       <Campo label="Nome *">
         <input type="text" value={nome} onChange={e => setNome(e.target.value)} className={`${INPUT} w-full`} />
       </Campo>
+      <Campo label="Categoria">
+        <select value={categoria} onChange={e => setCategoria(e.target.value)} className={`${INPUT} w-full`}>
+          {ORDEM_CATEGORIAS.map(k => <option key={k} value={k}>{CATEGORIA_LABEL[k]}</option>)}
+        </select>
+      </Campo>
       <div className="grid grid-cols-2 gap-3">
         <Campo label="Unidade">
           <input type="text" value={unidade} onChange={e => setUnidade(e.target.value)} placeholder="teste, un, caixa…" className={`${INPUT} w-full`} />
@@ -624,6 +672,7 @@ function ModalConsumivel({ consumivel, testes, onClose, onSaved }: {
           <input type="number" min={0} step={1} value={minimo} onChange={e => setMinimo(e.target.value)} className={`${INPUT} w-full`} />
         </Campo>
       </div>
+      {categoria === 'teste_rapido' && (
       <div>
         <p className="text-xs text-gray-500 mb-1.5">Testes rápidos que gastam 1 unidade deste consumível</p>
         <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-56 overflow-y-auto">
@@ -640,6 +689,7 @@ function ModalConsumivel({ consumivel, testes, onClose, onSaved }: {
         </div>
         <p className="text-[11px] text-gray-400 mt-1">Um teste só gasta de um consumível; marcar aqui tira ele do anterior.</p>
       </div>
+      )}
       {consumivel && (
         <label className="flex items-center gap-2 text-sm text-gray-600">
           <input type="checkbox" checked={ativo} onChange={e => setAtivo(e.target.checked)} />
