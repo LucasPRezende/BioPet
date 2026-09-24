@@ -32,7 +32,7 @@ export async function POST(
   const agId = Number(params.id)
   const { data: ag } = await supabase
     .from('agendamentos')
-    .select('id, status, status_pagamento, tipo_exame, data_hora, is_revisao, tutores(nome, telefone), pets(nome)')
+    .select('id, status, status_pagamento, tipo_exame, data_hora, is_revisao, forma_pagamento, tutores(nome, telefone), pets(nome)')
     .eq('id', agId)
     .single()
 
@@ -43,7 +43,11 @@ export async function POST(
 
   // Mesmo tratamento do cancelamento: se já foi pago, vira estorno pendente em
   // vez de simplesmente fechar — alguém precisa devolver o dinheiro ao tutor.
-  const novoStatusPagamento = ag.status_pagamento === 'pago' ? 'estorno_pendente' : 'cancelado'
+  // Gratuito é confirmado com status_pagamento='pago' (nada foi cobrado), então
+  // fica de fora mesmo quando "pago" — não há dinheiro a estornar.
+  const novoStatusPagamento = ag.status_pagamento === 'pago' && ag.forma_pagamento !== 'gratuito'
+    ? 'estorno_pendente'
+    : 'cancelado'
 
   const { error } = await supabase
     .from('agendamentos')

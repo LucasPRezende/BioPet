@@ -24,7 +24,7 @@ export async function PATCH(request: NextRequest) {
   // Verifica se agendamento existe e não está já cancelado (+ dados do tutor)
   const { data: atual, error: fetchError } = await supabase
     .from('agendamentos')
-    .select('id, status, status_pagamento, tutores(telefone, nome)')
+    .select('id, status, status_pagamento, forma_pagamento, tutores(telefone, nome)')
     .eq('id', id)
     .single()
 
@@ -57,7 +57,11 @@ export async function PATCH(request: NextRequest) {
 
   // Mesmo tratamento do painel admin: se já foi pago, vira estorno pendente em
   // vez de simplesmente fechar — alguém precisa devolver o dinheiro ao tutor.
-  const novoStatusPagamento = atual.status_pagamento === 'pago' ? 'estorno_pendente' : 'cancelado'
+  // Gratuito é confirmado com status_pagamento='pago' (nada foi cobrado), então
+  // fica de fora mesmo quando "pago" — não há dinheiro a estornar.
+  const novoStatusPagamento = atual.status_pagamento === 'pago' && atual.forma_pagamento !== 'gratuito'
+    ? 'estorno_pendente'
+    : 'cancelado'
 
   // Cancela o agendamento
   const { error: updateError } = await supabase

@@ -1040,7 +1040,7 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
     setRefusing(false)
   }
   async function handleFaltou() {
-    const avisoEstorno = (statusPag === 'pago' || statusPag === 'pago_clinica')
+    const avisoEstorno = (statusPag === 'pago' || statusPag === 'pago_clinica') && ag.forma_pagamento !== 'gratuito'
       ? '\n\nO pagamento já foi confirmado — será necessário registrar o estorno ao cliente.'
       : ''
     const ok = window.confirm(`Marcar que ${ag.pets?.nome ?? 'o pet'} faltou? O tutor será avisado por WhatsApp.${avisoEstorno}`)
@@ -1055,12 +1055,12 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
     setMarkingFaltou(false)
   }
   async function handleCancelar() {
-    const avisoEstorno = (statusPag === 'pago' || statusPag === 'pago_clinica')
+    const avisoEstorno = (statusPag === 'pago' || statusPag === 'pago_clinica') && ag.forma_pagamento !== 'gratuito'
       ? '\n\nO pagamento já foi confirmado — será necessário registrar o estorno ao cliente.'
       : ''
     const ok = window.confirm(`Cancelar este agendamento? Esta ação não pode ser desfeita.${avisoEstorno}`)
     if (!ok) return
-    const novoPagStatus = statusPag === 'pago' ? 'estorno_pendente' : 'cancelado'
+    const novoPagStatus = statusPag === 'pago' && ag.forma_pagamento !== 'gratuito' ? 'estorno_pendente' : 'cancelado'
     const res = await fetch(`/api/agendamentos/${ag.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'cancelado', status_pagamento: novoPagStatus }) })
     if (res.ok) { setStatus('cancelado'); onUpdated(ag.id, { status: 'cancelado', status_pagamento: novoPagStatus }) }
   }
