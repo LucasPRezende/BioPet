@@ -32,6 +32,17 @@ function temToolUse(msg: any): boolean {
   return Array.isArray(msg?.content) && msg.content.some((b: any) => b?.type === 'tool_use')
 }
 
+/**
+ * Só considera "pergunta de decisão real" se alguma tool já foi chamada na
+ * conversa (preço, horário, cadastro, etc.) — filtra saudação de abertura
+ * tipo "Como posso ajudar?" sem continuação, que também termina em "?" mas
+ * não é uma decisão pendente de verdade. Achado ao vivo em 25/09/2026: das
+ * 4 primeiras conversas cutucadas em prod, 3 eram só isso.
+ */
+function temProgressoReal(historico: any[]): boolean {
+  return historico.some((m) => temToolUse(m))
+}
+
 export async function GET(request: NextRequest) {
   if (!verifyAgentKey(request)) {
     return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 })
@@ -65,6 +76,7 @@ export async function GET(request: NextRequest) {
 
     const texto = textoDoTurno(ultima)
     if (!texto || !texto.endsWith('?')) continue
+    if (!temProgressoReal(historico)) continue
 
     if (!conv.lembrete_enviado_em) {
       const desde = agora.getTime() - new Date(conv.atualizado_em).getTime()
