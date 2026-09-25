@@ -164,6 +164,10 @@ export async function salvarConversa(
       ultima_msg_id: msgId ?? null,
       atualizado_em: agora.toISOString(),
       expira_em: expira.toISOString(),
+      // Qualquer avanço real da conversa invalida um lembrete pendente (ver
+      // /api/agente/lembretes/rodar) — a próxima pergunta sem resposta começa
+      // um ciclo novo.
+      lembrete_enviado_em: null,
     },
     { onConflict: 'telefone' },
   )

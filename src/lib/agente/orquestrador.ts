@@ -316,6 +316,18 @@ export async function acionarHumanoPorErro(telefone: string, resumo?: string): P
 }
 
 /**
+ * Aciona atendimento humano porque o cliente ignorou uma pergunta da IA mesmo
+ * depois de um lembrete (uso fora do tool calling — ver rota de lembretes).
+ */
+export async function acionarHumanoPorClienteSumido(telefone: string, resumo?: string): Promise<void> {
+  try {
+    await transferirHumano(telefone, 'ia_travou', resumo)
+  } catch (e) {
+    console.error('[agente] falha ao acionar humano por cliente sumido:', e)
+  }
+}
+
+/**
  * Aciona atendimento humano: roteia pelo /api/agente/notificar, que (para esses
  * motivos) avisa as admins por WhatsApp, registra no submenu /admin/notificacoes
  * e bloqueia a IA por `tempo_retorno_ia_horas` (config do agente). Busca o nome
