@@ -12,9 +12,11 @@ import { acionarHumanoPorClienteSumido } from '@/lib/agente/orquestrador'
  *
  * Fluxo por conversa: 1h sem resposta após uma pergunta da IA → reenvia a
  * mesma pergunta. Mais 1h sem resposta → escala pra atendente
- * (transferir_humano), a IA para de tentar sozinha.
+ * (transferir_humano), a IA para de tentar sozinha. Tempo configurável via
+ * env (AGENTE_LEMBRETE_ESPERA_MS) só pra facilitar teste manual — em prod
+ * deixar vazio (usa o padrão de 1h).
  */
-const ESPERA_MS = 60 * 60_000
+const ESPERA_MS = Number(process.env.AGENTE_LEMBRETE_ESPERA_MS) || 60 * 60_000
 
 function textoDoTurno(msg: any): string {
   if (typeof msg?.content === 'string') return msg.content.trim()
