@@ -168,6 +168,7 @@ export async function salvarConversa(
       // /api/agente/lembretes/rodar) — a próxima pergunta sem resposta começa
       // um ciclo novo.
       lembrete_enviado_em: null,
+      lembrete_escalado: false,
     },
     { onConflict: 'telefone' },
   )

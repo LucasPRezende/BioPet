@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
 
   const { data: conversas, error } = await supabase
     .from('conversas')
-    .select('id, telefone, historico, atualizado_em, lembrete_enviado_em, atendimento_humano_ate, expira_em')
+    .select('id, telefone, historico, atualizado_em, lembrete_enviado_em, lembrete_escalado, atendimento_humano_ate, expira_em')
     .gt('expira_em', agora.toISOString())
 
   if (error) {
@@ -63,6 +63,13 @@ export async function GET(request: NextRequest) {
   let escalacoes = 0
 
   for (const conv of conversas ?? []) {
+    // Já escalamos essa pendência — não repetir, mesmo depois que
+    // atendimento_humano_ate expirar (bug real achado 25/09/2026: sem essa
+    // trava própria, a escalação repetia a cada tempo_retorno_ia_horas pra
+    // sempre, porque só dependia do atendimento_humano_ate, que é temporário
+    // por design). Só volta a valer quando a conversa avançar de verdade
+    // (salvarConversa reseta lembrete_escalado).
+    if (conv.lembrete_escalado) continue
     // Já em atendimento humano — a IA (e este lembrete) ficam de fora.
     if (conv.atendimento_humano_ate && new Date(conv.atendimento_humano_ate) > agora) continue
 
@@ -93,6 +100,7 @@ export async function GET(request: NextRequest) {
         conv.telefone,
         `Cliente não respondeu mesmo depois de um lembrete automático. Última pergunta da IA: "${texto}"`,
       )
+      await supabase.from('conversas').update({ lembrete_escalado: true }).eq('id', conv.id)
       escalacoes++
     }
   }
