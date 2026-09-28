@@ -43,6 +43,19 @@ function temProgressoReal(historico: any[]): boolean {
   return historico.some((m) => temToolUse(m))
 }
 
+/**
+ * "Aliás, ..." é o gancho padrão usado nas ofertas SECUNDÁRIAS (ex.: revisão
+ * gratuita — ver montarInfoClienteNovo em revisoes-disponiveis.ts) que a IA
+ * pendura no fim de uma resposta já resolvida. Achado ao vivo em 28/09/2026
+ * (Thaís/Domínik): cliente pegou o laudo que queria e ignorou o "Aliás, vi
+ * que o Domínik ainda não marcou a revisão gratuita — quer aproveitar?" — não
+ * é uma decisão travando nada, é um convite opcional. Cutucar por isso é
+ * mais chato que útil.
+ */
+function ehOfertaSecundaria(texto: string): boolean {
+  return /aliás/i.test(texto)
+}
+
 export async function GET(request: NextRequest) {
   if (!verifyAgentKey(request)) {
     return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 })
@@ -84,6 +97,7 @@ export async function GET(request: NextRequest) {
     const texto = textoDoTurno(ultima)
     if (!texto || !texto.endsWith('?')) continue
     if (!temProgressoReal(historico)) continue
+    if (ehOfertaSecundaria(texto)) continue
 
     if (!conv.lembrete_enviado_em) {
       const desde = agora.getTime() - new Date(conv.atualizado_em).getTime()
