@@ -33,11 +33,11 @@ export async function PATCH(request: NextRequest) {
   }
 
   const body = await request.json().catch(() => null)
-  const { nova_data_hora, nova_forma_pagamento, telefone } = body ?? {}
+  const { nova_data_hora, nova_forma_pagamento, telefone, veterinario_id, observacao_adicional } = body ?? {}
 
-  if (!nova_data_hora && !nova_forma_pagamento) {
+  if (!nova_data_hora && !nova_forma_pagamento && !veterinario_id && !observacao_adicional) {
     return NextResponse.json(
-      { error: 'Informe "nova_data_hora" e/ou "nova_forma_pagamento".' },
+      { error: 'Informe "nova_data_hora", "nova_forma_pagamento", "veterinario_id" e/ou "observacao_adicional".' },
       { status: 400 },
     )
   }
@@ -51,7 +51,7 @@ export async function PATCH(request: NextRequest) {
   // Busca agendamento atual + dados do tutor
   const { data: atual, error: fetchError } = await supabase
     .from('agendamentos')
-    .select('id, data_hora, duracao_minutos, status, forma_pagamento, encaixe, valor, entrega_pagamento, pagamento_responsavel, status_pagamento, mp_preference_id, mp_init_point, pix_token, tutores(telefone, nome)')
+    .select('id, data_hora, duracao_minutos, status, forma_pagamento, encaixe, valor, entrega_pagamento, pagamento_responsavel, status_pagamento, mp_preference_id, mp_init_point, pix_token, observacoes, tutores(telefone, nome)')
     .eq('id', id)
     .single()
 
@@ -121,10 +121,36 @@ export async function PATCH(request: NextRequest) {
     }
   }
 
-  // Atualiza data_hora e/ou forma_pagamento
-  const updateFields: Record<string, string> = {}
+  // Atualiza data_hora, forma_pagamento, veterinário e/ou observações. Pensado
+  // pro caso em que o cliente só quer corrigir um desses dados de um
+  // agendamento que já existe, sem precisar cancelar e recriar (o fluxo de
+  // cancelar+recriar foi o que levou a IA a inventar um "veterinário
+  // encontrado" que não existia — caso Sandra/Bella, 29/09/2026).
+  const updateFields: Record<string, string | number | null> = {}
   if (nova_data_hora) updateFields.data_hora = nova_data_hora
   if (nova_forma_pagamento) updateFields.forma_pagamento = nova_forma_pagamento
+
+  if (veterinario_id) {
+    // Mesma blindagem do /api/agente/agendar: nunca confiar cegamente no
+    // veterinario_id vindo da IA — só grava se existir de verdade.
+    const { data: vetRow } = await supabase
+      .from('veterinarios')
+      .select('id')
+      .eq('id', Number(veterinario_id))
+      .maybeSingle()
+    if (vetRow) {
+      updateFields.veterinario_id = Number(veterinario_id)
+    } else {
+      return NextResponse.json({ error: 'veterinario_id inexistente.' }, { status: 400 })
+    }
+  }
+
+  if (observacao_adicional) {
+    const observacoesAtuais = (atual.observacoes as string | null) ?? ''
+    updateFields.observacoes = observacoesAtuais
+      ? `${observacoesAtuais}\n${observacao_adicional}`
+      : String(observacao_adicional)
+  }
 
   const { error: updateError } = await supabase
     .from('agendamentos')

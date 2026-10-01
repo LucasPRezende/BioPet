@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase'
 import { normalizeTelefone } from '@/lib/telefone'
 import { calcularElegibilidadeRevisao, dentroJanelaComercial } from '@/lib/revisao-elegibilidade'
 import { gerarFeriadosPorAno } from '@/lib/feriados'
+import { agoraLocalISO } from '@/lib/agendamento-helpers'
 
 export interface RevisaoDisponivel {
   agendamento_original_id: number
@@ -15,6 +16,8 @@ export interface RevisaoDisponivel {
   tipo_exame: string
   data_original: string
   prazo_limite: string
+  /** Quantos dias de validade a revisão tem a partir do exame original (ex.: 30). */
+  prazo_dias: number
   pode_agendar: boolean
   /**
    * true quando o exame original foi em horário comercial: a revisão SÓ pode
@@ -97,9 +100,15 @@ export async function buscarRevisoesDisponiveis(petIds: number[]): Promise<Revis
       return {
         agendamento_original_id: ag.id,
         pet_nome: pet?.nome ?? null,
-        tipo_exame: ag.tipo_exame,
+        // Tipo já FILTRADO pela elegibilidade (não o texto bruto do
+        // agendamento) — um agendamento combinado tipo "Raio-X, Ultrassom
+        // Abdominal Total" só tem o Ultrassom elegível pra revisão; usar o
+        // texto bruto fazia a IA oferecer revisão gratuita do Raio-X também
+        // (achado 09/09/2026, confirmado de novo 01/10/2026 com Liliane/Akira).
+        tipo_exame: getTipoPermitido(ag.tipo_exame)!,
         data_original: ag.data_hora,
         prazo_limite: eleg.prazo_limite.toISOString().slice(0, 10),
+        prazo_dias: config.prazo_dias,
         pode_agendar: eleg.pode_agendar,
         horario_restrito: originalComercial,
         restricao_horario: originalComercial
@@ -135,15 +144,43 @@ export async function montarInfoClienteNovo(telefone: string): Promise<string | 
 
   const { data: pets } = await supabase
     .from('pets')
-    .select('id, falecido')
+    .select('id, nome, falecido')
     .eq('tutor_id', tutor.id)
-  const petIds = (pets ?? []).filter(p => !p.falecido).map(p => p.id)
+  const petsVivos = (pets ?? []).filter(p => !p.falecido)
+  const petIds = petsVivos.map(p => p.id)
 
-  const revisoes = await buscarRevisoesDisponiveis(petIds)
+  const [revisoes, { data: ativos }] = await Promise.all([
+    buscarRevisoesDisponiveis(petIds),
+    supabase
+      .from('agendamentos')
+      .select('tipo_exame, data_hora, pets(nome)')
+      .eq('tutor_id', tutor.id)
+      .in('status', ['agendado', 'em atendimento'])
+      .gt('data_hora', agoraLocalISO())
+      .order('data_hora')
+      .limit(5),
+  ])
 
+  const nomesPets = petsVivos.map(p => p.nome).filter(Boolean)
   const linhas = [
-    `CLIENTE JÁ CADASTRADO: ${tutor.nome ?? 'sem nome'}. Cumprimente pelo nome. (Para ids de pets ou dados completos, chame identificar_tutor quando precisar.)`,
+    `CLIENTE JÁ CADASTRADO: ${tutor.nome ?? 'sem nome'}` +
+      (nomesPets.length > 0 ? `, pet(s): ${nomesPets.join(', ')}` : '') +
+      '. Cumprimente pelo nome. (Para ids de pets ou dados completos, chame identificar_tutor quando precisar.)',
   ]
+
+  // Agendamento ativo já marcado: evita a IA tratar "preciso adiar"/"atrasou"/
+  // "repetir o exame" como pedido de agendamento NOVO do zero quando na
+  // verdade é sobre isso aqui (achado 30/09/2026, caso Elisângela/Billy —
+  // ela tinha uma revisão marcada pra aquele mesmo dia e a IA nunca
+  // conectou, só foi perguntando tipo de exame do zero).
+  if (ativos && ativos.length > 0) {
+    linhas.push('AGENDAMENTO(S) ATIVO(S) deste cliente (se ele mencionar atraso, remarcar, repetir ou "aquele exame", é provavelmente sobre um destes — confira com meus_agendamentos antes de tratar como exame novo):')
+    for (const ag of ativos) {
+      const pet = Array.isArray(ag.pets) ? (ag.pets as { nome: string }[])[0]?.nome : (ag.pets as { nome: string } | null)?.nome
+      linhas.push(`- ${pet ?? 'pet'}: ${ag.tipo_exame} em ${formatBr(ag.data_hora)}`)
+    }
+  }
+
   if (revisoes.length > 0) {
     linhas.push(
       'REVISÃO GRATUITA DISPONÍVEL para este cliente — mencione na sua primeira resposta como LEMBRETE SECUNDÁRIO, nunca como assunto principal: primeiro apresente-se e pergunte como pode ajudar (ou responda o que ele pediu), e só então acrescente UMA linha leve no final (ex.: "Aliás, vi que a Cacau ainda não marcou a revisão gratuita da ultra — quer aproveitar e marcar?"). NÃO despeje prazo e restrição de horário nesse primeiro momento — esses detalhes só quando o cliente demonstrar interesse (a restrição de horário SEMPRE antes de perguntar a data):',
@@ -151,7 +188,7 @@ export async function montarInfoClienteNovo(telefone: string): Promise<string | 
     for (const r of revisoes) {
       linhas.push(
         `- ${r.pet_nome ?? 'pet'}: ${r.tipo_exame} feito em ${formatBr(r.data_original)} ` +
-          `(agendamento_original_id=${r.agendamento_original_id} para agendar_revisao; a revisão precisa SER REALIZADA até ${formatBr(r.prazo_limite + 'T00:00')} — não ofereça datas depois disso)` +
+          `(agendamento_original_id=${r.agendamento_original_id} para agendar_revisao; válida por ${r.prazo_dias} dias do exame original, a revisão precisa SER REALIZADA até ${r.prazo_limite} — não ofereça datas depois disso, confira na tabela CALENDÁRIO se a data que o cliente pediu é antes ou depois dessa)` +
           (r.horario_restrito
             ? ` — horario_restrito=true: ${r.restricao_horario}. Avise ANTES de perguntar a data e não ofereça fim de semana/feriado/noite/horário especial.`
             : ' — horario_restrito=false: SEM restrição de horário, pode agendar em horário especial normalmente.'),
