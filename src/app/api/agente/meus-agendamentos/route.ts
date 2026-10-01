@@ -56,22 +56,39 @@ export async function GET(request: NextRequest) {
   }
 
   if (!tutor) {
-    return NextResponse.json({ agendamentos: [] })
+    return NextResponse.json({ agendamentos: [], historico_recente: [] })
   }
 
   // Busca agendamentos futuros com status ativo. data_hora é naive (horário
   // de Brasília sem timezone) — comparar contra ISO em UTC faria agendamentos
   // dentro de ~3h somem da lista (ver agoraLocalISO).
   const agora = agoraLocalISO()
-  const { data: rows, error } = await supabase
-    .from('agendamentos')
-    .select('id, tipo_exame, data_hora, status, valor, forma_pagamento, pets(nome)')
-    .eq('tutor_id', tutor.id)
-    .in('status', ['agendado', 'em atendimento'])
-    .gt('data_hora', agora)
-    .order('data_hora')
+  const quarentaECincoDiasAtras = new Date(Date.now() - 45 * 86_400_000).toISOString()
+
+  const [{ data: rows, error }, { data: recentesRows, error: recentesError }] = await Promise.all([
+    supabase
+      .from('agendamentos')
+      .select('id, tipo_exame, data_hora, status, valor, forma_pagamento, pets(nome)')
+      .eq('tutor_id', tutor.id)
+      .in('status', ['agendado', 'em atendimento'])
+      .gt('data_hora', agora)
+      .order('data_hora'),
+    // Faltou/cancelado recentes: sem isso, a IA só via "não achei nada" pra
+    // um cliente que insiste ter um agendamento — sem saber dizer SE ele
+    // existiu e o que aconteceu (caso real: Fabiana/Jade, 29/09/2026, faltou
+    // numa revisão e perdeu o direito; a IA só escalou às cegas).
+    supabase
+      .from('agendamentos')
+      .select('id, tipo_exame, data_hora, status, is_revisao, pets(nome)')
+      .eq('tutor_id', tutor.id)
+      .in('status', ['faltou', 'cancelado'])
+      .gt('data_hora', quarentaECincoDiasAtras)
+      .order('data_hora', { ascending: false })
+      .limit(5),
+  ])
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (recentesError) return NextResponse.json({ error: recentesError.message }, { status: 500 })
 
   const agendamentos = (rows ?? []).map((ag) => ({
     id:              ag.id,
@@ -84,5 +101,14 @@ export async function GET(request: NextRequest) {
     forma_pagamento: ag.forma_pagamento,
   }))
 
-  return NextResponse.json({ agendamentos })
+  const historico_recente = (recentesRows ?? []).map((ag) => ({
+    id:             ag.id,
+    pet_nome:       Array.isArray(ag.pets) ? (ag.pets[0]?.nome ?? null) : (ag.pets as { nome: string } | null)?.nome ?? null,
+    tipo_exame:     ag.tipo_exame,
+    data_formatada: formatDataHora(ag.data_hora),
+    status:         ag.status,
+    is_revisao:     !!ag.is_revisao,
+  }))
+
+  return NextResponse.json({ agendamentos, historico_recente })
 }
