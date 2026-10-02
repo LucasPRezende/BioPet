@@ -289,7 +289,13 @@ export async function executarTool(
       return chamarApi(
         `/api/agente/remarcar?id=${Number(input.agendamento_id)}`,
         'PATCH',
-        { nova_data_hora: input.nova_data_hora, nova_forma_pagamento: input.nova_forma_pagamento, telefone },
+        {
+          nova_data_hora: input.nova_data_hora,
+          nova_forma_pagamento: input.nova_forma_pagamento,
+          veterinario_id: input.veterinario_id,
+          observacao_adicional: input.observacao_adicional,
+          telefone,
+        },
       )
     case 'listar_laudos':
       return chamarApi(`/api/agente/laudo?telefone=${tel}`, 'GET')
