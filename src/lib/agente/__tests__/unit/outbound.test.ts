@@ -21,7 +21,10 @@ import {
   classificarFromMe,
   registrarHumano,
   contextoPendente,
+  mensagemRecente,
 } from '@/lib/agente/outbound'
+
+const horasAtras = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString()
 
 beforeEach(() => {
   fromMock.mockReset()
@@ -103,8 +106,8 @@ describe('contextoPendente', () => {
   it('formata mensagens de sistema e humano, e marca como consumidas', async () => {
     const selectBuilder = makeBuilder({
       data: [
-        { id: 1, origem: 'sistema', texto: 'Seu  agendamento   foi confirmado', criado_em: '2026-07-13T10:00:00Z' },
-        { id: 2, origem: 'humano', texto: 'pode vir em jejum', criado_em: '2026-07-13T10:01:00Z' },
+        { id: 1, origem: 'sistema', texto: 'Seu  agendamento   foi confirmado', criado_em: horasAtras(2) },
+        { id: 2, origem: 'humano', texto: 'pode vir em jejum', criado_em: horasAtras(1) },
       ],
       error: null,
     })
@@ -125,10 +128,52 @@ describe('contextoPendente', () => {
     expect(updateBuilder.in).toHaveBeenCalledWith('id', [1, 2])
   })
 
+  it('mensagem com mais de 72h NÃO entra no prompt, mas é marcada como consumida', async () => {
+    const selectBuilder = makeBuilder({
+      data: [
+        { id: 1, origem: 'sistema', texto: 'Jade confirmada pra 21/09', criado_em: horasAtras(24 * 21) },
+        { id: 2, origem: 'sistema', texto: 'Seu link de pagamento', criado_em: horasAtras(3) },
+      ],
+      error: null,
+    })
+    const updateBuilder = makeBuilder({ data: null, error: null })
+    fromMock.mockReturnValueOnce(selectBuilder).mockReturnValueOnce(updateBuilder)
+
+    const texto = await contextoPendente('24981367482')
+
+    expect(texto).toBe('- Sistema enviou ao cliente: "Seu link de pagamento"')
+    expect(updateBuilder.in).toHaveBeenCalledWith('id', [1, 2])
+  })
+
+  it('só mensagens velhas → string vazia', async () => {
+    fromMock
+      .mockReturnValueOnce(makeBuilder({
+        data: [{ id: 1, origem: 'sistema', texto: 'velha', criado_em: horasAtras(24 * 10) }],
+        error: null,
+      }))
+      .mockReturnValueOnce(makeBuilder({ data: null, error: null }))
+    expect(await contextoPendente('24981367482')).toBe('')
+  })
+
   it('erro de DB (ex.: coluna/tabela ausente) → string vazia, não lança', async () => {
     fromMock.mockImplementation(() => {
       throw new Error('coluna consumido não existe')
     })
     await expect(contextoPendente('24981367482')).resolves.toBe('')
+  })
+})
+
+describe('mensagemRecente', () => {
+  const agora = new Date('2026-10-02T12:00:00Z')
+  it('dentro de 72h → true; fora → false', () => {
+    expect(mensagemRecente('2026-10-01T12:00:00Z', agora)).toBe(true)
+    expect(mensagemRecente('2026-09-28T12:00:00Z', agora)).toBe(false)
+  })
+  it('timestamp sem fuso é tratado como UTC; offset explícito é respeitado', () => {
+    expect(mensagemRecente('2026-10-02T11:00:00', agora)).toBe(true)
+    expect(mensagemRecente('2026-10-02T09:00:00-03:00', agora)).toBe(true)
+  })
+  it('data inválida → false', () => {
+    expect(mensagemRecente('lixo', agora)).toBe(false)
   })
 })

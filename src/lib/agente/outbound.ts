@@ -66,6 +66,17 @@ export async function registrarHumano(
   await registrarMensagemEnviada(telefone, msgId, 'humano', texto ?? null)
 }
 
+const IDADE_MAX_CONTEXTO_MS = 72 * 3_600_000
+
+/** True se a mensagem foi enviada nas últimas 72h (ainda vale como contexto). */
+export function mensagemRecente(criadoEm: string, agora: Date = new Date()): boolean {
+  // criado_em pode vir sem fuso (timestamp naive do Postgres) — trata como UTC.
+  const iso = /[zZ]|[+-]\d{2}:?\d{2}$/.test(criadoEm) ? criadoEm : `${criadoEm}Z`
+  const t = new Date(iso).getTime()
+  if (Number.isNaN(t)) return false
+  return agora.getTime() - t <= IDADE_MAX_CONTEXTO_MS
+}
+
 /**
  * Devolve o contexto pendente (mensagens do sistema/humano ainda não injetadas)
  * e as marca como consumidas. Vazio se não houver nada.
@@ -85,15 +96,21 @@ export async function contextoPendente(telefone: string): Promise<string> {
     const rows = data ?? []
     if (rows.length === 0) return ''
 
-    const linhas = rows.map((r) => {
-      const quem = r.origem === 'humano' ? 'Atendente humano enviou' : 'Sistema enviou ao cliente'
-      return `- ${quem}: "${(r.texto as string).replace(/\s+/g, ' ').trim()}"`
-    })
+    // Mensagem velha não é contexto: sem esse corte, uma confirmação de semanas
+    // atrás era despejada no próximo contato como se fosse atual (caso real:
+    // Valeska, 02/10/2026 — IA citou "Jade marcada pra 21/09" já passada).
+    // As velhas são marcadas como consumidas igual, só não entram no prompt.
+    const recentes = rows.filter((r) => mensagemRecente(r.criado_em as string))
 
     await supabase
       .from('agente_mensagens_enviadas')
       .update({ consumido: true })
       .in('id', rows.map((r) => r.id))
+
+    const linhas = recentes.map((r) => {
+      const quem = r.origem === 'humano' ? 'Atendente humano enviou' : 'Sistema enviou ao cliente'
+      return `- ${quem}: "${(r.texto as string).replace(/\s+/g, ' ').trim()}"`
+    })
 
     return linhas.join('\n')
   } catch {
