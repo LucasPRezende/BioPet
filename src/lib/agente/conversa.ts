@@ -275,18 +275,22 @@ export async function emAtendimentoHumano(telefone: string): Promise<boolean> {
  * ou quando a IA aciona `transferir_humano`. Grava em `conversas` (funciona
  * para QUALQUER telefone, cadastrado ou não) e também no tutor, quando existir
  * (mantém o painel /admin/notificacoes e o perfil do tutor coerentes).
+ * `horasOverride` troca o prazo da config (ex.: loop com robô pausa por dias).
  */
-export async function marcarAtendimentoHumano(telefone: string): Promise<void> {
+export async function marcarAtendimentoHumano(telefone: string, horasOverride?: number): Promise<void> {
   const telNorm = normalizarTelefone(telefone)
   const digits = telefone.replace(/\D/g, '')
 
-  const { data: cfg } = await supabase
-    .from('configuracoes_agente')
-    .select('tempo_retorno_ia_horas')
-    .order('id')
-    .limit(1)
-    .maybeSingle()
-  const horas = Number(cfg?.tempo_retorno_ia_horas ?? 2)
+  let horas = horasOverride
+  if (horas == null) {
+    const { data: cfg } = await supabase
+      .from('configuracoes_agente')
+      .select('tempo_retorno_ia_horas')
+      .order('id')
+      .limit(1)
+      .maybeSingle()
+    horas = Number(cfg?.tempo_retorno_ia_horas ?? 2)
+  }
   const ate = new Date(Date.now() + horas * 3_600_000).toISOString()
 
   await Promise.all([
