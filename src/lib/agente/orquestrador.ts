@@ -11,7 +11,7 @@
  */
 import Anthropic from '@anthropic-ai/sdk'
 import { supabase } from '@/lib/supabase'
-import { normalizarTelefone } from './conversa'
+import { normalizarTelefone, marcarAtendimentoHumano } from './conversa'
 
 // Lazy init (igual ao client do Supabase): o Next importa o module no build,
 // quando process.env ainda não está disponível.
@@ -332,6 +332,28 @@ export async function acionarHumanoPorClienteSumido(telefone: string, resumo?: s
     await transferirHumano(telefone, 'ia_travou', resumo)
   } catch (e) {
     console.error('[agente] falha ao acionar humano por cliente sumido:', e)
+  }
+}
+
+/** Quanto tempo a IA fica calada com um número que parece robô em loop. */
+const HORAS_PAUSA_LOOP_BOT = 7 * 24
+
+/**
+ * O outro lado parece um robô em loop (mesma mensagem repetida / cara de URA).
+ * Avisa as admins UMA vez e silencia a IA por dias — sem responder ao contato,
+ * senão o loop continua. Se for engano, a equipe libera pelo painel.
+ */
+export async function acionarHumanoPorLoopBot(telefone: string, trecho?: string): Promise<void> {
+  try {
+    await transferirHumano(
+      telefone,
+      'ia_travou',
+      `Possível robô/atendimento automático em loop (IA parou de responder). Mensagem: "${trecho ?? ''}". ` +
+        'Se for um número que nunca é cliente, considere colocá-lo em Números bloqueados.',
+    )
+    await marcarAtendimentoHumano(telefone, HORAS_PAUSA_LOOP_BOT)
+  } catch (e) {
+    console.error('[agente] falha ao acionar humano por loop de robô:', e)
   }
 }
 
