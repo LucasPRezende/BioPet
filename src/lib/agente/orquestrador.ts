@@ -12,6 +12,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { supabase } from '@/lib/supabase'
 import { normalizarTelefone, marcarAtendimentoHumano } from './conversa'
+import { violouTrava, TEXTO_SEM_CONFIRMACAO, type ChamadaDoTurno } from './trava-confirmacao'
 
 // Lazy init (igual ao client do Supabase): o Next importa o module no build,
 // quando process.env ainda não está disponível.
@@ -643,6 +644,8 @@ export async function responder(
 
   const uso = { input: 0, output: 0, cacheCriado: 0, cacheLido: 0 }
   const modelo = paramsDoModelo()
+  // Tools chamadas NESTE turno (com resultado) — a trava de falsa confirmação precisa delas.
+  const chamadasTurno: ChamadaDoTurno[] = []
 
   // Último texto não-vazio visto em QUALQUER rodada (mesmo as que chamaram
   // tool) — usado como rede de segurança se a rodada final vier vazia (ver
@@ -680,6 +683,7 @@ export async function responder(
       for (const block of resp.content) {
         if (block.type === 'tool_use') {
           const out = await executar(block.name, block.input as Record<string, any>, telefone)
+          chamadasTurno.push({ nome: block.name, resultado: out })
           results.push({
             type: 'tool_result',
             tool_use_id: block.id,
@@ -713,6 +717,33 @@ export async function responder(
       ).catch(() => {})
       return {
         resposta: 'Desculpe, tive uma dificuldade aqui. Vou pedir para um atendente te responder. 🙏',
+        historico: semThinking(messages),
+        uso: { ...uso, custoUSD: custoUSD(uso) },
+      }
+    }
+
+    // TRAVA: "Agendamento solicitado ✓" sem nenhuma tool de criação ter dado
+    // sucesso neste turno é mentira (caso real 3x: Raio-X/horário especial/
+    // conflito recusados pela API, IA confirmou mesmo assim). Troca pela
+    // verdade, avisa a equipe e corrige o histórico persistido.
+    if (violouTrava(textoFinal, chamadasTurno)) {
+      console.warn(`[agente/trava] falsa confirmação bloqueada: "${textoFinal.slice(0, 120).replace(/s+/g, ' ')}"`)
+      if (!chamadasTurno.some((c) => c.nome === 'transferir_humano')) {
+        await executar(
+          'transferir_humano',
+          {
+            motivo: 'pergunta_tecnica',
+            resumo:
+              'TRAVA: a IA ia confirmar um agendamento que NÃO foi criado (nenhuma tool de agendamento teve sucesso). ' +
+              `Confirmar manualmente com o cliente. Cliente disse: "${textoUsuario.slice(0, 200)}". Mensagem bloqueada: "${textoFinal.slice(0, 300)}"`,
+          },
+          telefone,
+        ).catch(() => {})
+      }
+      const ultima = messages[messages.length - 1]
+      if (ultima?.role === 'assistant') ultima.content = [{ type: 'text', text: TEXTO_SEM_CONFIRMACAO }]
+      return {
+        resposta: paraWhatsApp(TEXTO_SEM_CONFIRMACAO),
         historico: semThinking(messages),
         uso: { ...uso, custoUSD: custoUSD(uso) },
       }
