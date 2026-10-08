@@ -182,7 +182,7 @@ run('comportamento do agente (IA real, tools fake)', () => {
   it('horário claramente dentro do comercial (15h): continua cotando o preço comercial normal', OPTS, async () => {
     const c = novaConversa()
     await c.enviar(
-      'oi, sou tutor do Rex, o veterinário pediu um ultrassom abdominal pra ele, dá pra marcar segunda às 15:00?',
+      'oi, sou tutor do Rex, o veterinário pediu um ultrassom abdominal NOVO pra ele (não é revisão), dá pra marcar segunda às 15:00?',
     )
     if (!c.nomes().includes('horarios_livres')) {
       await c.enviar('isso, segunda-feira às 15:00 mesmo')
@@ -274,6 +274,56 @@ run('comportamento do agente (IA real, tools fake)', () => {
   // que cadastrar_tutor ia devolver (368) — deu erro de FK. O fake agora
   // espelha esse erro pra tutor_id errado (harness.ts) — este teste garante
   // que cadastrar_pet usa o tutor_id real de cadastrar_tutor de primeira.
+  // Caso real 08/10/2026 (Ivanilza/Pretinho, Haiku 4.5): perguntou PIX/cartão numa
+  // revisão grátis, marcou sem consultar horarios_livres (a rota não checava
+  // conflito), esqueceu o aviso de "sem laudo escrito" e falou em link de pagamento.
+  it('revisão: confere horarios_livres antes, não pergunta pagamento e avisa que não inclui laudo', OPTS, async () => {
+    const c = novaConversa()
+    await c.enviar('Oi, quero agendar a revisão do Rex na quinta-feira às 10h')
+    for (let i = 0; i < 4 && !c.nomes().includes('agendar_revisao'); i++) {
+      await c.enviar('Isso mesmo, quinta às 10h. Pode confirmar.')
+    }
+
+    const nomes = c.nomes()
+    expect(nomes).toContain('agendar_revisao')
+    expect(nomes).toContain('horarios_livres')
+    expect(nomes.indexOf('horarios_livres')).toBeLessThan(nomes.indexOf('agendar_revisao'))
+    const ok = c.calls.filter((x) => x.nome === 'agendar_revisao' && !(x.resultado as any)?.erro)
+    expect(ok.length).toBeGreaterThan(0)
+    const t = c.textos()
+    expect(t).not.toMatch(/pix|cart[ãa]o/)
+    expect(t).not.toMatch(/link de pagamento/)
+    expect(t).toMatch(/laudo/)
+  })
+
+  it('revisão: número que o cliente cita (nº do exame) não vira agendamento_original_id', OPTS, async () => {
+    const c = novaConversa()
+    await c.enviar('Oi, o exame do Rex foi o número 28380309, quero marcar a revisão na quinta às 10h')
+    for (let i = 0; i < 4 && !c.nomes().includes('agendar_revisao'); i++) {
+      await c.enviar('Isso mesmo, quinta às 10h. Pode confirmar.')
+    }
+
+    const chamadas = c.calls.filter((x) => x.nome === 'agendar_revisao')
+    expect(chamadas.length).toBeGreaterThan(0)
+    for (const ch of chamadas) expect(Number(ch.input.agendamento_original_id)).not.toBe(28380309)
+    expect(chamadas.some((ch) => Number(ch.input.agendamento_original_id) === 900)).toBe(true)
+  })
+
+  it('revisão em horário já ocupado: não fecha nesse horário nem diz que registrou', OPTS, async () => {
+    const c = novaConversa()
+    await c.enviar('Oi, quero agendar a revisão do Rex na quinta-feira às 13h')
+    for (let i = 0; i < 3 && !c.nomes().includes('agendar_revisao'); i++) {
+      await c.enviar('Isso, quinta às 13h mesmo, pode confirmar.')
+    }
+
+    // 13h não está livre no fake (12h–14h30 ocupados): se chamou a tool, o backend barrou.
+    for (const ch of c.calls.filter((x) => x.nome === 'agendar_revisao' && String(x.input.data_hora).includes('T13:'))) {
+      expect((ch.resultado as any)?.erro).toBe(true)
+    }
+    expect(c.nomes()).toContain('horarios_livres')
+    expect(c.textos()).not.toMatch(/revis[ãa]o (registrada|marcada|confirmada).{0,40}13h/)
+  })
+
   it('cadastrar_pet usa o tutor_id real de cadastrar_tutor, sem chutar', OPTS, async () => {
     const c = novaConversa(responder, { novoCliente: true })
     await c.enviar('Oi, meu nome é Bianca, quero marcar um ultrassom abdominal pro meu cachorro Bidu')

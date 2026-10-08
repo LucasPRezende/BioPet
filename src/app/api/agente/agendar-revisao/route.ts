@@ -4,6 +4,7 @@ import { verifyAgentKey } from '@/lib/agent-auth'
 import { gerarFeriadosPorAno, isHorarioEspecial } from '@/lib/feriados'
 import { calcularElegibilidadeRevisao, dentroJanelaComercial } from '@/lib/revisao-elegibilidade'
 import { normalizeTelefone } from '@/lib/telefone'
+import { verificarConflito } from '@/lib/agendamento-helpers'
 
 /**
  * Cria uma REVISÃO (reavaliação de um exame já feito, pedida pelo veterinário)
@@ -160,6 +161,16 @@ export async function POST(request: NextRequest) {
       error: `Revisões de exames feitos em horário comercial só podem ser agendadas em horário comercial (${horarioInicio}–${horarioFim}, seg–sex).`,
       precisa_atendente: true,
     }, { status: 422 })
+  }
+
+  // Horário ocupado: o `agendar` já recusava; a revisão não — a IA marcou em cima
+  // de outro agendamento sem consultar horarios_livres (caso Ivanilza, 08/10/2026).
+  const conflito = await verificarConflito(data_hora, duracao)
+  if (conflito) {
+    return NextResponse.json(
+      { error: 'Já existe um agendamento neste horário.', conflito_id: conflito },
+      { status: 409 },
+    )
   }
 
   let valorTotal = 0

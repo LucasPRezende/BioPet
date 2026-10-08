@@ -254,6 +254,12 @@ function fakeResultado(nome: string, input: Record<string, any>, opts: { novoCli
           mensagem: 'Horário especial (fim de semana, feriado ou fora do horário comercial) precisa ser confirmado por um atendente — a equipe nem sempre está disponível nesses horários. Use transferir_humano.',
         }
       }
+      // Espelha o backend real: horário ocupado → 409 (a rota agora checa conflito).
+      // O fixture HORARIOS_LIVRES só tem slots livres; no comercial, o que não está lá está ocupado.
+      const horaReq = String(input.data_hora ?? '').split('T')[1]?.slice(0, 5) ?? ''
+      if (horaReq >= '09:00' && horaReq < '16:30' && !HORARIOS_LIVRES.some((h) => h.hora === horaReq)) {
+        return { erro: true, status: 409, error: 'Já existe um agendamento neste horário.', conflito_id: 77 }
+      }
       const hora = String(input.data_hora ?? '').split('T')[1]?.slice(0, 5) ?? ''
       const restrito = Number(input.agendamento_original_id) === 900
       const dentroComercial = hora >= '09:00' && hora <= '16:30'
