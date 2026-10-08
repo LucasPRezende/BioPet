@@ -24,6 +24,48 @@ function getAnthropic(): Anthropic {
 const MODELO = process.env.AGENTE_MODELO ?? 'claude-haiku-4-5-20251001'
 const MAX_RODADAS_TOOL = 6
 
+/**
+ * Haiku 5.5 muda a API em relação ao 4.5: thinking vem LIGADO por padrão (e
+ * conta no max_tokens) e há `effort`. Para o agente, o padrão é thinking
+ * desligado + effort baixo (o mais próximo do comportamento do 4.5, e o mais
+ * barato). AGENTE_THINKING=adaptive e AGENTE_EFFORT permitem experimentar.
+ * Nada disso é enviado a modelos que não são Haiku 5.x.
+ */
+function paramsDoModelo(): { extra: Record<string, unknown>; maxTokens: number } {
+  if (!/haiku-5/.test(MODELO)) return { extra: {}, maxTokens: 1024 }
+  const adaptive = process.env.AGENTE_THINKING === 'adaptive'
+  const effort = process.env.AGENTE_EFFORT ?? 'low'
+  return {
+    extra: { thinking: { type: adaptive ? 'adaptive' : 'disabled' }, output_config: { effort } },
+    // thinking consome max_tokens: dá folga quando ligado
+    maxTokens: adaptive ? 4096 : 1024,
+  }
+}
+
+/** US$ por milhão de tokens: [entrada, saída]; cache escrita 1,25x e leitura 0,1x da entrada. */
+function precoPorMilhao(modelo: string): [number, number] {
+  return /haiku-5/.test(modelo) ? [0.1, 0.5] : [1, 5] // Haiku 4.5 = US$1/US$5
+}
+
+function custoUSD(uso: { input: number; output: number; cacheCriado: number; cacheLido: number }): number {
+  const [pin, pout] = precoPorMilhao(MODELO)
+  return (uso.input * pin + uso.output * pout + uso.cacheCriado * pin * 1.25 + uso.cacheLido * pin * 0.1) / 1_000_000
+}
+
+/**
+ * O histórico persistido NÃO guarda blocos de thinking: o system volátil
+ * (hora, contexto) muda a cada turno, e o Haiku 5.x recusa (400) um bloco de
+ * thinking reenviado depois que algo anterior mudou. Dentro do mesmo turno
+ * (loop de tools) os blocos continuam intactos.
+ */
+export function semThinking(msgs: Anthropic.MessageParam[]): Anthropic.MessageParam[] {
+  return msgs.map((m) =>
+    m.role === 'assistant' && Array.isArray(m.content)
+      ? { ...m, content: m.content.filter((b) => b.type !== 'thinking' && b.type !== 'redacted_thinking') }
+      : m,
+  )
+}
+
 function baseUrl(): string {
   return (
     process.env.NEXT_PUBLIC_URL ??
@@ -547,6 +589,8 @@ export function paraWhatsApp(t: string): string {
 export interface RespostaOrquestrador {
   resposta: string
   historico: any[]
+  /** Consumo do turno (todas as rodadas), com custo estimado em US$. */
+  uso?: { custoUSD: number; input: number; output: number; cacheCriado: number; cacheLido: number }
 }
 
 /** Executor de tools — injetável para testes (fake) sem tocar banco/WhatsApp. */
@@ -598,6 +642,7 @@ export async function responder(
   ]
 
   const uso = { input: 0, output: 0, cacheCriado: 0, cacheLido: 0 }
+  const modelo = paramsDoModelo()
 
   // Último texto não-vazio visto em QUALQUER rodada (mesmo as que chamaram
   // tool) — usado como rede de segurança se a rodada final vier vazia (ver
@@ -608,10 +653,11 @@ export async function responder(
   for (let rodada = 0; rodada < MAX_RODADAS_TOOL; rodada++) {
     const resp = await client.messages.create({
       model: MODELO,
-      max_tokens: 1024,
+      max_tokens: modelo.maxTokens,
       system,
       tools: TOOLS,
       messages,
+      ...modelo.extra,
     })
 
     const u = resp.usage as any
@@ -667,11 +713,12 @@ export async function responder(
       ).catch(() => {})
       return {
         resposta: 'Desculpe, tive uma dificuldade aqui. Vou pedir para um atendente te responder. 🙏',
-        historico: messages,
+        historico: semThinking(messages),
+        uso: { ...uso, custoUSD: custoUSD(uso) },
       }
     }
 
-    return { resposta: paraWhatsApp(textoFinal), historico: messages }
+    return { resposta: paraWhatsApp(textoFinal), historico: semThinking(messages), uso: { ...uso, custoUSD: custoUSD(uso) } }
   }
 
   // Excedeu as rodadas de tool — aciona o atendente DE VERDADE (a mensagem
@@ -685,7 +732,8 @@ export async function responder(
   ).catch(() => {})
   return {
     resposta: 'Desculpe, tive uma dificuldade aqui. Vou pedir para um atendente te responder. 🙏',
-    historico: messages,
+    historico: semThinking(messages),
+    uso: { ...uso, custoUSD: custoUSD(uso) },
   }
 }
 
@@ -696,6 +744,6 @@ function logUso(
 ): void {
   console.log(
     `[agente/uso] rodadas=${rodadas} input=${uso.input} output=${uso.output} ` +
-      `cache_criado=${uso.cacheCriado} cache_lido=${uso.cacheLido}`,
+      `cache_criado=${uso.cacheCriado} cache_lido=${uso.cacheLido} custo_usd=${custoUSD(uso).toFixed(5)}`,
   )
 }

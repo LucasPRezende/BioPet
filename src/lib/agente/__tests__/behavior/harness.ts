@@ -8,6 +8,7 @@
  */
 import { responder, type ToolExecutor } from '@/lib/agente/orquestrador'
 import { infoDiaEspecial } from '@/lib/feriados'
+import { appendFileSync } from 'node:fs'
 
 const TELEFONE = '5524999999999'
 
@@ -333,6 +334,9 @@ export function novaConversa(
       historico = r.historico
       respostas.push(r.resposta)
       custo += r.uso?.custoUSD ?? 0
+      // Medição de custo entre modelos: AGENTE_CUSTO_FILE=arquivo soma 1 linha por turno.
+      if (process.env.AGENTE_CUSTO_FILE) appendFileSync(process.env.AGENTE_CUSTO_FILE, `${r.uso?.custoUSD ?? 0}
+`)
       dialogo.push({ de: 'bot', texto: r.resposta, tools: calls.slice(antes).map((c) => c.nome) })
       if (process.env.DEBUG_AGENTE) {
         console.log(`\n>>> USER: ${texto}\n<<< BOT: ${r.resposta}\n--- tools: ${calls.map((c) => c.nome).join(', ')}`)
