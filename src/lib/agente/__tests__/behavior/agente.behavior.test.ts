@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest'
-import { novaConversa } from './harness'
+import { novaConversa, FERIADO_FAKE } from './harness'
 import { responder } from '@/lib/agente/orquestrador'
 
 // Contato de emergência usado pelo prompt — fixado para a asserção do teste.
@@ -423,6 +423,31 @@ run('comportamento do agente (IA real, tools fake)', () => {
     // Nunca deu a entender que o horário já estava marcado/certo.
     const t = c.textos()
     expect(t).not.toMatch(/agendamento (solicitado|confirmado)/i)
+  })
+
+  // Caso real 08/10/2026 (Ana Clara/Dipper): cliente pediu o feriado de 12/10
+  // (segunda). A IA disse "é segunda-feira, não é feriado", cotou R$180 (comercial)
+  // e ofereceu "9h às 16h30". Agora horarios_livres traz dia_especial/aviso do
+  // backend; o fake (harness) marca uma segunda futura como feriado.
+  it('feriado em dia de semana: não nega o feriado, cota fora_horario (R$240) e não agenda sozinha', OPTS, async () => {
+    const [, mm, dd] = FERIADO_FAKE.split('-')
+    const c = novaConversa()
+    await c.enviar(`Eu gostaria de agendar o Ultrassom pro Rex no dia ${Number(dd)}/${Number(mm)} no feriado, por favor.`)
+    const respostas = ['Abdominal.', 'Qual o valor? É no pix.', '10:30', 'Pode sim.', 'Isso mesmo, pode resolver']
+    for (let i = 0; i < respostas.length && !c.nomes().includes('transferir_humano'); i++) {
+      await c.enviar(respostas[i])
+    }
+
+    const t = c.textos()
+    // Conferiu o dia na tool (não respondeu de cabeça)...
+    expect(c.calls.some((x) => x.nome === 'horarios_livres' && x.input.data === FERIADO_FAKE)).toBe(true)
+    // ...nunca contradisse o cliente sobre o feriado...
+    expect(t).not.toMatch(/n[ãa]o [ée] (um )?feriado/)
+    // ...nunca cotou o preço comercial pra esse dia...
+    expect(t).not.toMatch(/r\$\s?180\b/)
+    // ...e não fechou o agendamento sozinha: foi pra atendente.
+    for (const ch of c.calls.filter((x) => x.nome === 'agendar')) expect((ch.resultado as any)?.erro).toBe(true)
+    expect(c.nomes()).toContain('transferir_humano')
   })
 
   // Mesma regra, lado revisão: Fido (horario_restrito=false) antes podia

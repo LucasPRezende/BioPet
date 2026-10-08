@@ -7,6 +7,7 @@
  * podermos afirmar QUAL ação o modelo tomou.
  */
 import { responder, type ToolExecutor } from '@/lib/agente/orquestrador'
+import { infoDiaEspecial } from '@/lib/feriados'
 
 const TELEFONE = '5524999999999'
 
@@ -85,6 +86,20 @@ function isoOffset(dias: number): string {
   return d.toISOString().slice(0, 10)
 }
 
+/**
+ * Feriado FICTÍCIO numa segunda-feira futura (≥3 dias à frente), pra reproduzir
+ * o caso real de 12/10/2026 (Nossa Senhora Aparecida, segunda) sem depender de
+ * data fixa. O fake trata essa data como feriado em horarios_livres e agendar.
+ */
+function proximaQuartaFutura(): string {
+  const d = new Date()
+  d.setDate(d.getDate() + 3)
+  while (d.getDay() !== 3) d.setDate(d.getDate() + 1)
+  return d.toISOString().slice(0, 10)
+}
+export const FERIADO_FAKE = proximaQuartaFutura()
+const FERIADOS_FAKE = [{ data: FERIADO_FAKE, nome: 'Nossa Senhora Aparecida' }]
+
 const DIAS_SEMANA = [
   'domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado',
 ]
@@ -107,6 +122,7 @@ function horarioEhEspecial(dataHoraISO: string): boolean {
   const [y, m, d] = data.split('-').map(Number)
   const dow = new Date(y, m - 1, d).getDay()
   if (dow === 0 || dow === 6) return true
+  if (data === FERIADO_FAKE) return true
   const hora = (horaCompleta ?? '').slice(0, 5)
   const doFixture = HORARIOS_LIVRES.find((h) => h.hora === hora)
   if (doFixture) return doFixture.especial
@@ -161,16 +177,23 @@ function fakeResultado(nome: string, input: Record<string, any>, opts: { novoCli
       return opts.novoCliente ? { tutor: null, pets: [], atendimento_humano: false } : CONTEXTO
     case 'consultar_precos':    return PRECOS
     case 'listar_veterinarios': return { veterinarios: [{ id: 3, nome: 'Dra. Ana' }] }
-    case 'horarios_livres':
+    case 'horarios_livres': {
+      // Dia de feriado: todos os slots são especiais (espelha isHorarioEspecial).
+      const slots = input.data === FERIADO_FAKE
+        ? HORARIOS_LIVRES.map((h) => ({ hora: h.hora, especial: true }))
+        : HORARIOS_LIVRES
       return {
         data: input.data,
         dia_semana: diaDaSemana(input.data),
+        // Mesmo sinal de DIA que a API real devolve (infoDiaEspecial).
+        ...infoDiaEspecial(input.data, FERIADOS_FAKE),
         duracao_minutos: input.duracao ?? 30,
         expediente: { inicio: '08:00', fim: '18:00' },
-        total_livres: HORARIOS_LIVRES.length,
-        horarios_livres: HORARIOS_LIVRES,
+        total_livres: slots.length,
+        horarios_livres: slots,
         horarios_para_sugerir_tarde: HORARIOS_PARA_SUGERIR_TARDE,
       }
+    }
     case 'cadastrar_tutor':     return { id: 1, nome: input.nome, telefone: TELEFONE }
     case 'cadastrar_pet': {
       // Espelha o backend real: FK falha se o tutor_id não é o que cadastrar_tutor

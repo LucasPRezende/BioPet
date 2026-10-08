@@ -116,6 +116,45 @@ export function horasUteisDesde(inicioISO: string, agora: Date, feriados: string
   return totalMs / 3_600_000
 }
 
+export interface InfoDiaEspecial {
+  /** true quando o DIA INTEIRO é horário especial (feriado ou fim de semana). */
+  dia_especial: boolean
+  motivo_dia_especial: 'feriado' | 'fim_de_semana' | null
+  feriado_nome: string | null
+  /** Texto pronto pra IA quando dia_especial=true; null caso contrário. */
+  aviso_dia_especial: string | null
+}
+
+/**
+ * Resume se a DATA inteira é horário especial (feriado ou sábado/domingo). A IA
+ * errou duas vezes (07/09 e 08/10/2026) tratando segunda-feira de feriado como
+ * dia comercial porque só recebia o "especial" de cada slot — sem nenhum sinal
+ * no nível do dia. Aqui o backend diz explicitamente.
+ */
+export function infoDiaEspecial(
+  data: string,
+  feriados: { data: string; nome?: string | null }[],
+): InfoDiaEspecial {
+  const feriado = feriados.find((f) => f.data === data)
+  const dow = new Date(`${data}T12:00:00`).getDay()
+  const fimDeSemana = dow === 0 || dow === 6
+
+  if (!feriado && !fimDeSemana) {
+    return { dia_especial: false, motivo_dia_especial: null, feriado_nome: null, aviso_dia_especial: null }
+  }
+
+  const motivo = feriado ? 'feriado' : 'fim_de_semana'
+  const nome = feriado?.nome?.trim() || null
+  const aviso = feriado
+    ? `ATENÇÃO: ${data} é FERIADO${nome ? ` (${nome})` : ''} — o dia INTEIRO é horário especial, mesmo caindo em dia de semana. ` +
+      'Todos os horários cobram o valor "fora_horario" e o agendamento é confirmado por um atendente. ' +
+      'Nunca diga ao cliente que esse dia "não é feriado" nem cote o preço comercial.'
+    : `ATENÇÃO: ${data} é fim de semana — o dia INTEIRO é horário especial. ` +
+      'Todos os horários cobram o valor "fora_horario" e o agendamento é confirmado por um atendente.'
+
+  return { dia_especial: true, motivo_dia_especial: motivo, feriado_nome: nome, aviso_dia_especial: aviso }
+}
+
 export type MotivoEspecial = 'feriado' | 'fimdesemana' | 'antes' | 'depois' | null
 
 export function motivoHorarioEspecial(
