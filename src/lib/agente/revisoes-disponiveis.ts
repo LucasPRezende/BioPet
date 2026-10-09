@@ -30,6 +30,17 @@ export interface RevisaoDisponivel {
   restricao_horario: string | null
 }
 
+/**
+ * True se o exame já aconteceu. `data_hora` é NAIVE (horário de Brasília, sem
+ * fuso) e o servidor roda em UTC: comparar com `new Date()` tratava um exame
+ * das 9h30 como "passado" às 8h18 (Brasília = UTC-3), e a IA oferecia a revisão
+ * grátis de um exame que ainda nem tinha acontecido (caso Ronan/Nina, 09/10).
+ * Compara os dois no MESMO referencial (agoraLocalISO).
+ */
+export function exameJaAconteceu(dataHora: string, agoraISO: string = agoraLocalISO()): boolean {
+  return new Date(dataHora) <= new Date(agoraISO)
+}
+
 export async function buscarRevisoesDisponiveis(petIds: number[]): Promise<RevisaoDisponivel[]> {
   if (petIds.length === 0) return []
 
@@ -55,11 +66,10 @@ export async function buscarRevisoesDisponiveis(petIds: number[]): Promise<Revis
   // Não exige status 'concluído' — o laudo costuma sair depois do exame, e o
   // tutor pode querer marcar a revisão nesse meio-tempo. Só exclui o que não
   // aconteceu de fato (faltou/cancelado) ou ainda vai acontecer (data futura).
-  const agora = new Date()
   const elegiveis = (ags ?? []).filter(ag =>
     getTipoPermitido(ag.tipo_exame) !== null &&
     ag.status !== 'cancelado' && ag.status !== 'faltou' &&
-    new Date(ag.data_hora) <= agora,
+    exameJaAconteceu(ag.data_hora),
   )
   if (elegiveis.length === 0) return []
 

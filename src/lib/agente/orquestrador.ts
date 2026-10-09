@@ -151,7 +151,7 @@ export const TOOLS: Anthropic.Tool[] = [
   {
     name: 'listar_veterinarios',
     description:
-      'Lista os veterinários cadastrados (id e nome). Use para casar o nome que o cliente disser com o veterinário correto antes de agendar.',
+      'Lista os veterinários cadastrados (id, nome e clinica). Use para casar o nome que o cliente disser com o veterinário correto antes de agendar. O campo "clinica" (pode ser null — cadastro incompleto) serve pra desempatar nomes repetidos: se o cliente citar a clínica (ex.: "Juliana da Clive") e SÓ UM candidato do nome tiver essa clínica, proponha esse nome pra confirmação ("É a Dra. Juliana Goes, da Clive, certo?") em vez de listar todos — confirme sempre, porque clinica=null não exclui ninguém (pode atender lá e não estar cadastrado). Se nenhum ou mais de um bater, pergunte o sobrenome. Se o cliente não citou clínica, não use esse campo pra decidir.',
     input_schema: { type: 'object', properties: {} },
   },
   {
@@ -287,12 +287,17 @@ export async function executarTool(
     case 'listar_veterinarios': {
       const { data, error } = await supabase
         .from('veterinarios')
-        .select('id, nome')
+        .select('id, nome, clinicas(nome)')
         .order('nome')
       // Não pode virar "nenhum veterinário cadastrado" numa falha de consulta —
       // a IA prosseguiria sem vet_id achando que a lista está genuinamente vazia.
       if (error) return { erro: true, mensagem: 'Falha ao consultar veterinários. Tente novamente.' }
-      return { veterinarios: data ?? [] }
+      // clinicas vem como objeto (many-to-one); achata pra { id, nome, clinica }.
+      const veterinarios = (data ?? []).map((v: any) => {
+        const c = Array.isArray(v.clinicas) ? v.clinicas[0] : v.clinicas
+        return { id: v.id, nome: v.nome, clinica: c?.nome ?? null }
+      })
+      return { veterinarios }
     }
     case 'horarios_livres':
       return chamarApi(
