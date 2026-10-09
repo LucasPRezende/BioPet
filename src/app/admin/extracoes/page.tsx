@@ -1,13 +1,13 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
 
 interface VetDash {
   vet_id:   number
   vet_nome: string
   total:    number
-  pendente: number
-  pago:     number
+  comissao: number
 }
 
 interface Extracao {
@@ -18,8 +18,6 @@ interface Extracao {
   status:            string
   vet_extracao_id:   number | null
   comissao_extracao: number | null
-  comissao_paga:     boolean
-  comissao_paga_em:  string | null
   pets:              { nome: string; especie: string | null } | null
   tutores:           { nome: string | null; telefone: string } | null
   vet_responsavel:   { nome: string } | null
@@ -27,14 +25,14 @@ interface Extracao {
 }
 
 interface DashData {
-  por_vet:        VetDash[]
-  total_pendente: number
-  total_pago:     number
+  por_vet:         VetDash[]
+  total_comissao:  number
+  total_extracoes: number
 }
 
 interface Vet { id: number; nome: string }
 
-type Tab = 'sem_vet' | 'pendente' | 'pago'
+type Tab = 'sem_vet' | 'atribuidas'
 
 function brl(n: number) {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -68,7 +66,6 @@ export default function ExtracoesPage() {
 
   const [vetSel, setVetSel]           = useState<Record<number, string>>({})
   const [salvando, setSalvando]       = useState<Record<number, boolean>>({})
-  const [marcando, setMarcando]       = useState<Record<string, boolean>>({})
   const [apiErro,  setApiErro]        = useState('')
 
   const load = useCallback(async () => {
@@ -119,40 +116,14 @@ export default function ExtracoesPage() {
     load()
   }
 
-  async function marcarPago(id: number) {
-    const key = String(id)
-    setMarcando(p => ({ ...p, [key]: true }))
-    await fetch(`/api/admin/extracoes/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ comissao_paga: true }),
-    })
-    setMarcando(p => ({ ...p, [key]: false }))
-    load()
-  }
-
-  async function marcarPagoVet(vetId: number) {
-    const key = `vet_${vetId}`
-    setMarcando(p => ({ ...p, [key]: true }))
-    await fetch('/api/admin/extracoes/marcar-pago', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ vet_id: vetId, mes }),
-    })
-    setMarcando(p => ({ ...p, [key]: false }))
-    load()
-  }
-
   const tabs: { key: Tab; label: string }[] = [
     { key: 'sem_vet',  label: 'Aguardando vet' },
-    { key: 'pendente', label: 'Pendente pagamento' },
-    { key: 'pago',     label: 'Pagos' },
+    { key: 'atribuidas', label: 'Atribuídas no mês' },
   ]
 
   const emptyMsg = {
     sem_vet:  'Nenhum exame aguardando atribuição de vet.',
-    pendente: 'Nenhuma comissão pendente de pagamento.',
-    pago:     'Nenhuma comissão paga neste período.',
+    atribuidas: 'Nenhuma extração com vet atribuído neste mês.',
   }
 
   return (
@@ -182,16 +153,22 @@ export default function ExtracoesPage() {
       {/* Cards de resumo */}
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-white border border-gray-200 rounded-xl p-5">
-          <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">A Pagar</p>
-          <p className="text-3xl font-bold text-[#19202d]">{dash ? brl(dash.total_pendente) : '—'}</p>
-          <p className="text-xs text-gray-400 mt-1.5 capitalize">comissões pendentes em {mesLabel(mes)}</p>
+          <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">Comissão gerada</p>
+          <p className="text-3xl font-bold text-[#19202d]">{dash ? brl(dash.total_comissao) : '—'}</p>
+          <p className="text-xs text-gray-400 mt-1.5 capitalize">em {mesLabel(mes)}</p>
         </div>
         <div className="bg-white border border-gray-200 rounded-xl p-5">
-          <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">Pago</p>
-          <p className="text-3xl font-bold text-green-600">{dash ? brl(dash.total_pago) : '—'}</p>
-          <p className="text-xs text-gray-400 mt-1.5 capitalize">comissões pagas em {mesLabel(mes)}</p>
+          <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">Extrações</p>
+          <p className="text-3xl font-bold text-[#19202d]">{dash ? dash.total_extracoes : '—'}</p>
+          <p className="text-xs text-gray-400 mt-1.5 capitalize">com vet atribuído em {mesLabel(mes)}</p>
         </div>
       </div>
+
+      <p className="text-xs text-gray-500 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+        O pagamento das comissões é feito em{' '}
+        <Link href="/admin/pagamentos-comissao" className="font-semibold text-[#8a6e36] underline">Pagamentos</Link>.
+        Esta tela só atribui o vet de cada extração e mostra a comissão gerada.
+      </p>
 
       {/* Por veterinário */}
       {dash && dash.por_vet.length > 0 && (
@@ -205,9 +182,7 @@ export default function ExtracoesPage() {
                 <tr className="bg-gray-50 border-b border-gray-100">
                   <th className="text-left px-5 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Veterinário</th>
                   <th className="text-center px-4 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Extrações</th>
-                  <th className="text-right px-4 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-widest">A Pagar</th>
-                  <th className="text-right px-4 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Pago</th>
-                  <th className="px-4 py-3 w-40" />
+                  <th className="text-right px-4 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Comissão gerada</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -215,22 +190,7 @@ export default function ExtracoesPage() {
                   <tr key={v.vet_id} className="hover:bg-gray-50/60 transition">
                     <td className="px-5 py-3.5 font-semibold text-[#19202d]">{v.vet_nome}</td>
                     <td className="px-4 py-3.5 text-center text-gray-600">{v.total}</td>
-                    <td className="px-4 py-3.5 text-right font-bold text-[#19202d]">{brl(v.pendente)}</td>
-                    <td className="px-4 py-3.5 text-right text-green-600 font-semibold">{brl(v.pago)}</td>
-                    <td className="px-4 py-3.5 text-right">
-                      {v.pendente > 0 && (
-                        <button
-                          onClick={() => marcarPagoVet(v.vet_id)}
-                          disabled={!!marcando[`vet_${v.vet_id}`]}
-                          className="text-xs px-3 py-1.5 bg-green-50 border border-green-200 text-green-700 rounded-lg hover:bg-green-100 transition disabled:opacity-50 font-semibold whitespace-nowrap"
-                        >
-                          {marcando[`vet_${v.vet_id}`] ? '...' : `Pagar ${brl(v.pendente)}`}
-                        </button>
-                      )}
-                      {v.pendente === 0 && v.pago > 0 && (
-                        <span className="text-xs text-green-600 font-semibold">✓ Quitado</span>
-                      )}
-                    </td>
+                    <td className="px-4 py-3.5 text-right font-bold text-[#19202d]">{brl(v.comissao)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -283,9 +243,6 @@ export default function ExtracoesPage() {
                   <div className="flex-1 min-w-0 space-y-0.5">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-xs font-mono text-gray-400">{fmtDH(ex.data_hora)}</span>
-                      {ex.comissao_paga && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-bold">PAGO</span>
-                      )}
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-bold text-[#19202d]">
@@ -301,11 +258,6 @@ export default function ExtracoesPage() {
                     {ex.comissao_extracao != null && (
                       <p className="text-xs font-semibold text-[#8a6e36]">
                         Comissão: {brl(ex.comissao_extracao)}
-                        {ex.comissao_paga_em && (
-                          <span className="text-gray-400 font-normal ml-2">
-                            · pago em {new Date(ex.comissao_paga_em).toLocaleDateString('pt-BR')}
-                          </span>
-                        )}
                       </p>
                     )}
                   </div>
@@ -328,19 +280,6 @@ export default function ExtracoesPage() {
                           className="text-sm px-4 py-1.5 bg-[#19202d] text-white rounded-lg hover:bg-[#232d3f] disabled:opacity-40 transition font-semibold"
                         >
                           {salvando[ex.id] ? '...' : 'Salvar'}
-                        </button>
-                      </>
-                    ) : !ex.comissao_paga ? (
-                      <>
-                        <span className="text-sm font-semibold text-[#19202d]">
-                          🩺 {ex.vet_extracao?.nome ?? '—'}
-                        </span>
-                        <button
-                          onClick={() => marcarPago(ex.id)}
-                          disabled={!!marcando[String(ex.id)]}
-                          className="text-xs px-3 py-1.5 bg-green-50 border border-green-200 text-green-700 rounded-lg hover:bg-green-100 transition disabled:opacity-50 font-semibold"
-                        >
-                          {marcando[String(ex.id)] ? '...' : 'Marcar pago'}
                         </button>
                       </>
                     ) : (

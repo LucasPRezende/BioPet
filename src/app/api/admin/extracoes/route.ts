@@ -32,14 +32,14 @@ export async function GET(request: NextRequest) {
   if (hemoIds.length === 0) {
     return NextResponse.json({
       extracoes: [],
-      dashboard: { por_vet: [], total_pendente: 0, total_pago: 0 },
+      dashboard: { por_vet: [], total_comissao: 0, total_extracoes: 0 },
     })
   }
 
   // ── Dashboard (mês selecionado, só com vet atribuído) ─────────────────────
   const { data: dashRows } = await supabase
     .from('agendamentos')
-    .select('vet_extracao_id, comissao_extracao, comissao_paga')
+    .select('vet_extracao_id, comissao_extracao')
     .in('id', hemoIds)
     .gte('data_hora', mesInicio)
     .lt('data_hora', mesFim)
@@ -53,29 +53,30 @@ export async function GET(request: NextRequest) {
 
   const vetNomeMap = new Map((vetRows ?? []).map(v => [v.id, v.nome as string]))
 
-  const vetMap = new Map<number, { vet_nome: string; total: number; pendente: number; pago: number }>()
-  let total_pendente = 0
-  let total_pago     = 0
+  const vetMap = new Map<number, { vet_nome: string; total: number; comissao: number }>()
+  let total_comissao  = 0
+  let total_extracoes = 0
 
   for (const row of (dashRows ?? [])) {
     const vid = row.vet_extracao_id as number
     const val = Number(row.comissao_extracao ?? 0)
-    if (!vetMap.has(vid)) vetMap.set(vid, { vet_nome: vetNomeMap.get(vid) ?? '—', total: 0, pendente: 0, pago: 0 })
+    if (!vetMap.has(vid)) vetMap.set(vid, { vet_nome: vetNomeMap.get(vid) ?? '—', total: 0, comissao: 0 })
     const entry = vetMap.get(vid)!
     entry.total++
-    if (row.comissao_paga) { entry.pago += val; total_pago += val }
-    else                   { entry.pendente += val; total_pendente += val }
+    entry.comissao += val
+    total_comissao += val
+    total_extracoes++
   }
 
   const por_vet = Array.from(vetMap.entries()).map(([vet_id, v]) => ({ vet_id, ...v }))
-    .sort((a, b) => b.pendente - a.pendente)
+    .sort((a, b) => b.comissao - a.comissao)
 
   // ── Lista de extrações (filtrada por tab) ─────────────────────────────────
   let q = supabase
     .from('agendamentos')
     .select(`
       id, data_hora, tipo_exame, valor, status, status_pagamento,
-      vet_extracao_id, comissao_extracao, comissao_paga, comissao_paga_em,
+      vet_extracao_id, comissao_extracao,
       pets(nome, especie),
       tutores(nome, telefone),
       veterinario_id
@@ -85,10 +86,10 @@ export async function GET(request: NextRequest) {
 
   if (tab === 'sem_vet') {
     q = q.is('vet_extracao_id', null)
-  } else if (tab === 'pendente') {
-    q = q.not('vet_extracao_id', 'is', null).eq('comissao_paga', false)
   } else {
-    q = q.eq('comissao_paga', true).gte('data_hora', mesInicio).lt('data_hora', mesFim)
+    // 'atribuidas': extrações do mês que já têm vet. O pagamento da comissão
+    // não é mais controlado aqui (ver /admin/pagamentos-comissao).
+    q = q.not('vet_extracao_id', 'is', null).gte('data_hora', mesInicio).lt('data_hora', mesFim)
   }
 
   const { data: extRows, error } = await q
@@ -114,6 +115,6 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     extracoes,
-    dashboard: { por_vet, total_pendente, total_pago },
+    dashboard: { por_vet, total_comissao, total_extracoes },
   })
 }

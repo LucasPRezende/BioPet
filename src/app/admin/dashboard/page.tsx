@@ -609,9 +609,7 @@ export default function DashboardPage() {
   const [showFaltaLaudo, setShowFaltaLaudo] = useState(false)
   const [showFaltaPag,   setShowFaltaPag]   = useState(false)
   const [showDetalheFinanceiro, setShowDetalheFinanceiro] = useState(false)
-  const [comissoesLaudo, setComissoesLaudo] = useState<{ usuario_id: number; nome: string; a_pagar: number; pago: number; qtd_a_pagar: number }[]>([])
-  const [extracaoVet,    setExtracaoVet]    = useState<{ vet_id: number; nome: string; devido: number; qtd: number }[]>([])
-  const [marcandoCom,    setMarcandoCom]    = useState<number | null>(null)
+  const [saldosComissao, setSaldosComissao] = useState<{ chave: string; nome: string; saldo: number }[]>([])
   const router = useRouter()
 
   const { inicio, fim } = getRange(periodo, inicioCustom, fimCustom)
@@ -628,7 +626,7 @@ export default function DashboardPage() {
       fetch(`/api/admin/dashboard/resumo?inicio=${inicio}&fim=${fim}`),
       fetch(`/api/laudos/stats?inicio=${inicio}&fim=${fim}`),
       fetch(`/api/admin/relatorio/clinicas?inicio=${inicio}&fim=${fim}`),
-      fetch(`/api/admin/comissoes-pagamento?inicio=${inicio}&fim=${fim}`),
+      fetch('/api/admin/pagamentos-comissao'),
     ])
     if (resumoRes.status === 401) { router.push('/login'); return }
     if (resumoRes.ok) setResumo(await resumoRes.json())
@@ -640,24 +638,10 @@ export default function DashboardPage() {
     if (laudosRes.ok) setLaudoStats(await laudosRes.json())
     let newClinicas: ClinicaRow[] = []
     if (clinRes.ok) { newClinicas = (await clinRes.json()).clinicas ?? []; setClinicas(newClinicas) }
-    if (comRes.ok)  { const dc = await comRes.json(); setComissoesLaudo(dc.laudo_por_usuario ?? []); setExtracaoVet(dc.extracao_por_vet ?? []) }
+    if (comRes.ok)  { const dc = await comRes.json(); setSaldosComissao(dc.pessoas ?? []) }
     if (!silent) setLoading(false)
     return newClinicas
   }, [inicio, fim, router])
-
-  async function marcarComissaoPaga(usuarioId: number, desmarcar = false) {
-    setMarcandoCom(usuarioId)
-    try {
-      await fetch('/api/admin/comissoes-pagamento', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ usuario_id: usuarioId, inicio, fim, pago: !desmarcar }),
-      })
-      await fetchStats(true)
-    } finally {
-      setMarcandoCom(null)
-    }
-  }
 
   useEffect(() => {
     fetchAlertas()
@@ -967,72 +951,29 @@ export default function DashboardPage() {
               </>
             )}
 
-            {/* Comissões de laudo a pagar + Extrações devidas — coladas, sem divisória */}
-            {(comissoesLaudo.length > 0 || extracaoVet.length > 0) && (
+            {/* Comissões a pagar (saldo por pessoa; o pagamento é feito em /admin/pagamentos-comissao) */}
+            {saldosComissao.some(c => c.saldo !== 0) && (
               <div className="flex flex-col gap-2">
-                {comissoesLaudo.length > 0 && (
-                  <>
-                    <SectionTitle label="💰 Comissões de laudo a pagar" color="#b45309" />
-                    <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
-                      <div className="h-1 bg-gold-stripe" />
-                      <div className="p-6">
-                        <div className="space-y-2">
-                          {comissoesLaudo.map(c => (
-                            <div key={c.usuario_id} className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border border-gray-100 hover:bg-amber-50/30 transition flex-wrap">
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-semibold text-[#19202d]">{c.nome}</p>
-                                <p className="text-xs text-gray-400">
-                                  A pagar: <span className="text-amber-600 font-semibold">{formatBRL(c.a_pagar)}</span>
-                                  {c.pago > 0 && <> · Pago: <span className="text-green-600 font-semibold">{formatBRL(c.pago)}</span></>}
-                                </p>
-                              </div>
-                              {c.a_pagar > 0 ? (
-                                <button
-                                  onClick={() => marcarComissaoPaga(c.usuario_id)}
-                                  disabled={marcandoCom === c.usuario_id}
-                                  className="text-xs px-3 py-1.5 rounded-lg font-semibold bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 disabled:opacity-50 whitespace-nowrap">
-                                  {marcandoCom === c.usuario_id ? '...' : `Marcar pago (${c.qtd_a_pagar})`}
-                                </button>
-                              ) : c.pago > 0 ? (
-                                <button
-                                  onClick={() => marcarComissaoPaga(c.usuario_id, true)}
-                                  disabled={marcandoCom === c.usuario_id}
-                                  className="text-xs px-3 py-1.5 rounded-lg text-gray-400 border border-gray-100 hover:bg-gray-50 disabled:opacity-50 whitespace-nowrap">
-                                  {marcandoCom === c.usuario_id ? '...' : '✓ Pago · desfazer'}
-                                </button>
-                              ) : null}
-                            </div>
-                          ))}
-                        </div>
-                        <p className="text-[11px] text-gray-400 mt-3">Confirma a comissão dos laudos deste usuário no período selecionado ({fmtRange}).</p>
-                      </div>
+                <SectionTitle label="💰 Comissões a pagar" color="#b45309" />
+                <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+                  <div className="h-1 bg-gold-stripe" />
+                  <div className="p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <span className="text-xs text-gray-400">Saldo atual: laudos + extrações, menos o que já foi pago</span>
+                      <Link href="/admin/pagamentos-comissao" className="text-xs text-[#8a6e36] hover:underline font-semibold">Registrar pagamento →</Link>
                     </div>
-                  </>
-                )}
-
-                {extracaoVet.length > 0 && (
-                  <>
-                    <SectionTitle label="🩸 Extrações devidas" color="#b45309" />
-                    <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
-                      <div className="h-1 bg-gold-stripe" />
-                      <div className="p-6">
-                        <div className="flex items-center justify-between mb-4">
-                          <span className="text-xs text-gray-400">{fmtRange}</span>
-                          <Link href="/admin/extracoes" className="text-xs text-[#8a6e36] hover:underline">Gerenciar →</Link>
+                    <div className="space-y-2">
+                      {saldosComissao.filter(c => c.saldo !== 0).map(c => (
+                        <div key={c.chave} className="flex items-center justify-between px-3 py-2.5 rounded-lg border border-gray-100">
+                          <p className="text-sm font-semibold text-[#19202d]">{c.nome}</p>
+                          {c.saldo > 0
+                            ? <span className="text-sm font-bold text-amber-600">{formatBRL(c.saldo)}</span>
+                            : <span className="text-sm font-bold text-blue-600">{formatBRL(-c.saldo)} <span className="text-[10px] font-semibold uppercase">adiantamento</span></span>}
                         </div>
-                        <div className="space-y-2">
-                          {extracaoVet.map(e => (
-                            <div key={e.vet_id} className="flex items-center justify-between px-3 py-2.5 rounded-lg border border-gray-100">
-                              <p className="text-sm font-semibold text-[#19202d]">{e.nome} <span className="text-xs text-gray-400 font-normal">· {e.qtd} extração{e.qtd > 1 ? 'ões' : ''}</span></p>
-                              <span className="text-sm font-bold text-amber-600">{formatBRL(e.devido)}</span>
-                            </div>
-                          ))}
-                        </div>
-                        <p className="text-[11px] text-gray-400 mt-3">Comissões de extração ainda não pagas. Confirme o pagamento em Extrações.</p>
-                      </div>
+                      ))}
                     </div>
-                  </>
-                )}
+                  </div>
+                </div>
               </div>
             )}
 

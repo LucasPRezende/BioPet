@@ -60,23 +60,7 @@ export async function PATCH(
     return NextResponse.json({ sucesso: true, comissao_extracao: valorComissao })
   }
 
-  // Marcar comissão como paga
-  if (body.comissao_paga === true) {
-    // Valida que já tem vet atribuído antes de marcar como pago
-    const { data: ag } = await supabase
-      .from('agendamentos').select('vet_extracao_id').eq('id', agId).single()
-    if (!ag?.vet_extracao_id) {
-      return NextResponse.json({ error: 'Não é possível marcar como pago sem vet de extração atribuído.' }, { status: 400 })
-    }
-
-    const { error } = await supabase
-      .from('agendamentos')
-      .update({ comissao_paga: true, comissao_paga_em: new Date().toISOString() })
-      .eq('id', agId)
-
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ sucesso: true })
-  }
+  // Pagamento de comissão não é mais feito aqui: ver /admin/pagamentos-comissao.
 
   return NextResponse.json({ error: 'Nenhuma operação reconhecida.' }, { status: 400 })
 }
