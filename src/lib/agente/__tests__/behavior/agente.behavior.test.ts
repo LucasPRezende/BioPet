@@ -324,6 +324,35 @@ run('comportamento do agente (IA real, tools fake)', () => {
     expect(c.textos()).not.toMatch(/revis[ãa]o (registrada|marcada|confirmada).{0,40}13h/)
   })
 
+  // Caso real 09/10/2026 (Bruna/Bella): "Dra Juliana" + "da Clive" — a lista tem 3
+  // Julianas e só a Goes tem clínica (Clive). A IA perguntou o sobrenome 3x.
+  // Agora listar_veterinarios traz a clínica: propõe a Goes pra CONFIRMAR.
+  it('veterinário repetido + clínica citada: propõe o único da clínica pra confirmar, sem listar todos', OPTS, async () => {
+    const c = novaConversa()
+    await c.enviar('Oi, quero agendar o ultrassom abdominal do Rex pra quinta às 10h, foi a Dra Juliana da Clive que pediu')
+    const primeira = c.textos()
+    expect(c.nomes()).toContain('listar_veterinarios')
+    expect(primeira).toMatch(/goes/)
+    expect(primeira).not.toMatch(/felonta|corr[êe]a/)
+
+    for (let i = 0; i < 5 && !c.nomes().includes('agendar'); i++) {
+      await c.enviar('Sim, é ela mesmo. Pagamento PIX, pode confirmar.')
+    }
+    const ag = c.calls.filter((x) => x.nome === 'agendar')
+    for (const a of ag) expect([undefined, 31]).toContain(a.input.veterinario_id)
+  })
+
+  it('veterinário repetido SEM clínica: pergunta qual, não escolhe sozinha', OPTS, async () => {
+    const c = novaConversa()
+    await c.enviar('Oi, quero agendar o ultrassom abdominal do Rex pra quinta às 10h, foi a Dra Juliana que pediu')
+    await c.enviar('Pode seguir')
+    expect(c.nomes()).toContain('listar_veterinarios')
+    expect(c.textos()).toMatch(/sobrenome|qual (delas|das)|goes|felonta|corr[êe]a/)
+    for (const a of c.calls.filter((x) => x.nome === 'agendar')) {
+      expect(a.input.veterinario_id ?? null).toBeNull()
+    }
+  })
+
   it('cadastrar_pet usa o tutor_id real de cadastrar_tutor, sem chutar', OPTS, async () => {
     const c = novaConversa(responder, { novoCliente: true })
     await c.enviar('Oi, meu nome é Bianca, quero marcar um ultrassom abdominal pro meu cachorro Bidu')

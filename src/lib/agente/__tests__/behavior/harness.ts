@@ -177,7 +177,16 @@ function fakeResultado(nome: string, input: Record<string, any>, opts: { novoCli
     case 'identificar_tutor':
       return opts.novoCliente ? { tutor: null, pets: [], atendimento_humano: false } : CONTEXTO
     case 'consultar_precos':    return PRECOS
-    case 'listar_veterinarios': return { veterinarios: [{ id: 3, nome: 'Dra. Ana' }] }
+    case 'listar_veterinarios':
+      // Três Julianas como em PRD: só a Goes tem clínica cadastrada (Clive).
+      return {
+        veterinarios: [
+          { id: 3, nome: 'Dra. Ana', clinica: null },
+          { id: 14, nome: 'JULIANA FELONTA', clinica: null },
+          { id: 28, nome: 'Juliana A. Corrêa', clinica: null },
+          { id: 31, nome: 'JULIANA GOES', clinica: 'CLIVE VETERINÁRIA' },
+        ],
+      }
     case 'horarios_livres': {
       // Dia de feriado: todos os slots são especiais (espelha isHorarioEspecial).
       const slots = input.data === FERIADO_FAKE
