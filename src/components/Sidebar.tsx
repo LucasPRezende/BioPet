@@ -50,6 +50,7 @@ const NAV: NavGroup[] = [
       { icon: '📊', label: 'Dashboard',  href: '/admin/dashboard', adminOnly: true },
       { icon: '💰', label: 'Preços',     href: '/admin/comissoes', adminOnly: true },
       { icon: '🩸', label: 'Extrações',  href: '/admin/extracoes'  },
+      { icon: '💸', label: 'Pagamentos', href: '/admin/pagamentos-comissao', adminOnly: true },
     ],
   },
   {
