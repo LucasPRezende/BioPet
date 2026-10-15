@@ -1398,12 +1398,14 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
                     const tipo   = exame.tipo_exame
                     const desc   = exame.descricao?.trim() || null
                     const isBio  = tipo.toLowerCase().includes('bioqu')
-                    const isHemo = tipo.toLowerCase().includes('hemo')
+                    const isHemograma = tipo.toLowerCase().includes('hemograma')
+                    const isHemo = !isHemograma && tipo.toLowerCase().includes('hemo')
                     const isTeste = tipo.toLowerCase().includes('teste rápido') || tipo.toLowerCase().includes('teste rapido')
                     const params = new URLSearchParams({ agendamento_id: String(ag.id), tipo_exame: tipo })
                     if (desc) params.set('descricao', desc)
                     const href   = isBio   ? `/admin/novo-bioquimica?agendamento_id=${ag.id}`
                                  : isHemo  ? `/admin/novo-hemogasometria?agendamento_id=${ag.id}`
+                                 : isHemograma ? `/admin/novo-hemograma?agendamento_id=${ag.id}`
                                  : isTeste ? `/admin/novo-teste-rapido?agendamento_id=${ag.id}`
                                  : `/admin/novo?${params.toString()}`
                     return (
@@ -1411,11 +1413,12 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
                         className={`flex items-center justify-between w-full font-bold text-sm px-4 py-3 rounded-xl transition ${
                           isBio   ? 'bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700'
                         : isHemo  ? 'bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700'
+                        : isHemograma ? 'bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700'
                         : isTeste ? 'bg-teal-50 hover:bg-teal-100 border border-teal-200 text-teal-700'
                                   : 'bg-[#c4a35a]/10 hover:bg-[#c4a35a]/20 border border-[#c4a35a]/40 text-[#8a6e36]'
                         }`}
                         onClick={onClose}>
-                        <span>{isBio ? '🧪' : isHemo ? '🫁' : isTeste ? '💉' : '📋'} Emitir laudo — {tipo}{desc ? ` — ${desc}` : ''}</span>
+                        <span>{isBio ? '🧪' : isHemo ? '🫁' : isHemograma ? '🩸' : isTeste ? '💉' : '📋'} Emitir laudo — {tipo}{desc ? ` — ${desc}` : ''}</span>
                         <span>→</span>
                       </Link>
                     )
