@@ -117,60 +117,47 @@ function toBase64(filePath: string): string | null {
   try { return fs.readFileSync(filePath).toString('base64') } catch { return null }
 }
 
-export async function generateBioquimicaPDF(data: BioquimicaPDFData): Promise<Buffer> {
+/** Dados de identificação usados no cabeçalho do laudo (cards + datas). */
+export type LaudoBaseData = Omit<BioquimicaPDFData, 'resultados' | 'compact'>
+
+/**
+ * Monta o HTML do template BioPet com cabeçalho, cards de paciente/tutor/
+ * solicitante, barra de datas e título preenchidos. O corpo de resultados
+ * (`<tbody>` da tabela de exemplo) fica para quem chama substituir.
+ * `extraCss` entra num <style> no fim do <head>.
+ */
+export function montarHtmlBase(data: LaudoBaseData, extraCss = ''): string {
   const templatePath = path.join(process.cwd(), 'template', 'Laudo Veterinario - final.html')
   let html = fs.readFileSync(templatePath, 'utf-8')
 
-  // Embed images as base64
   const assetsDir = path.join(process.cwd(), 'template', 'assets')
   const logoB64   = toBase64(path.join(assetsDir, 'logo-full.png'))
   const sigB64    = toBase64(path.join(assetsDir, 'assinatura.png'))
   if (logoB64) html = html.replace(/src="assets\/logo-full\.png"/, `src="data:image/png;base64,${logoB64}"`)
-  if (sigB64)  html = html.replace(/src="assets\/assinatura\.png"/, `src="data:image/png;base64,${sigB64}"`)
+  if (sigB64) {
+    html = html.replace(/src="assets\/assinatura\.png"/, `src="data:image/png;base64,${sigB64}"`)
+  } else {
+    // Sem imagem de assinatura: remove o <img> para não exibir ícone quebrado
+    html = html.replace(/<img class="sig-image"[^>]*>/, '')
+  }
 
-  // Remove on-screen toolbar
   html = html.replace(/<div class="toolbar">[\s\S]*?<\/div>/, '')
 
-  // Fix font rendering — replace Google web fonts with system fonts for crisp PDF output
   html = html.replace('</head>', `<style>
     .num, .range-labels { font-family: 'Courier New', Courier, monospace !important; }
     * { -webkit-font-smoothing: antialiased; }
-    .group-header td {
-      background: var(--teal-soft);
-      color: var(--ink);
-      font-weight: 700;
-      font-size: 7.8pt;
-      text-transform: uppercase;
-      letter-spacing: 0.9px;
-      padding: 1.5mm 4mm;
-      border-top: 1.5px solid var(--teal);
-      border-bottom: 1px solid var(--teal);
-    }
-    .group-header:first-child td { border-top: none; }
-    ${data.compact ? `
-    body { font-size: 8pt; }
-    table.exams { font-size: 7.5pt; }
-    table.exams tbody td { padding: 0.7mm 2mm; }
-    table.exams thead th { padding: 1.2mm 2mm; font-size: 6.5pt; }
-    .group-header td { padding: 1mm 4mm; font-size: 7pt; }
-    .info-card { padding: 2.5mm 3mm; }
-    .dates-bar { padding: 2mm 6mm; }
-    .range { min-width: 24mm; }
-    .range-track { height: 3px; }
-    ` : ''}
+    ${extraCss}
   </style></head>`)
 
   if (data.titulo) {
     html = html.replace('<h2>Perfil bioquímico</h2>', `<h2>${esc(data.titulo)}</h2>`)
   }
 
-  // ── Build card values ──────────────────────────────────────────────────────
   const telefoneFormatado = formatPhone(data.telefone)
   const pesoFormatado     = formatPeso(data.peso)
   const dataFormatada     = data.data_laudo ? formatDate(data.data_laudo) : formatDate(new Date().toISOString().slice(0, 10))
   const material          = data.material || 'Soro sanguíneo'
 
-  // ── Patient info cards ─────────────────────────────────────────────────────
   const pacienteCard = `<div class="info-card">
       <div class="label">Paciente</div>
       <dl>
@@ -204,7 +191,6 @@ export async function generateBioquimicaPDF(data: BioquimicaPDFData): Promise<Bu
     `$1${pacienteCard}$2`,
   )
 
-  // ── Dates bar ──────────────────────────────────────────────────────────────
   const datesHtml = `<div class="date-row">
       <span class="date-label">Emissão</span>
       <span class="date-value">${dataFormatada}</span>
@@ -214,6 +200,55 @@ export async function generateBioquimicaPDF(data: BioquimicaPDFData): Promise<Bu
     /(<section class="dates-bar">)[\s\S]*?(<\/section>)/,
     `$1${datesHtml}$2`,
   )
+
+  return html
+}
+
+/** Renderiza um HTML completo em PDF A4 sem margens. */
+export async function renderizarPdf(html: string): Promise<Buffer> {
+  const browser = await launchBrowser()
+  try {
+    const page = await browser.newPage()
+    await page.setViewport({ width: 1240, height: 1754, deviceScaleFactor: 2 })
+    await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30_000 })
+    const pdf = await page.pdf({
+      format:          'A4',
+      printBackground: true,
+      margin:          { top: '0', right: '0', bottom: '0', left: '0' },
+    })
+    return Buffer.from(pdf)
+  } finally {
+    await browser.close()
+  }
+}
+
+export { esc as escapeHtml, calcDotPct }
+
+export async function generateBioquimicaPDF(data: BioquimicaPDFData): Promise<Buffer> {
+  let html = montarHtmlBase(data, `
+    .group-header td {
+      background: var(--teal-soft);
+      color: var(--ink);
+      font-weight: 700;
+      font-size: 7.8pt;
+      text-transform: uppercase;
+      letter-spacing: 0.9px;
+      padding: 1.5mm 4mm;
+      border-top: 1.5px solid var(--teal);
+      border-bottom: 1px solid var(--teal);
+    }
+    .group-header:first-child td { border-top: none; }
+    ${data.compact ? `
+    body { font-size: 8pt; }
+    table.exams { font-size: 7.5pt; }
+    table.exams tbody td { padding: 0.7mm 2mm; }
+    table.exams thead th { padding: 1.2mm 2mm; font-size: 6.5pt; }
+    .group-header td { padding: 1mm 4mm; font-size: 7pt; }
+    .info-card { padding: 2.5mm 3mm; }
+    .dates-bar { padding: 2mm 6mm; }
+    .range { min-width: 24mm; }
+    .range-track { height: 3px; }
+    ` : ''}`)
 
   // ── Exam rows ──────────────────────────────────────────────────────────────
   let lastGrupo = ''
@@ -229,19 +264,5 @@ export async function generateBioquimicaPDF(data: BioquimicaPDFData): Promise<Bu
 
   html = html.replace(/<tbody>[\s\S]*?<\/tbody>/, `<tbody>${examRows}</tbody>`)
 
-  // ── Generate PDF via puppeteer ─────────────────────────────────────────────
-  const browser = await launchBrowser()
-  try {
-    const page = await browser.newPage()
-    await page.setViewport({ width: 1240, height: 1754, deviceScaleFactor: 2 })
-    await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30_000 })
-    const pdf = await page.pdf({
-      format:          'A4',
-      printBackground: true,
-      margin:          { top: '0', right: '0', bottom: '0', left: '0' },
-    })
-    return Buffer.from(pdf)
-  } finally {
-    await browser.close()
-  }
+  return renderizarPdf(html)
 }
