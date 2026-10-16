@@ -48,6 +48,25 @@ export const PARAMETROS_HEMOGRAMA: ParametroHemograma[] = [
   { codigo: 'VPM',      nome: 'VPM',                 unidade: 'fL',     grupo: 'plaquetograma', coluna: 'VPM',    casas: 1 },
 ]
 
+/**
+ * Exames que emitem laudo por esta tela. O exame "Reticulócitos" usa o mesmo
+ * importador do CSV (a máquina roda o modo "Teste Retic." como amostra à parte).
+ */
+export type ExameHemograma = 'hemograma' | 'reticulocitos'
+
+export const TITULO_EXAME: Record<ExameHemograma, string> = {
+  hemograma:     'Hemograma',
+  reticulocitos: 'Reticulócitos',
+}
+
+/** "HEMOGRAMA", "Reticulócitos", "RETICULOCITOS"... → qual exame é (ou null). */
+export function exameHemogramaDe(tipoExame: string | null | undefined): ExameHemograma | null {
+  const k = (tipoExame ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  if (k.includes('reticul'))  return 'reticulocitos'
+  if (k.includes('hemograma')) return 'hemograma'
+  return null
+}
+
 /** Células do diferencial de leucócitos (prefixo do código). */
 export const CELULAS_LEUCOGRAMA = ['NEU', 'LIN', 'MON', 'EOS', 'BASO'] as const
 

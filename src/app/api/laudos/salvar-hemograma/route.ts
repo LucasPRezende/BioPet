@@ -5,30 +5,26 @@ import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
 import { gerarLaudoHemograma, type HemogramaEntrada } from '@/lib/generate-hemograma-pdf'
 import { savePdf, deletePdf } from '@/lib/pdf-storage'
 import { jaTemLaudo } from '@/lib/laudo-duplicado'
-
-const TIPO_PADRAO = 'Hemograma'
+import { exameHemogramaDe, TITULO_EXAME, type ExameHemograma } from '@/lib/hemograma'
 
 /**
- * Nome do exame como está cadastrado (ex.: "HEMOGRAMA"). A agenda e o
- * bloqueio de laudo duplicado comparam tipo_exame por igualdade exata, então
- * o laudo precisa sair com o mesmo nome do exame do agendamento / de Preços.
+ * Nome do exame como está cadastrado (ex.: "HEMOGRAMA", "Reticulócitos"). A
+ * agenda e o bloqueio de laudo duplicado comparam tipo_exame por igualdade
+ * exata, então o laudo precisa sair com o mesmo nome do exame do agendamento
+ * (ou de Preços, sem agendamento). Maiúsculas e acentos não importam na busca.
  */
-async function resolverTipoExame(agendamentoId: number | null): Promise<string> {
+async function resolverTipoExame(agendamentoId: number | null, exame: ExameHemograma): Promise<string> {
   if (agendamentoId) {
     const { data } = await supabase
       .from('agendamento_exames')
       .select('tipo_exame')
       .eq('agendamento_id', agendamentoId)
-      .ilike('tipo_exame', TIPO_PADRAO)
-      .limit(1)
-    if (data?.[0]?.tipo_exame) return data[0].tipo_exame
+    const achado = (data ?? []).find(r => exameHemogramaDe(r.tipo_exame) === exame)
+    if (achado) return achado.tipo_exame
   }
-  const { data } = await supabase
-    .from('comissoes_exame')
-    .select('tipo_exame')
-    .ilike('tipo_exame', TIPO_PADRAO)
-    .limit(1)
-  return data?.[0]?.tipo_exame ?? TIPO_PADRAO
+  const { data } = await supabase.from('comissoes_exame').select('tipo_exame')
+  const achado = (data ?? []).find(r => exameHemogramaDe(r.tipo_exame) === exame)
+  return achado?.tipo_exame ?? TITULO_EXAME[exame]
 }
 
 async function getComissao(tipoExame: string) {
@@ -57,12 +53,15 @@ export async function POST(request: NextRequest) {
     tutor_id:       number | null
     pet_id:         number | null
     agendamento_id: number | null
+    /** Qual exame este laudo atende; sem informar, Hemograma. */
+    exame?:         ExameHemograma
   }
   try { body = await request.json() } catch {
     return NextResponse.json({ error: 'JSON inválido.' }, { status: 400 })
   }
 
   const { laudo, veterinario_id, tutor_id, pet_id, agendamento_id } = body
+  const exame: ExameHemograma = body.exame === 'reticulocitos' ? 'reticulocitos' : 'hemograma'
 
   if (!laudo?.nome_pet || !laudo?.especie) {
     return NextResponse.json({ error: 'Campos obrigatórios ausentes.' }, { status: 400 })
@@ -71,17 +70,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Nenhum resultado informado.' }, { status: 400 })
   }
 
-  const tipoExame = await resolverTipoExame(agendamento_id)
+  const tipoExame = await resolverTipoExame(agendamento_id, exame)
 
   if (agendamento_id && await jaTemLaudo(agendamento_id, tipoExame)) {
-    return NextResponse.json({ error: 'Já existe um laudo de Hemograma para este agendamento.' }, { status: 409 })
+    return NextResponse.json({ error: `Já existe um laudo de ${tipoExame} para este agendamento.` }, { status: 409 })
   }
 
   try {
     const { pdf, referencias } = await gerarLaudoHemograma(laudo)
     const token        = uuidv4()
     const filename     = `${token}.pdf`
-    const originalName = `hemograma_${laudo.nome_pet.replace(/\s+/g, '_')}.pdf`
+    const originalName = `${exame}_${laudo.nome_pet.replace(/\s+/g, '_')}.pdf`
 
     await savePdf(filename, pdf)
 

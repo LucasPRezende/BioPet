@@ -7,29 +7,24 @@ import { NextRequest } from 'next/server'
 const inserts: Record<string, unknown>[] = []
 let agendamentoExames: { tipo_exame: string }[] = []
 let comissoes: { tipo_exame: string; preco_pix_comercial: number; custo_exame: number; comissao_laudo: number; comissao_clinica: number }[] = []
-const filtrosEq: Record<string, unknown>[] = []
 
 function builder(tabela: string) {
-  const filtros: { ilike?: string; eq: Record<string, unknown> } = { eq: {} }
+  const filtros: Record<string, unknown> = {}
   const linhas = () => {
     const base = tabela === 'agendamento_exames' ? agendamentoExames
                : tabela === 'comissoes_exame'    ? comissoes
                : []
     return (base as Record<string, unknown>[]).filter(r =>
-      (!filtros.ilike || String(r.tipo_exame).toLowerCase() === filtros.ilike.toLowerCase()) &&
-      (filtros.eq.tipo_exame === undefined || r.tipo_exame === filtros.eq.tipo_exame))
+      filtros.tipo_exame === undefined || r.tipo_exame === filtros.tipo_exame)
   }
   const b: Record<string, unknown> = {}
   b.select = () => b
-  b.eq = (col: string, v: unknown) => { filtros.eq[col] = v; filtrosEq.push({ tabela, col, v }); return b }
-  b.ilike = (_col: string, v: string) => { filtros.ilike = v; return b }
-  b.limit = async () => ({ data: linhas(), error: null })
+  b.eq = (col: string, v: unknown) => { if (col === 'tipo_exame') filtros.tipo_exame = v; return b }
   b.maybeSingle = async () => ({ data: linhas()[0] ?? null, error: null })
   b.insert = (row: Record<string, unknown>) => { inserts.push(row); return b }
   b.single = async () => ({ data: { id: 1, ...inserts[inserts.length - 1] }, error: null })
   b.update = () => ({ eq: async () => ({ error: null }) })
-  // laudos / agendamento_exames contados no fim (Promise.all de select+eq)
-  b.then = (res: (v: unknown) => void) => res({ data: [], error: null })
+  b.then = (res: (v: unknown) => void) => res({ data: linhas(), error: null })
   return b
 }
 
@@ -51,16 +46,15 @@ const laudo = {
   tutor: 'Natalia', telefone: '', medico: '', crmv: '', clinica: '', material: 'Sangue total (EDTA)',
   data_laudo: '2026-10-16', faixa_etaria: 'todos', observacoes: '', valores: { LEU: '10.16' },
 }
-const req = (agendamento_id: number | null) =>
+const req = (agendamento_id: number | null, exame?: string) =>
   new NextRequest('http://localhost/api/laudos/salvar-hemograma', {
     method: 'POST',
     headers: { cookie: 'sys_session=x', 'content-type': 'application/json' },
-    body: JSON.stringify({ laudo, veterinario_id: null, tutor_id: null, pet_id: null, agendamento_id }),
+    body: JSON.stringify({ laudo, veterinario_id: null, tutor_id: null, pet_id: null, agendamento_id, exame }),
   })
 
 beforeEach(() => {
   inserts.length = 0
-  filtrosEq.length = 0
   agendamentoExames = []
   // Hemograma: a comissão é da clínica, quem faz o laudo não recebe nada.
   comissoes = [{ tipo_exame: 'HEMOGRAMA', preco_pix_comercial: 50, custo_exame: 0, comissao_laudo: 0, comissao_clinica: 30 }]
@@ -94,5 +88,27 @@ describe('POST salvar-hemograma', () => {
     const r = await POST(req(null))
     expect(r.status).toBe(201)
     expect(inserts[0]).toMatchObject({ tipo_exame: 'Hemograma', preco_exame: null })
+  })
+
+  it('exame Reticulócitos: laudo sai como o exame do agendamento, não Hemograma', async () => {
+    agendamentoExames = [{ tipo_exame: 'Hemograma' }, { tipo_exame: 'Reticulócitos' }]
+    comissoes.push({ tipo_exame: 'Reticulócitos', preco_pix_comercial: 25, custo_exame: 0, comissao_laudo: 3, comissao_clinica: 7 })
+    const r = await POST(req(800, 'reticulocitos'))
+    expect(r.status).toBe(201)
+    expect(inserts[0]).toMatchObject({ tipo_exame: 'Reticulócitos', preco_exame: 25, valor_comissao: 3, agendamento_id: 800 })
+  })
+
+  it('Reticulócitos sem agendamento usa o nome de Preços, ignorando caixa e acento', async () => {
+    comissoes.push({ tipo_exame: 'RETICULÓCITOS', preco_pix_comercial: 25, custo_exame: 0, comissao_laudo: 0, comissao_clinica: 7 })
+    const r = await POST(req(null, 'reticulocitos'))
+    expect(r.status).toBe(201)
+    expect(inserts[0]).toMatchObject({ tipo_exame: 'RETICULÓCITOS', preco_exame: 25 })
+  })
+
+  it('sem informar o exame, continua sendo Hemograma', async () => {
+    agendamentoExames = [{ tipo_exame: 'Reticulócitos' }, { tipo_exame: 'HEMOGRAMA' }]
+    const r = await POST(req(801))
+    expect(r.status).toBe(201)
+    expect(inserts[0]).toMatchObject({ tipo_exame: 'HEMOGRAMA' })
   })
 })

@@ -7,6 +7,7 @@ import { ESPECIES, normalizarEspecie } from '@/lib/especies'
 import { calcFaixaEtaria, type FaixaConfig } from '@/lib/faixas-etarias'
 import {
   PARAMETROS_HEMOGRAMA, CELULAS_LEUCOGRAMA, GRUPOS_HEMOGRAMA, parametroPorCodigo,
+  TITULO_EXAME, exameHemogramaDe,
   type AmostraHemograma,
 } from '@/lib/hemograma'
 
@@ -70,6 +71,9 @@ function NovoHemogramaContent() {
   const router        = useRouter()
   const searchParams  = useSearchParams()
   const agendamentoId = searchParams.get('agendamento_id')
+  // Qual exame do agendamento este laudo atende (Hemograma ou Reticulócitos)
+  const exame         = exameHemogramaDe(searchParams.get('tipo_exame')) ?? 'hemograma'
+  const tituloExame   = TITULO_EXAME[exame]
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -212,6 +216,7 @@ function NovoHemogramaContent() {
       clinica:      form.clinica,
       material:     form.material,
       data_laudo:   form.data_laudo,
+      titulo:       tituloExame,
       faixa_etaria: form.faixa_etaria,
       observacoes,
       valores:      Object.fromEntries(Object.entries(valores).filter(([, v]) => v.trim() !== '')),
@@ -264,6 +269,7 @@ function NovoHemogramaContent() {
         tutor_id:       agInfo?.tutor_id ?? null,
         pet_id:         agInfo?.pet_id   ?? null,
         agendamento_id: agendamentoId ? parseInt(agendamentoId, 10) : null,
+        exame,
       }),
     }).catch(() => null)
     if (res?.ok) {
@@ -353,7 +359,7 @@ function NovoHemogramaContent() {
             ← Voltar
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-[#19202d]">🩸 Hemograma</h1>
+            <h1 className="text-2xl font-bold text-[#19202d]">🩸 {tituloExame}</h1>
             <p className="text-sm text-gray-400 mt-0.5">
               {step === 'upload' ? 'Importe o arquivo CSV do analisador hematológico'
                 : step === 'escolher' ? 'Escolha a amostra' : 'Revise os valores e salve o laudo'}

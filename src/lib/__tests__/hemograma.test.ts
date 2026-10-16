@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import fs from 'fs'
 import path from 'path'
-import { parseHemogramaCsv, montarLinhasHemograma, statusValor, formatarValor, normalizarIdade, normalizarSexo } from '../hemograma'
+import { parseHemogramaCsv, montarLinhasHemograma, statusValor, formatarValor, normalizarIdade, normalizarSexo, exameHemogramaDe } from '../hemograma'
 
 const CSV = fs.readFileSync(path.join(__dirname, 'fixtures', 'hemograma-analisador.csv'), 'utf-8')
 
@@ -128,5 +128,16 @@ describe('modo "Teste Retic." (paciente Paçoca)', () => {
     expect(a).toMatchObject({ paciente: 'Paçoca', modo: 'Teste Retic.', idade: '9 anos', sexo: 'Fêmea' })
     expect(a.valores).toEqual({ HEM: '3.04', RETIC: '0.26', RETIC_ABS: '7' })
     expect(a.marcados).toEqual(['RETIC', 'RETIC_ABS'])
+  })
+})
+
+describe('exameHemogramaDe', () => {
+  it('classifica pelo nome cadastrado, sem ligar para caixa e acento', () => {
+    expect(exameHemogramaDe('HEMOGRAMA')).toBe('hemograma')
+    expect(exameHemogramaDe('Hemograma')).toBe('hemograma')
+    expect(exameHemogramaDe('RETICULÓCITOS')).toBe('reticulocitos')
+    expect(exameHemogramaDe('Reticulocitos')).toBe('reticulocitos')
+    expect(exameHemogramaDe('Hemogasometria')).toBeNull()
+    expect(exameHemogramaDe(null)).toBeNull()
   })
 })

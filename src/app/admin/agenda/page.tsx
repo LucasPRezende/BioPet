@@ -7,6 +7,7 @@ import { AgendamentoForm } from '@/components/AgendamentoForm'
 import { isHorarioEspecial as isHorarioEspecialLib } from '@/lib/feriados'
 import { precoExame, precoBioquimica, fromComissao, valorLiquido, type FormaPagamento } from '@/lib/pricing'
 import { algumGeraComissaoClinica } from '@/lib/comissao-exame'
+import { exameHemogramaDe } from '@/lib/hemograma'
 
 interface Tutor { id: number; nome: string | null; telefone: string }
 interface Pet   { id: number; nome: string; especie: string | null; raca: string | null }
@@ -1405,14 +1406,15 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
                     const tipo   = exame.tipo_exame
                     const desc   = exame.descricao?.trim() || null
                     const isBio  = tipo.toLowerCase().includes('bioqu')
-                    const isHemograma = tipo.toLowerCase().includes('hemograma')
+                    // Hemograma e Reticulócitos: mesma tela (importa o CSV do analisador)
+                    const isHemograma = exameHemogramaDe(tipo) !== null
                     const isHemo = !isHemograma && tipo.toLowerCase().includes('hemo')
                     const isTeste = tipo.toLowerCase().includes('teste rápido') || tipo.toLowerCase().includes('teste rapido')
                     const params = new URLSearchParams({ agendamento_id: String(ag.id), tipo_exame: tipo })
                     if (desc) params.set('descricao', desc)
                     const href   = isBio   ? `/admin/novo-bioquimica?agendamento_id=${ag.id}`
                                  : isHemo  ? `/admin/novo-hemogasometria?agendamento_id=${ag.id}`
-                                 : isHemograma ? `/admin/novo-hemograma?agendamento_id=${ag.id}`
+                                 : isHemograma ? `/admin/novo-hemograma?agendamento_id=${ag.id}&tipo_exame=${encodeURIComponent(tipo)}`
                                  : isTeste ? `/admin/novo-teste-rapido?agendamento_id=${ag.id}`
                                  : `/admin/novo?${params.toString()}`
                     return (
