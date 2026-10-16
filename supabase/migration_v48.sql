@@ -32,9 +32,10 @@ ALTER TABLE comissoes_exame
   ADD COLUMN IF NOT EXISTS comissao_extracao numeric(10,2) NOT NULL DEFAULT 0;
 
 -- Distribui o valor_comissao atual seguindo a regra que estava no código.
+-- Reticulócitos acompanha o hemograma: comissão também da clínica (decisão de 16/10/2026).
 UPDATE comissoes_exame
    SET comissao_clinica = COALESCE(valor_comissao, 0)
- WHERE tipo_exame = 'Hemograma';
+ WHERE tipo_exame IN ('Hemograma', 'RETICULÓCITOS');
 
 UPDATE comissoes_exame
    SET comissao_extracao = COALESCE(valor_comissao, 0)
@@ -42,7 +43,7 @@ UPDATE comissoes_exame
 
 UPDATE comissoes_exame
    SET comissao_laudo = COALESCE(valor_comissao, 0)
- WHERE tipo_exame NOT IN ('Hemograma', 'Hemogasometria', 'Bioquímica', 'Teste Rápido');
+ WHERE tipo_exame NOT IN ('Hemograma', 'RETICULÓCITOS', 'Hemogasometria', 'Bioquímica', 'Teste Rápido');
 
 ALTER TABLE agendamento_exames
   ADD COLUMN IF NOT EXISTS comissao_clinica numeric(10,2) NOT NULL DEFAULT 0;
