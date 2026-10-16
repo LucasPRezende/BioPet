@@ -166,6 +166,7 @@ function NovoHemogramaContent() {
       ...p,
       nome_pet:   p.nome_pet || a.paciente,
       especie:    p.especie  || normalizarEspecie(a.animal) || '',
+      sexo:       p.sexo     || a.sexo,
       idade:      p.idade    || a.idade,
       tutor:      p.tutor    || a.proprietario,
       data_laudo: a.data_iso || p.data_laudo,

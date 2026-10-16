@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import fs from 'fs'
 import path from 'path'
-import { parseHemogramaCsv, montarLinhasHemograma, statusValor, formatarValor } from '../hemograma'
+import { parseHemogramaCsv, montarLinhasHemograma, statusValor, formatarValor, normalizarIdade, normalizarSexo } from '../hemograma'
 
 const CSV = fs.readFileSync(path.join(__dirname, 'fixtures', 'hemograma-analisador.csv'), 'utf-8')
 
@@ -62,5 +62,46 @@ describe('montarLinhasHemograma', () => {
     expect(statusValor('5', undefined)).toBe('')
     expect(formatarValor('6.601', 2)).toBe('6,60')
     expect(formatarValor('384', 0)).toBe('384')
+  })
+})
+
+describe('arquivo real com vírgula (paciente Maya)', () => {
+  const CSV_VIRGULA = fs.readFileSync(path.join(__dirname, 'fixtures', 'hemograma-analisador-virgula.csv'), 'utf-8')
+
+  it('lê paciente, tutor, sexo e idade normalizados', () => {
+    const [a] = parseHemogramaCsv(CSV_VIRGULA)
+    expect(a).toMatchObject({
+      paciente: 'Maya', proprietario: 'Natalia', animal: 'Cachorro',
+      sexo: 'Fêmea', idade: '2 anos', data_iso: '2026-10-16',
+    })
+    expect(a.valores).toMatchObject({ LEU: '10.16', NEU_REL: '81.92', PLQ: '358', HCT: '37.2' })
+    // modo sem reticulócitos: não vêm
+    expect(a.valores.RETIC).toBeUndefined()
+  })
+})
+
+describe('reticulócitos e normalizações', () => {
+  it('lê RETIC/RETIC_ABS quando vêm e mostra no eritrograma', () => {
+    const csv = 'ID,Animal,LEU,HEM,HGB,HCT,PLQ,RETIC,RETIC_ABS\n1,Cachorro,10,6,14,40,300,3.10,186.0\n'
+    const [a] = parseHemogramaCsv(csv)
+    expect(a.valores).toMatchObject({ RETIC: '3.10', RETIC_ABS: '186.0' })
+    const g = montarLinhasHemograma(a.valores, [{ parametro: 'RETIC', valor_min: 0, valor_max: 2.5 }])
+    const ret = g.eritrograma.find(l => l.tipo === 'simples' && l.codigo === 'RETIC')
+    expect(ret?.status).toBe('H')
+    const abs = g.eritrograma.find(l => l.tipo === 'simples' && l.codigo === 'RETIC_ABS')
+    expect(abs).toMatchObject({ valor: '186.0', unidade: '10³/µL' })
+    expect(g.eritrograma.map(l => l.tipo === 'simples' && l.codigo).slice(-2)).toEqual(['RETIC', 'RETIC_ABS'])
+  })
+
+  it('normalizarIdade e normalizarSexo', () => {
+    expect(normalizarIdade('2 Y')).toBe('2 anos')
+    expect(normalizarIdade('1 Y')).toBe('1 ano')
+    expect(normalizarIdade('6 M')).toBe('6 meses')
+    expect(normalizarIdade('10 D')).toBe('10 dias')
+    expect(normalizarIdade('3 anos')).toBe('3 anos')
+    expect(normalizarIdade('')).toBe('')
+    expect(normalizarSexo('Fêmea')).toBe('Fêmea')
+    expect(normalizarSexo('Male')).toBe('Macho')
+    expect(normalizarSexo('')).toBe('')
   })
 })

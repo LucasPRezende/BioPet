@@ -29,6 +29,10 @@ export const PARAMETROS_HEMOGRAMA: ParametroHemograma[] = [
   { codigo: 'HCM',      nome: 'HCM',                 unidade: 'pg',     grupo: 'eritrograma',   coluna: 'HCM',    casas: 1 },
   { codigo: 'CHCM',     nome: 'CHCM',                unidade: 'g/dL',   grupo: 'eritrograma',   coluna: 'CHCM',   casas: 1 },
   { codigo: 'RDW',      nome: 'RDW-CV',              unidade: '%',      grupo: 'eritrograma',   coluna: 'RDW_CV', casas: 1 },
+  // Reticulócitos só vêm quando a amostra roda no modo com reticulócitos;
+  // vazios, não aparecem no laudo.
+  { codigo: 'RETIC',     nome: 'Reticulócitos',         unidade: '%',      grupo: 'eritrograma', coluna: 'RETIC',     casas: 2 },
+  { codigo: 'RETIC_ABS', nome: 'Reticulócitos (abs.)',  unidade: '10³/µL', grupo: 'eritrograma', coluna: 'RETIC_ABS', casas: 1 },
   { codigo: 'LEU',      nome: 'Leucócitos totais',   unidade: '10³/µL', grupo: 'leucograma',    coluna: 'LEU',    casas: 2 },
   { codigo: 'NEU_REL',  nome: 'Neutrófilos',         unidade: '%',      grupo: 'leucograma',    coluna: 'NEU%',   casas: 1 },
   { codigo: 'NEU_ABS',  nome: 'Neutrófilos',         unidade: '10³/µL', grupo: 'leucograma',    coluna: 'NEU#',   casas: 2 },
@@ -66,7 +70,7 @@ export interface AmostraHemograma {
   /** Espécie como o analisador escreve ("Cachorro", "Gato"...). */
   animal:       string
   proprietario: string
-  /** Coluna "Gênero" do analisador, como veio. */
+  /** Coluna "Gênero" do analisador, normalizada ("Macho" | "Fêmea" | ''). */
   sexo:         string
   idade:        string
   modo:         string
@@ -89,6 +93,27 @@ function limparCampo(raw: string | undefined): string {
 function limparNumero(raw: string | undefined): string {
   const s = limparCampo(raw).replace(',', '.')
   return /^-?\d+(\.\d+)?$/.test(s) ? s : ''
+}
+
+/** Idade como o analisador escreve ("2 Y", "6 M", "10 D") → "2 anos", "6 meses"... */
+export function normalizarIdade(s: string): string {
+  const m = s.trim().match(/^(\d+(?:[.,]\d+)?)\s*([YMDAymda])\b/)
+  if (!m) return s.trim()
+  const n = m[1].replace('.', ',')
+  const um = n === '1'
+  switch (m[2].toUpperCase()) {
+    case 'Y': case 'A': return `${n} ${um ? 'ano' : 'anos'}`
+    case 'M':           return `${n} ${um ? 'mês' : 'meses'}`
+    default:            return `${n} ${um ? 'dia' : 'dias'}`
+  }
+}
+
+/** Gênero do analisador → "Macho" | "Fêmea" | '' (se não reconhecer). */
+export function normalizarSexo(s: string): string {
+  const k = s.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  if (['femea', 'female', 'f'].includes(k)) return 'Fêmea'
+  if (['macho', 'male', 'm'].includes(k))   return 'Macho'
+  return ''
 }
 
 /** "15/10/2026 15:18" → "2026-10-15"; aceita também "2026-10-15 ...". */
@@ -162,8 +187,8 @@ export function parseHemogramaCsv(texto: string): AmostraHemograma[] {
       paciente:     campo('Paciente') || campo('No. Amostra'),
       animal:       campo('Animal') || campo('Grupo'),
       proprietario: campo('Proprietário'),
-      sexo:         campo('Gênero'),
-      idade:        campo('Idade'),
+      sexo:         normalizarSexo(campo('Gênero')),
+      idade:        normalizarIdade(campo('Idade')),
       modo:         campo('Modo'),
       data_hora,
       data_iso:     dataAnaliseIso(data_hora),
@@ -234,7 +259,8 @@ export function montarLinhasHemograma(
   const out: Record<GrupoHemograma, LinhaHemograma[]> = { eritrograma: [], leucograma: [], plaquetograma: [] }
 
   for (const p of PARAMETROS_HEMOGRAMA) {
-    if (p.codigo.endsWith('_REL') || p.codigo.endsWith('_ABS')) continue
+    // Relativo/absoluto do diferencial vão juntos na linha da célula (abaixo)
+    if (p.grupo === 'leucograma' && (p.codigo.endsWith('_REL') || p.codigo.endsWith('_ABS'))) continue
     const valor = (valores[p.codigo] ?? '').trim()
     if (!valor) continue
     out[p.grupo].push({
