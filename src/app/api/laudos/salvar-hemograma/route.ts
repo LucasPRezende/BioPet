@@ -6,13 +6,36 @@ import { gerarLaudoHemograma, type HemogramaEntrada } from '@/lib/generate-hemog
 import { savePdf, deletePdf } from '@/lib/pdf-storage'
 import { jaTemLaudo } from '@/lib/laudo-duplicado'
 
-const TIPO_EXAME = 'Hemograma'
+const TIPO_PADRAO = 'Hemograma'
 
-async function getComissao() {
+/**
+ * Nome do exame como está cadastrado (ex.: "HEMOGRAMA"). A agenda e o
+ * bloqueio de laudo duplicado comparam tipo_exame por igualdade exata, então
+ * o laudo precisa sair com o mesmo nome do exame do agendamento / de Preços.
+ */
+async function resolverTipoExame(agendamentoId: number | null): Promise<string> {
+  if (agendamentoId) {
+    const { data } = await supabase
+      .from('agendamento_exames')
+      .select('tipo_exame')
+      .eq('agendamento_id', agendamentoId)
+      .ilike('tipo_exame', TIPO_PADRAO)
+      .limit(1)
+    if (data?.[0]?.tipo_exame) return data[0].tipo_exame
+  }
+  const { data } = await supabase
+    .from('comissoes_exame')
+    .select('tipo_exame')
+    .ilike('tipo_exame', TIPO_PADRAO)
+    .limit(1)
+  return data?.[0]?.tipo_exame ?? TIPO_PADRAO
+}
+
+async function getComissao(tipoExame: string) {
   const { data } = await supabase
     .from('comissoes_exame')
     .select('preco_pix_comercial, custo_exame, valor_comissao')
-    .eq('tipo_exame', TIPO_EXAME)
+    .eq('tipo_exame', tipoExame)
     .maybeSingle()
   return {
     preco_exame:    data?.preco_pix_comercial ?? null,
@@ -48,7 +71,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Nenhum resultado informado.' }, { status: 400 })
   }
 
-  if (agendamento_id && await jaTemLaudo(agendamento_id, TIPO_EXAME)) {
+  const tipoExame = await resolverTipoExame(agendamento_id)
+
+  if (agendamento_id && await jaTemLaudo(agendamento_id, tipoExame)) {
     return NextResponse.json({ error: 'Já existe um laudo de Hemograma para este agendamento.' }, { status: 409 })
   }
 
@@ -60,7 +85,7 @@ export async function POST(request: NextRequest) {
 
     await savePdf(filename, pdf)
 
-    const financeiro = await getComissao()
+    const financeiro = await getComissao(tipoExame)
 
     const { data, error } = await supabase
       .from('laudos')
@@ -86,7 +111,7 @@ export async function POST(request: NextRequest) {
           observacoes:  laudo.observacoes,
         }),
         veterinario_id,
-        tipo_exame:         TIPO_EXAME,
+        tipo_exame:         tipoExame,
         system_user_id:     session.userId,
         agendamento_id,
         tutor_id,
