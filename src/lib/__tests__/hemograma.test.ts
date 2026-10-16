@@ -119,3 +119,14 @@ describe('caso Nina (16/10): relativo alto com absoluto normal', () => {
     expect(neu).toMatchObject({ status_rel: 'H', status_abs: 'N', status: 'H' })
   })
 })
+
+describe('modo "Teste Retic." (paciente Paçoca)', () => {
+  const CSV_RETIC = fs.readFileSync(path.join(__dirname, 'fixtures', 'hemograma-analisador-retic.csv'), 'utf-8')
+
+  it('lê os reticulócitos marcados com "*" e informa a marca', () => {
+    const [a] = parseHemogramaCsv(CSV_RETIC)
+    expect(a).toMatchObject({ paciente: 'Paçoca', modo: 'Teste Retic.', idade: '9 anos', sexo: 'Fêmea' })
+    expect(a.valores).toEqual({ HEM: '3.04', RETIC: '0.26', RETIC_ABS: '7' })
+    expect(a.marcados).toEqual(['RETIC', 'RETIC_ABS'])
+  })
+})
