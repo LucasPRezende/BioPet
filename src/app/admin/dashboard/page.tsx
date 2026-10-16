@@ -8,6 +8,7 @@ interface Resumo {
   total_agendamentos: number
   receita_total:      number
   total_recebido:     number
+  comissao_extracao:  number
   total_a_receber:    number
   total_gratuitos:    number
   valor_gratuitos:    number
@@ -660,6 +661,12 @@ export default function DashboardPage() {
   // (recebimento foi direto — ver [[feature_comissao_clinica_biopet_direto]]).
   // Some da mesma fonte da tabela "Repasse — clínicas parceiras" acima.
   const comissaoClinicaPendente = clinicas.reduce((s, c) => s + c.comissao_pendente, 0)
+  // Custo de comissão de clínica do período = pendente + já paga (pagar não
+  // pode mudar o lucro).
+  const comissaoClinicaTotal    = clinicas.reduce((s, c) => s + c.comissao_pendente + c.comissao_paga, 0)
+  const lucroEstimado = resumo && laudoStats
+    ? resumo.total_recebido - laudoStats.custo - laudoStats.comissao - (resumo.comissao_extracao ?? 0) - comissaoClinicaTotal
+    : 0
 
   const pagVencidos = alertas ? alertas.falta_pagamento_lista.filter(ag => ag.vencido) : []
   const pagNoPrazo  = alertas ? alertas.falta_pagamento_lista.filter(ag => !ag.vencido) : []
@@ -989,21 +996,27 @@ export default function DashboardPage() {
 
                 {showDetalheFinanceiro && (
                   <div className="flex flex-col gap-4">
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
                       <StatCard label="Total de laudos" value={String(laudoStats.total)} />
                       <StatCard label="Custo total"     value={formatBRL(laudoStats.custo)}    color="text-red-500" />
                       <StatCard label="Comissões"       value={formatBRL(laudoStats.comissao)} color="text-amber-600" sub="a pagar" />
                       <StatCard
                         label="Comissão a clínicas"
-                        value={formatBRL(comissaoClinicaPendente)}
+                        value={formatBRL(comissaoClinicaTotal)}
                         color="text-amber-600"
-                        sub="teste rápido, a pagar"
+                        sub={comissaoClinicaPendente > 0 ? `${formatBRL(comissaoClinicaPendente)} a pagar` : 'tudo pago'}
+                      />
+                      <StatCard
+                        label="Comissão extração"
+                        value={formatBRL(resumo.comissao_extracao ?? 0)}
+                        color="text-amber-600"
+                        sub="vets que tiraram o sangue"
                       />
                       <StatCard
                         label="Lucro BioPet (est.)"
-                        value={formatBRL(resumo.total_recebido - laudoStats.custo - laudoStats.comissao - comissaoClinicaPendente)}
-                        color={(resumo.total_recebido - laudoStats.custo - laudoStats.comissao - comissaoClinicaPendente) >= 0 ? 'text-green-600' : 'text-red-500'}
-                        sub="recebido − custo − comissões − comissão clínicas"
+                        value={formatBRL(lucroEstimado)}
+                        color={lucroEstimado >= 0 ? 'text-green-600' : 'text-red-500'}
+                        sub="recebido − custo − comissões (laudo, extração, clínica)"
                       />
                     </div>
 

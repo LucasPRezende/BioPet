@@ -190,7 +190,12 @@ export async function insertTestesRapidos(agendamentoId: number, testes: TesteRa
 export async function resolverComissoes(
   bio: BioquimicaInput[],
   testes: TesteRapidoInput[],
+  { gratuito = false }: { gratuito?: boolean } = {},
 ): Promise<{ bio: BioquimicaInput[]; testes: TesteRapidoInput[] }> {
+  // Exame gratuito não gera comissão de clínica.
+  if (gratuito) {
+    return { bio: bio.map(b => ({ ...b, comissao: 0 })), testes: testes.map(t => ({ ...t, comissao: 0 })) }
+  }
   const [bioRes, testeRes] = await Promise.all([
     bio.length > 0
       ? supabase.from('bioquimica_exames').select('id, comissao').in('id', bio.map(b => Number(b.bioquimica_exame_id)))

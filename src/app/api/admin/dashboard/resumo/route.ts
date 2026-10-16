@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
 
   const { data: ags, error } = await supabase
     .from('agendamentos')
-    .select('id, valor, status_pagamento, pagamento_responsavel, clinica_id, forma_pagamento, entrega_pagamento, data_hora, status, tutor_id, agendamento_exames(desconto)')
+    .select('id, valor, status_pagamento, pagamento_responsavel, clinica_id, forma_pagamento, entrega_pagamento, data_hora, status, tutor_id, vet_extracao_id, comissao_extracao, agendamento_exames(desconto)')
     .gte('data_hora', `${inicio}T00:00:00`)
     .lte('data_hora', `${fim}T23:59:59`)
     .neq('status', 'cancelado')
@@ -80,6 +80,8 @@ export async function GET(request: NextRequest) {
     receita_total:       sum(all),
     total_descontos:     totalDescontos,
     total_recebido:      sum(recebidos),
+    // Comissão dos vets de extração no período (vet atribuído na tela Extrações).
+    comissao_extracao:   all.filter(r => r.vet_extracao_id != null).reduce((s, r) => s + Number(r.comissao_extracao ?? 0), 0),
     total_a_receber:     sum(aReceberList),
     total_clientes:      totalClientes,
     total_concluidos:    totalConcluidos,

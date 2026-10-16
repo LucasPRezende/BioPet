@@ -97,6 +97,17 @@ describe('precificarExames', () => {
     expect(r[1]).toMatchObject({ tipo_exame: 'Raio-X', valor: 230 })
   })
 
+  it('gratuito: sub-exames de Teste Rápido/Bioquímica também ficam sem comissão', async () => {
+    const { resolverComissoes } = await import('@/lib/agendamento-helpers')
+    const r = await resolverComissoes(
+      [{ bioquimica_exame_id: 1, valor_pix: 10, valor_cartao: 10 }],
+      [{ teste_rapido_id: 1, valor_pix: 100, valor_cartao: 100 }],
+      { gratuito: true },
+    )
+    expect(r.bio[0].comissao).toBe(0)
+    expect(r.testes[0].comissao).toBe(0)
+  })
+
   it('gratuito: sem valor e sem comissão', async () => {
     const r = await precificarExames(exames, { ...base, gratuito: true })
     expect(r[0]).toMatchObject({ valor: 0, comissao_clinica: 0 })

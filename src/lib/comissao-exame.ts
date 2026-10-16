@@ -42,6 +42,39 @@ export function algumGeraComissaoClinica(tipos: string[], tabela: ComClinica[]):
   return tipos.some(t => geraComissaoClinica(t, tabela))
 }
 
+/**
+ * Agendamento feito pela própria clínica: ela recebe comissão quando algum
+ * exame gera comissão de clínica E o tutor paga a BioPet direto. Se é a
+ * clínica quem cobra do tutor, a comissão já sai do repasse (não fica devida).
+ */
+export function clinicaQueRecebeComissao(p: {
+  tipos:                 string[]
+  pagamentoResponsavel:  string | null | undefined
+  clinicaId:             number
+  tabela:                ComClinica[]
+}): number | null {
+  if (p.pagamentoResponsavel === 'clinica') return null
+  return algumGeraComissaoClinica(p.tipos, p.tabela) ? p.clinicaId : null
+}
+
+/**
+ * A BioPet deve a comissão à clínica (decisão de 16/10/2026):
+ *  - só depois que a BioPet RECEBEU do tutor (status 'pago') — cobrança em
+ *    aberto ou pet que faltou não geram dívida;
+ *  - exame gratuito nunca gera comissão de clínica.
+ * (Quando é a clínica quem cobra do tutor, a comissão sai do repasse e não
+ * passa por aqui.)
+ */
+export function comissaoClinicaDevida(ag: {
+  comissao_clinica_id:  number | null | undefined
+  status_pagamento:     string | null | undefined
+  forma_pagamento:      string | null | undefined
+}): boolean {
+  if (ag.comissao_clinica_id == null) return false
+  if ((ag.forma_pagamento ?? '').toLowerCase() === 'gratuito') return false
+  return ag.status_pagamento === 'pago'
+}
+
 /** Tipos de exame que pagam comissão ao vet da extração. */
 export function tiposComExtracao(tabela: ComissoesDoExame[]): string[] {
   return tabela.filter(c => num(c.comissao_extracao) > 0).map(c => c.tipo_exame)

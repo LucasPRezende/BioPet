@@ -556,11 +556,10 @@ function useForm(inicial: FormExame) {
 
 // ── Modal ⋯ editar exame (salva direto) ──────────────────────────────────────
 
-function ExameEditModal({ exame, onClose, onSaved, onDeleted }: {
-  exame:     Comissao             // já com as pendências aplicadas
-  onClose:   () => void
-  onSaved:   (lista: Comissao[]) => void
-  onDeleted: (id: number) => void
+function ExameEditModal({ exame, onClose, onSaved }: {
+  exame:   Comissao             // já com as pendências aplicadas
+  onClose: () => void
+  onSaved: (lista: Comissao[]) => void
 }) {
   const { f, set } = useForm(formDe(exame))
   const [saving, setSaving] = useState(false)
@@ -570,10 +569,10 @@ function ExameEditModal({ exame, onClose, onSaved, onDeleted }: {
   const pix = lerValor(f.preco_pix_comercial)
   const bloqueiaAtivo = f.ativo && !agrupador && !(typeof pix === 'number' && pix > 0)
 
-  async function salvar() {
+  async function salvar(forcarInativo = false) {
     setError('')
-    if (bloqueiaAtivo) { setError(`Defina o Pix comercial de ${exame.tipo_exame} antes de ativar.`); return }
-    const p = payloadDe(f)
+    if (bloqueiaAtivo && !forcarInativo) { setError(`Defina o Pix comercial de ${exame.tipo_exame} antes de ativar.`); return }
+    const p = payloadDe(forcarInativo ? { ...f, ativo: false } : f)
     if (!p.ok) { setError(p.erro); return }
     setSaving(true)
     const body = agrupador
@@ -590,18 +589,20 @@ function ExameEditModal({ exame, onClose, onSaved, onDeleted }: {
     setSaving(false)
   }
 
-  async function remover() {
-    if (!confirm(`Remover "${exame.tipo_exame}"? Laudos já emitidos não serão afetados.`)) return
-    const res = await fetch(`/api/comissoes?id=${exame.id}`, { method: 'DELETE' })
-    if (res.ok) onDeleted(exame.id)
-    else setError('Erro ao remover.')
+  // Desativar no lugar de apagar: o exame some do agendamento e do agente,
+  // mas o histórico e os laudos continuam apontando para ele.
+  async function desativar() {
+    if (!confirm(`Desativar "${exame.tipo_exame}"? Ele deixa de aparecer no agendamento e para o agente. Dá para reativar depois.`)) return
+    await salvar(true)
   }
 
   return (
     <Modal titulo={exame.tipo_exame} onClose={onClose} rodape={<>
-      {!agrupador && <button onClick={remover} className="text-xs text-red-400 hover:text-red-600 transition mr-auto">Remover exame</button>}
-      <button onClick={onClose} className={`${agrupador ? 'ml-auto' : ''} ${BTN_SECUNDARIO}`}>Cancelar</button>
-      <button onClick={salvar} disabled={saving} className={BTN_PRIMARIO}>{saving ? 'Salvando...' : 'Salvar'}</button>
+      {!agrupador && exame.ativo && (
+        <button onClick={desativar} disabled={saving} className="text-xs text-red-400 hover:text-red-600 transition mr-auto">Desativar exame</button>
+      )}
+      <button onClick={onClose} className={`${agrupador || !exame.ativo ? 'ml-auto' : ''} ${BTN_SECUNDARIO}`}>Cancelar</button>
+      <button onClick={() => salvar()} disabled={saving} className={BTN_PRIMARIO}>{saving ? 'Salvando...' : 'Salvar'}</button>
     </>}>
       <section className="space-y-1">
         <Toggle on={f.ativo} onClick={() => set('ativo', !f.ativo)}
@@ -1409,10 +1410,6 @@ export default function ComissoesPage() {
             pend.limparRegistro('comissoes_exame', editando.id)
             setExames(lista); setEditando(null)
             destacar([`comissoes_exame:${editando.id}`]); toast('✓ Salvo')
-          }}
-          onDeleted={id => {
-            pend.limparRegistro('comissoes_exame', id)
-            setExames(prev => prev.filter(c => c.id !== id)); setEditando(null); toast('Exame removido')
           }} />
       )}
 

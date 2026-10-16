@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
+import { comissaoClinicaDevida } from '@/lib/comissao-exame'
 
 export async function GET(request: NextRequest) {
   const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value
@@ -18,7 +19,7 @@ export async function GET(request: NextRequest) {
     .from('agendamentos')
     .select(`
       id, clinica_id, comissao_clinica_id, comissao_clinica_confirmada, comissao_clinica_em,
-      valor, status_pagamento, tipo_exame, data_hora, pagamento_responsavel, repasse_confirmado, repasse_em,
+      valor, status_pagamento, forma_pagamento, tipo_exame, data_hora, pagamento_responsavel, repasse_confirmado, repasse_em,
       clinicas!agendamentos_clinica_id_fkey(nome),
       clinica_comissao:clinicas!agendamentos_comissao_clinica_id_fkey(nome),
       pets(nome), tutores(nome),
@@ -59,6 +60,7 @@ export async function GET(request: NextRequest) {
       repasse_confirmado:          boolean
       repasse_em:                  string | null
       comissao_clinica:            boolean
+      comissao_aguardando:         boolean
       comissao_valor:              number
       comissao_exame:              string
       comissao_clinica_confirmada: boolean
@@ -73,19 +75,24 @@ export async function GET(request: NextRequest) {
     // Comissão devida a uma clínica parceira quando a BioPet recebe direto do
     // tutor (não é o mesmo fluxo do repasse, que já desconta a comissão do
     // valor repassado — ver migration_v43).
-    const isComissaoClinica = ag.comissao_clinica_id != null
+    // Só conta depois que a BioPet recebeu do tutor, e nunca em exame gratuito
+    // (ver comissaoClinicaDevida). Clínica marcada mas ainda sem pagamento fica
+    // como "aguardando".
+    const isComissaoClinica = comissaoClinicaDevida(ag)
+    const comissaoAguardando = ag.comissao_clinica_id != null && !isComissaoClinica &&
+      (ag.forma_pagamento ?? '').toLowerCase() !== 'gratuito'
     type SubTeste = { comissao: number; testes_rapidos: { nome: string } | { nome: string }[] | null }
     type SubBio   = { comissao: number; bioquimica_exames: { nome: string } | { nome: string }[] | null }
     const nomeSub = (rel: { nome: string } | { nome: string }[] | null) => (Array.isArray(rel) ? rel[0] : rel)?.nome
-    const testesComComissao = isComissaoClinica
+    const testesComComissao = (isComissaoClinica || comissaoAguardando)
       ? (Array.isArray(ag.agendamento_testes_rapidos) ? ag.agendamento_testes_rapidos as SubTeste[] : []).filter(t => Number(t.comissao ?? 0) > 0)
       : []
-    const bioComComissao = isComissaoClinica
+    const bioComComissao = (isComissaoClinica || comissaoAguardando)
       ? (Array.isArray(ag.agendamento_bioquimica) ? ag.agendamento_bioquimica as SubBio[] : []).filter(b => Number(b.comissao ?? 0) > 0)
       : []
     // Demais exames (ex.: Hemograma): comissão gravada na linha do agendamento.
     type LinhaExame = { tipo_exame: string; comissao_clinica: number | null }
-    const examesComComissao = isComissaoClinica
+    const examesComComissao = (isComissaoClinica || comissaoAguardando)
       ? (Array.isArray(ag.agendamento_exames) ? ag.agendamento_exames as LinhaExame[] : []).filter(e => Number(e.comissao_clinica ?? 0) > 0)
       : []
     const comissaoValor = testesComComissao.reduce((s, t) => s + Number(t.comissao ?? 0), 0)
@@ -164,6 +171,7 @@ export async function GET(request: NextRequest) {
       repasse_confirmado:          (ag.repasse_confirmado as boolean | null) ?? false,
       repasse_em:                  (ag.repasse_em as string | null) ?? null,
       comissao_clinica:            isComissaoClinica,
+      comissao_aguardando:         comissaoAguardando,
       comissao_valor:              comissaoValor,
       comissao_exame:              comissaoExameNome,
       comissao_clinica_confirmada: (ag.comissao_clinica_confirmada as boolean | null) ?? false,

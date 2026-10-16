@@ -153,6 +153,7 @@ export async function POST(request: NextRequest) {
   const { bio: bioPayload, testes: testePayload } = await resolverComissoes(
     Array.isArray(bioquimica_selecionados) ? bioquimica_selecionados as BioquimicaInput[] : [],
     Array.isArray(testes_rapidos_selecionados) ? testes_rapidos_selecionados as TesteRapidoInput[] : [],
+    { gratuito: pagarGratuito },
   )
   const examesPrecificados = await precificarExames(examesArr, {
     forma:           formaEfetiva(pagResp, forma_pagamento),

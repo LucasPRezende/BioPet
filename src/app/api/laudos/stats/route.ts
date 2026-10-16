@@ -63,7 +63,9 @@ export async function GET(request: NextRequest) {
     porTipoMap[tipo].quantidade++
     porTipoMap[tipo].receita   += Number(l.preco_exame    ?? 0)
     porTipoMap[tipo].custo     += Number(l.custo_exame    ?? 0)
-    porTipoMap[tipo].comissao  += Number(l.valor_comissao ?? 0)
+    // Mesma regra do total: comissão só conta para quem recebe comissão.
+    const recebe = l.system_user_id ? (userMap[l.system_user_id]?.recebe_comissao ?? true) : true
+    porTipoMap[tipo].comissao  += recebe ? Number(l.valor_comissao ?? 0) : 0
   }
   const porTipo = Object.entries(porTipoMap)
     .map(([tipo_exame, v]) => ({

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { supabase } from '@/lib/supabase'
-import { algumGeraComissaoClinica } from '@/lib/comissao-exame'
+import { clinicaQueRecebeComissao } from '@/lib/comissao-exame'
 import { carregarComissoes } from '@/lib/comissao-exame-db'
 import { parseClinicaSession, CLINICA_COOKIE_NAME } from '@/lib/clinica-auth'
 import { sendWhatsAppText } from '@/lib/evolution'
@@ -162,6 +162,7 @@ export async function POST(request: NextRequest) {
   const { bio: bioPayload, testes: testePayload } = await resolverComissoes(
     Array.isArray(bioquimica_selecionados) ? bioquimica_selecionados as BioquimicaInput[] : [],
     Array.isArray(testes_rapidos_selecionados) ? testes_rapidos_selecionados as TesteRapidoInput[] : [],
+    { gratuito: (forma_pagamento ?? '').toLowerCase() === 'gratuito' },
   )
   const examesPrecificados = await precificarExames(examesArr, {
     forma:           formaEfetiva(pagamento_responsavel, forma_pagamento),
@@ -179,8 +180,12 @@ export async function POST(request: NextRequest) {
   // Hemograma...): se a BioPet recebe direto do tutor, a comissão ainda é
   // devida a esta clínica (automático, sem precisar escolher — é a mesma
   // clínica que está logada).
-  const geraComissao = algumGeraComissaoClinica(examesArr.map(e => e.tipo_exame), await carregarComissoes())
-  const comissaoClinicaId = geraComissao && pagamento_responsavel !== 'clinica' ? session.clinicaId : null
+  const comissaoClinicaId = clinicaQueRecebeComissao({
+    tipos:                examesArr.map(e => e.tipo_exame),
+    pagamentoResponsavel: pagamento_responsavel,
+    clinicaId:            session.clinicaId,
+    tabela:               await carregarComissoes(),
+  })
 
   const { data: agendamento, error: errAg } = await supabase
     .from('agendamentos')
