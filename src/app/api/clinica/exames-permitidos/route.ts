@@ -29,6 +29,7 @@ export async function GET() {
       'preco_pix_fora_horario, preco_cartao_fora_horario, comissao_clinica'
     )
     .in('tipo_exame', tipos.length > 0 ? tipos : ['__nenhum__'])
+    .eq('ativo', true)
 
   const comissoes = (comissoesRaw ?? [] as unknown[]) as unknown as {
     tipo_exame: string; duracao_minutos: number | null; varia_por_horario: boolean; permite_multiplo: boolean
@@ -37,7 +38,8 @@ export async function GET() {
     comissao_clinica: number | null
   }[]
 
-  const exames = tipos.map(tipo => {
+  // Exame permitido mas inativo (ou removido) não aparece para agendar.
+  const exames = tipos.filter(tipo => comissoes.some(x => x.tipo_exame === tipo)).map(tipo => {
     const c = comissoes.find(x => x.tipo_exame === tipo)
     const varia = c?.varia_por_horario ?? false
     return {

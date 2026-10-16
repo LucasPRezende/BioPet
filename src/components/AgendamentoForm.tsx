@@ -359,8 +359,8 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
         tipo_exame: string; duracao_minutos: number | null; varia_por_horario: boolean; permite_multiplo: boolean
         preco_pix_comercial: number | null; preco_cartao_comercial: number | null
         preco_pix_fora_horario: number | null; preco_cartao_fora_horario: number | null
-        comissao_clinica: number | null
-      }[]) => setExamesDisponiveis(d.map(c => ({
+        comissao_clinica: number | null; ativo?: boolean
+      }[]) => setExamesDisponiveis(d.filter(c => c.ativo !== false).map(c => ({
         tipo_exame:            c.tipo_exame,
         duracao_minutos:       c.duracao_minutos ?? 30,
         varia_por_horario:     c.varia_por_horario,

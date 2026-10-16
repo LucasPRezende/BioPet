@@ -160,10 +160,10 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  // Só agenda exames que existem na tabela de preços E não estão bloqueados.
+  // Só agenda exames que existem na tabela de preços, estão ativos E não estão bloqueados.
   // Pega sub-exames de bioquímica (TGP, TGO...), nomes inventados e desativados.
   const [{ data: comissoesRows }, { data: cfgRow }] = await Promise.all([
-    supabase.from('comissoes_exame').select('tipo_exame'),
+    supabase.from('comissoes_exame').select('tipo_exame').eq('ativo', true),
     supabase.from('configuracoes_agente').select('exames_nao_agendaveis').order('id').limit(1).maybeSingle(),
   ])
   const validos = (comissoesRows ?? []).map(r => r.tipo_exame as string)

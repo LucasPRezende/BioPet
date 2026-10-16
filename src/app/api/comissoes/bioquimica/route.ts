@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
+import { registrarHistorico } from '@/lib/historico-precos'
 import { audienciaCatalogo } from '@/lib/session-helpers'
 
 // Colunas que qualquer um pode ler. `comissao` (o repasse da BioPet por exame)
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from('bioquimica_exames')
-    .select(audiencia === 'publico' ? COLS_PUBLICAS : COLS_INTERNAS)
+    .select(audiencia === 'publico' ? COLS_PUBLICAS : isAdmin ? `${COLS_INTERNAS}, custo` : COLS_INTERNAS)
     .order('ordem', { ascending: true })
 
   if (!isAdmin) {
@@ -56,24 +57,31 @@ export async function POST(request: NextRequest) {
   if (!admin) return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 })
 
   const body = await request.json().catch(() => null)
-  const { nome, codigo, preco_pix, preco_cartao, comissao, ordem } = body ?? {}
+  const { nome, codigo, preco_pix, preco_cartao, comissao, custo, ordem, ativo } = body ?? {}
 
   if (!nome?.trim()) return NextResponse.json({ error: 'Nome é obrigatório.' }, { status: 400 })
 
+  const pix = Math.max(0, Number(preco_pix) || 0)
+  const vazio = (v: unknown) => v === null || v === undefined || v === ''
+
+  // Nasce inativo (só entra no agendamento quando alguém liga "Ativo").
+  // Cartão vazio usa o Pix; custo vazio fica NULL ("definir" na tela).
   const { data, error } = await supabase
     .from('bioquimica_exames')
     .insert({
-      nome:        nome.trim(),
-      codigo:      codigo?.trim() || null,
-      preco_pix:   Number(preco_pix)    || 0,
-      preco_cartao: Number(preco_cartao) || 0,
-      comissao:    Number(comissao)      || 0,
-      ordem:       Number(ordem)         || 0,
-      ativo:       true,
+      nome:         nome.trim(),
+      codigo:       codigo?.trim() || null,
+      preco_pix:    pix,
+      preco_cartao: vazio(preco_cartao) ? pix : Math.max(0, Number(preco_cartao) || 0),
+      comissao:     Math.max(0, Number(comissao) || 0),
+      custo:        vazio(custo) ? null : Math.max(0, Number(custo) || 0),
+      ordem:        Number(ordem)         || 0,
+      ativo:        ativo === true,
     })
     .select('*')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  await registrarHistorico([{ tabela: 'bioquimica_exames', registro_id: data.id, campo: '*', antes: null, depois: data }], admin.userId)
   return NextResponse.json(data, { status: 201 })
 }

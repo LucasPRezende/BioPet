@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
+import { registrarHistorico } from '@/lib/historico-precos'
 
 async function requireAdmin(request: NextRequest) {
   const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value
@@ -71,5 +72,6 @@ export async function DELETE(
     .eq('id', testeId)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  await registrarHistorico([{ tabela: 'testes_rapidos', registro_id: testeId, campo: 'ativo', antes: true, depois: false }], admin.userId)
   return NextResponse.json({ success: true })
 }

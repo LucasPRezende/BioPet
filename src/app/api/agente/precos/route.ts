@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
     supabase
       .from('comissoes_exame')
       .select('tipo_exame, preco_pix_comercial, preco_cartao_comercial, preco_pix_fora_horario, preco_cartao_fora_horario, varia_por_horario, duracao_minutos, observacao')
+      .eq('ativo', true)   // exame inativo (ex.: recém-criado, sem preço) não é oferecido
       .order('tipo_exame'),
     supabase
       .from('bioquimica_exames')

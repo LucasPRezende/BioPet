@@ -44,6 +44,7 @@ interface ComissaoInfo {
   preco_pix_fora_horario:    number | null
   preco_cartao_fora_horario: number | null
   comissao_clinica:          number | null
+  ativo?:                    boolean
 }
 
 function isEspecial(hora: string, totalMin: number, data: string, feriadoDatas?: string[], horarioFim?: string, horarioInicio?: string): boolean {
@@ -746,7 +747,7 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
                   )})}
                 </div>
                 {/* Adicionar exame */}
-                {comissoes.filter(c => !examesAtivos.some(a => a.tipo_exame === c.tipo_exame)).length > 0 && (
+                {comissoes.filter(c => c.ativo !== false && !examesAtivos.some(a => a.tipo_exame === c.tipo_exame)).length > 0 && (
                   <div className="mt-2 flex gap-2">
                     <select
                       value={exameParaAdicionar}
@@ -755,7 +756,7 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
                     >
                       <option value="">+ Adicionar exame...</option>
                       {comissoes
-                        .filter(c => !examesAtivos.some(a => a.tipo_exame === c.tipo_exame))
+                        .filter(c => c.ativo !== false && !examesAtivos.some(a => a.tipo_exame === c.tipo_exame))
                         .map(c => <option key={c.tipo_exame} value={c.tipo_exame}>{c.tipo_exame}</option>)
                       }
                     </select>
