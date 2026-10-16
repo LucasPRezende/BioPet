@@ -1,0 +1,2 @@
+ID,Animal,Proprietário,Paciente,Tel.,Amos. tempo,Remetente,Modo,Assessor,No. Amostra,Gênero,Idade,Grupo,Hora Envio,Tempo,Operador,LEU,WOC,LIN%,MON%,NEU%,EOS%,BASO%,LIN#,MON#,NEU#,EOS#,BASO#,HEM,HGB,HCT,VCM,HCM,CHCM,RDW_CV,RDW_SD,PLQ,VPM,PDW,PCT,P_LCR,P_LCC,NRBC%,NRBC#,RETIC,RETIC_ABS,IRF,Fundo Retic.,ALY%,ALY#,LIC%,LIC#,Tempo LEU,Tempo HEM
+'0000007',Cachorro,Vagna,Paçoca,,YYYY-MM-DD HH:mm,,Teste Retic.,,'1R',Fêmea,9 Y,Cachorro,YYYY-MM-DD HH:mm,16/10/2026 15:37,'administrator',,,,,,,,,,,,,3.04,,,,,,,,,,,,,,,,*0.26,*7,*8.33,,,,,,,

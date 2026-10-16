@@ -331,6 +331,11 @@ function NovoHemogramaContent() {
     )
   }
 
+  // "*" laranja ao lado do parâmetro que a máquina marcou com asterisco
+  const marca = (codigo: string) => amostra?.marcados?.includes(codigo)
+    ? <span className="text-amber-600 font-bold ml-1" title="Marcado com * pela máquina — conferir">*</span>
+    : null
+
   const campo = (label: string, el: React.ReactNode) => (
     <div>
       <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">{label}</label>
@@ -488,7 +493,7 @@ function NovoHemogramaContent() {
                 <div className="p-5 space-y-3">
                   <h2 className="text-xs font-bold text-[#19202d] uppercase tracking-widest">Paciente</h2>
                   <p className="text-[11px] text-gray-400">
-                    No arquivo: <b>{amostra.paciente || '—'}</b> · {amostra.animal || '—'} · {amostra.data_hora || '—'}
+                    No arquivo: <b>{amostra.paciente || '—'}</b> · {amostra.animal || '—'} · {amostra.data_hora || '—'}{amostra.modo ? ` · ${amostra.modo}` : ''}
                   </p>
                   <div className="grid grid-cols-2 gap-3">
                     {campo('Nome', <input value={form.nome_pet} onChange={e => { setForm(p => ({ ...p, nome_pet: e.target.value })); setDesatualizada(true) }} className={INPUT} />)}
@@ -533,6 +538,11 @@ function NovoHemogramaContent() {
                   <div>
                     <h2 className="text-xs font-bold text-[#19202d] uppercase tracking-widest">Resultados</h2>
                     <p className="text-[11px] text-gray-400 mt-1">Valores do analisador — edite se precisar corrigir (ex.: diferencial contado na lâmina; o absoluto recalcula sozinho).</p>
+                    {(amostra.marcados ?? []).length > 0 && (
+                      <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1 mt-2">
+                        <b>*</b> Valor marcado com asterisco pela máquina — confira antes de emitir.
+                      </p>
+                    )}
                   </div>
 
                   {GRUPOS_HEMOGRAMA.map(({ grupo, titulo }) => (
@@ -542,7 +552,7 @@ function NovoHemogramaContent() {
                         <div className="space-y-1">
                           {PARAMETROS_HEMOGRAMA.filter(p => p.grupo === grupo).map(p => (
                             <div key={p.codigo} className="grid grid-cols-[1fr_100px_60px] gap-2 items-center text-sm">
-                              <span className="text-[#19202d]">{p.nome}</span>
+                              <span className="text-[#19202d]">{p.nome}{marca(p.codigo)}</span>
                               <input inputMode="decimal" value={valores[p.codigo] ?? ''} onChange={e => setValor(p.codigo, e.target.value)} className={INPUT_NUM} />
                               <span className="text-xs text-gray-400">{p.unidade}</span>
                             </div>
@@ -551,7 +561,7 @@ function NovoHemogramaContent() {
                       ) : (
                         <div className="space-y-1">
                           <div className="grid grid-cols-[1fr_100px_60px] gap-2 items-center text-sm">
-                            <span className="text-[#19202d]">Leucócitos totais</span>
+                            <span className="text-[#19202d]">Leucócitos totais{marca('LEU')}</span>
                             <input inputMode="decimal" value={valores.LEU ?? ''} onChange={e => setValor('LEU', e.target.value)} className={INPUT_NUM} />
                             <span className="text-xs text-gray-400">10³/µL</span>
                           </div>
@@ -560,7 +570,7 @@ function NovoHemogramaContent() {
                           </div>
                           {CELULAS_LEUCOGRAMA.map(c => (
                             <div key={c} className="grid grid-cols-[1fr_80px_90px] gap-2 items-center text-sm">
-                              <span className="text-[#19202d]">{parametroPorCodigo(`${c}_REL`)!.nome}</span>
+                              <span className="text-[#19202d]">{parametroPorCodigo(`${c}_REL`)!.nome}{marca(`${c}_REL`)}{marca(`${c}_ABS`)}</span>
                               <input inputMode="decimal" value={valores[`${c}_REL`] ?? ''} onChange={e => setValor(`${c}_REL`, e.target.value)} className={INPUT_NUM} />
                               <input inputMode="decimal" value={valores[`${c}_ABS`] ?? ''} onChange={e => setValor(`${c}_ABS`, e.target.value)} className={INPUT_NUM} />
                             </div>

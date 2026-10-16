@@ -80,6 +80,8 @@ export interface AmostraHemograma {
   data_iso:     string
   /** Valores por código de parâmetro (string, ponto decimal); ausente = vazio. */
   valores:      Record<string, string>
+  /** Códigos cujo valor veio marcado com "*" pela máquina (conferir). */
+  marcados:     string[]
 }
 
 // Remove aspas simples de campos de texto ("'pirulito'" → "pirulito") e trata
@@ -90,9 +92,13 @@ function limparCampo(raw: string | undefined): string {
   return s
 }
 
-function limparNumero(raw: string | undefined): string {
-  const s = limparCampo(raw).replace(',', '.')
-  return /^-?\d+(\.\d+)?$/.test(s) ? s : ''
+// O analisador marca alguns resultados com "*" na frente (ex.: reticulócitos
+// no modo "Teste Retic.": "*0.26"). O número vale; a marca é devolvida à parte.
+function limparNumero(raw: string | undefined): { valor: string; marcado: boolean } {
+  let s = limparCampo(raw).replace(',', '.')
+  const marcado = s.startsWith('*')
+  if (marcado) s = s.slice(1).trim()
+  return /^-?\d+(\.\d+)?$/.test(s) ? { valor: s, marcado } : { valor: '', marcado: false }
 }
 
 /** Idade como o analisador escreve ("2 Y", "6 M", "10 D") → "2 anos", "6 meses"... */
@@ -174,10 +180,14 @@ export function parseHemogramaCsv(texto: string): AmostraHemograma[] {
     const campo = (col: string) => { const i = idx(col); return i >= 0 ? limparCampo(cel[i]) : '' }
 
     const valores: Record<string, string> = {}
+    const marcados: string[] = []
     for (const p of PARAMETROS_HEMOGRAMA) {
       const i = idx(p.coluna)
-      const v = i >= 0 ? limparNumero(cel[i]) : ''
-      if (v) valores[p.codigo] = v
+      if (i < 0) continue
+      const { valor, marcado } = limparNumero(cel[i])
+      if (!valor) continue
+      valores[p.codigo] = valor
+      if (marcado) marcados.push(p.codigo)
     }
     if (Object.keys(valores).length === 0) continue
 
@@ -193,6 +203,7 @@ export function parseHemogramaCsv(texto: string): AmostraHemograma[] {
       data_hora,
       data_iso:     dataAnaliseIso(data_hora),
       valores,
+      marcados,
     })
   }
   return amostras
