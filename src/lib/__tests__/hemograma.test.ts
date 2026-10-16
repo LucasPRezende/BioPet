@@ -126,8 +126,11 @@ describe('modo "Teste Retic." (paciente Paçoca)', () => {
   it('lê os reticulócitos marcados com "*" e informa a marca', () => {
     const [a] = parseHemogramaCsv(CSV_RETIC)
     expect(a).toMatchObject({ paciente: 'Paçoca', modo: 'Teste Retic.', idade: '9 anos', sexo: 'Fêmea' })
-    expect(a.valores).toEqual({ HEM: '3.04', RETIC: '0.26', RETIC_ABS: '7' })
-    expect(a.marcados).toEqual(['RETIC', 'RETIC_ABS'])
+    expect(a.valores).toEqual({ HEM: '3.04', RETIC: '0.26', RETIC_ABS: '7', IRF: '8.33' })
+    expect(a.marcados).toEqual(['RETIC', 'RETIC_ABS', 'IRF'])
+    // IRF sai no eritrograma logo depois dos reticulócitos, sem referência
+    const g = montarLinhasHemograma(a.valores, [])
+    expect(g.eritrograma.map(l => l.tipo === 'simples' && l.codigo)).toEqual(['HEM', 'RETIC', 'RETIC_ABS', 'IRF'])
   })
 })
 

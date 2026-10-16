@@ -33,6 +33,8 @@ export const PARAMETROS_HEMOGRAMA: ParametroHemograma[] = [
   // vazios, não aparecem no laudo.
   { codigo: 'RETIC',     nome: 'Reticulócitos',         unidade: '%',      grupo: 'eritrograma', coluna: 'RETIC',     casas: 2 },
   { codigo: 'RETIC_ABS', nome: 'Reticulócitos (abs.)',  unidade: '10³/µL', grupo: 'eritrograma', coluna: 'RETIC_ABS', casas: 1 },
+  // Fração de reticulócitos imaturos; a máquina não traz referência (0–99,99)
+  { codigo: 'IRF',       nome: 'IRF (retic. imaturos)', unidade: '%',      grupo: 'eritrograma', coluna: 'IRF',       casas: 2 },
   { codigo: 'LEU',      nome: 'Leucócitos totais',   unidade: '10³/µL', grupo: 'leucograma',    coluna: 'LEU',    casas: 2 },
   { codigo: 'NEU_REL',  nome: 'Neutrófilos',         unidade: '%',      grupo: 'leucograma',    coluna: 'NEU%',   casas: 2 },
   { codigo: 'NEU_ABS',  nome: 'Neutrófilos',         unidade: '10³/µL', grupo: 'leucograma',    coluna: 'NEU#',   casas: 3 },
