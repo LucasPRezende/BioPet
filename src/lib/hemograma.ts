@@ -12,7 +12,7 @@ export interface ParametroHemograma {
   grupo:   GrupoHemograma
   /** Coluna do CSV do analisador. */
   coluna:  string
-  /** Casas decimais na exibição do laudo. */
+  /** Casas decimais mínimas no laudo (as mesmas da tela da máquina). */
   casas:   number
 }
 
@@ -34,16 +34,16 @@ export const PARAMETROS_HEMOGRAMA: ParametroHemograma[] = [
   { codigo: 'RETIC',     nome: 'Reticulócitos',         unidade: '%',      grupo: 'eritrograma', coluna: 'RETIC',     casas: 2 },
   { codigo: 'RETIC_ABS', nome: 'Reticulócitos (abs.)',  unidade: '10³/µL', grupo: 'eritrograma', coluna: 'RETIC_ABS', casas: 1 },
   { codigo: 'LEU',      nome: 'Leucócitos totais',   unidade: '10³/µL', grupo: 'leucograma',    coluna: 'LEU',    casas: 2 },
-  { codigo: 'NEU_REL',  nome: 'Neutrófilos',         unidade: '%',      grupo: 'leucograma',    coluna: 'NEU%',   casas: 1 },
-  { codigo: 'NEU_ABS',  nome: 'Neutrófilos',         unidade: '10³/µL', grupo: 'leucograma',    coluna: 'NEU#',   casas: 2 },
-  { codigo: 'LIN_REL',  nome: 'Linfócitos',          unidade: '%',      grupo: 'leucograma',    coluna: 'LIN%',   casas: 1 },
-  { codigo: 'LIN_ABS',  nome: 'Linfócitos',          unidade: '10³/µL', grupo: 'leucograma',    coluna: 'LIN#',   casas: 2 },
-  { codigo: 'MON_REL',  nome: 'Monócitos',           unidade: '%',      grupo: 'leucograma',    coluna: 'MON%',   casas: 1 },
-  { codigo: 'MON_ABS',  nome: 'Monócitos',           unidade: '10³/µL', grupo: 'leucograma',    coluna: 'MON#',   casas: 2 },
-  { codigo: 'EOS_REL',  nome: 'Eosinófilos',         unidade: '%',      grupo: 'leucograma',    coluna: 'EOS%',   casas: 1 },
-  { codigo: 'EOS_ABS',  nome: 'Eosinófilos',         unidade: '10³/µL', grupo: 'leucograma',    coluna: 'EOS#',   casas: 2 },
-  { codigo: 'BASO_REL', nome: 'Basófilos',           unidade: '%',      grupo: 'leucograma',    coluna: 'BASO%',  casas: 1 },
-  { codigo: 'BASO_ABS', nome: 'Basófilos',           unidade: '10³/µL', grupo: 'leucograma',    coluna: 'BASO#',  casas: 2 },
+  { codigo: 'NEU_REL',  nome: 'Neutrófilos',         unidade: '%',      grupo: 'leucograma',    coluna: 'NEU%',   casas: 2 },
+  { codigo: 'NEU_ABS',  nome: 'Neutrófilos',         unidade: '10³/µL', grupo: 'leucograma',    coluna: 'NEU#',   casas: 3 },
+  { codigo: 'LIN_REL',  nome: 'Linfócitos',          unidade: '%',      grupo: 'leucograma',    coluna: 'LIN%',   casas: 2 },
+  { codigo: 'LIN_ABS',  nome: 'Linfócitos',          unidade: '10³/µL', grupo: 'leucograma',    coluna: 'LIN#',   casas: 3 },
+  { codigo: 'MON_REL',  nome: 'Monócitos',           unidade: '%',      grupo: 'leucograma',    coluna: 'MON%',   casas: 2 },
+  { codigo: 'MON_ABS',  nome: 'Monócitos',           unidade: '10³/µL', grupo: 'leucograma',    coluna: 'MON#',   casas: 3 },
+  { codigo: 'EOS_REL',  nome: 'Eosinófilos',         unidade: '%',      grupo: 'leucograma',    coluna: 'EOS%',   casas: 2 },
+  { codigo: 'EOS_ABS',  nome: 'Eosinófilos',         unidade: '10³/µL', grupo: 'leucograma',    coluna: 'EOS#',   casas: 3 },
+  { codigo: 'BASO_REL', nome: 'Basófilos',           unidade: '%',      grupo: 'leucograma',    coluna: 'BASO%',  casas: 2 },
+  { codigo: 'BASO_ABS', nome: 'Basófilos',           unidade: '10³/µL', grupo: 'leucograma',    coluna: 'BASO#',  casas: 3 },
   { codigo: 'PLQ',      nome: 'Plaquetas',           unidade: '10³/µL', grupo: 'plaquetograma', coluna: 'PLQ',    casas: 0 },
   { codigo: 'VPM',      nome: 'VPM',                 unidade: 'fL',     grupo: 'plaquetograma', coluna: 'VPM',    casas: 1 },
 ]
@@ -217,11 +217,16 @@ export function statusValor(valor: string, ref: ReferenciaHemograma | undefined)
   return 'N'
 }
 
-/** Formata número no padrão brasileiro com as casas do parâmetro. */
+/**
+ * Formata número no padrão brasileiro com pelo menos as casas do parâmetro —
+ * nunca menos casas do que o valor trouxe (81.13 não vira "81,1").
+ */
 export function formatarValor(valor: string, casas: number): string {
   const n = parseFloat(valor)
   if (isNaN(n)) return valor
-  return n.toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas })
+  const casasDoValor = (valor.trim().split(/[.,]/)[1] ?? '').length
+  const c = Math.max(casas, casasDoValor)
+  return n.toLocaleString('pt-BR', { minimumFractionDigits: c, maximumFractionDigits: c })
 }
 
 /** Linha simples (eritrograma, plaquetograma, leucócitos totais). */
@@ -245,7 +250,9 @@ export interface LinhaDiferencial {
   absoluto:   string
   ref_rel:    ReferenciaHemograma | undefined
   ref_abs:    ReferenciaHemograma | undefined
-  /** Status clínico: pelo absoluto; se não houver referência absoluta, pelo relativo. */
+  status_rel: StatusValor
+  status_abs: StatusValor
+  /** Alto/Baixo se o relativo OU o absoluto estiver fora (como a máquina sinaliza). */
   status:     StatusValor
 }
 
@@ -275,11 +282,15 @@ export function montarLinhasHemograma(
     if (!relativo && !absoluto) continue
     const ref_rel = ref(`${cel}_REL`)
     const ref_abs = ref(`${cel}_ABS`)
-    const stAbs = absoluto ? statusValor(absoluto, ref_abs) : ''
+    const status_rel = relativo ? statusValor(relativo, ref_rel) : ''
+    const status_abs = absoluto ? statusValor(absoluto, ref_abs) : ''
+    const status: StatusValor =
+      status_rel === 'H' || status_abs === 'H' ? 'H'
+      : status_rel === 'L' || status_abs === 'L' ? 'L'
+      : status_abs || status_rel
     out.leucograma.push({
       tipo: 'diferencial', celula: cel, nome: parametroPorCodigo(`${cel}_REL`)!.nome,
-      relativo, absoluto, ref_rel, ref_abs,
-      status: stAbs || statusValor(relativo, ref_rel),
+      relativo, absoluto, ref_rel, ref_abs, status_rel, status_abs, status,
     })
   }
 

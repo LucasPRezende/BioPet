@@ -60,7 +60,10 @@ describe('montarLinhasHemograma', () => {
   it('statusValor e formatarValor', () => {
     expect(statusValor('5', { parametro: 'X', valor_min: 6, valor_max: 17 })).toBe('L')
     expect(statusValor('5', undefined)).toBe('')
-    expect(formatarValor('6.601', 2)).toBe('6,60')
+    // nunca menos casas do que o valor trouxe; completa até as casas do parâmetro
+    expect(formatarValor('6.601', 2)).toBe('6,601')
+    expect(formatarValor('81.13', 1)).toBe('81,13')
+    expect(formatarValor('81', 2)).toBe('81,00')
     expect(formatarValor('384', 0)).toBe('384')
   })
 })
@@ -103,5 +106,16 @@ describe('reticulócitos e normalizações', () => {
     expect(normalizarSexo('Fêmea')).toBe('Fêmea')
     expect(normalizarSexo('Male')).toBe('Macho')
     expect(normalizarSexo('')).toBe('')
+  })
+})
+
+describe('caso Nina (16/10): relativo alto com absoluto normal', () => {
+  it('marca o neutrófilo como Alto pelo relativo, igual à máquina', () => {
+    const g = montarLinhasHemograma({ LEU: '11.15', NEU_REL: '81.13', NEU_ABS: '9.048' }, [
+      { parametro: 'NEU_REL', valor_min: 52, valor_max: 81 },
+      { parametro: 'NEU_ABS', valor_min: 3.62, valor_max: 11.32 },
+    ])
+    const neu = g.leucograma.find(l => l.tipo === 'diferencial' && l.celula === 'NEU')
+    expect(neu).toMatchObject({ status_rel: 'H', status_abs: 'N', status: 'H' })
   })
 })

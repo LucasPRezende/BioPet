@@ -39,6 +39,9 @@ const CSS = `
   .range-track{ height: 3px; }
   .range-labels{ display:none; }
   .status{ padding: .4mm 2.2mm; font-size: 6.4pt; }
+  .fora-h{ color: var(--bad) !important; }
+  .fora-l{ color: var(--warn) !important; }
+  .flag{ font-size: 6.4pt; font-weight: 700; margin-left: .8mm; font-family: 'Inter', sans-serif; }
   .obs{
     margin-top: 2.5mm; padding: 2mm 4mm;
     border: 1px solid var(--line); border-left: 2px solid var(--gold);
@@ -55,6 +58,13 @@ function statusPill(st: StatusValor): string {
   if (st === 'L') return '<span class="status low">Baixo</span>'
   if (st === 'N') return '<span class="status normal">Normal</span>'
   return ''
+}
+
+/** Valor com destaque quando fora da faixa (vermelho H / laranja L), como na máquina. */
+function valorCell(texto: string, st: StatusValor): string {
+  if (st === 'H') return `<span class="num fora-h">${texto}</span><span class="flag fora-h">H</span>`
+  if (st === 'L') return `<span class="num fora-l">${texto}</span><span class="flag fora-l">L</span>`
+  return `<span class="num">${texto}</span>`
 }
 
 function refTexto(ref: ReferenciaHemograma | undefined, casas: number): string {
@@ -79,7 +89,7 @@ function rangeBar(valor: string, ref: ReferenciaHemograma | undefined, st: Statu
 function tabelaSimples(linhas: LinhaSimples[]): string {
   const rows = linhas.map(l => `<tr>
       <td class="exam-name">${esc(l.nome)}</td>
-      <td class="result-cell num"><span class="num">${formatarValor(l.valor, l.casas)}</span><span class="unit">${esc(l.unidade)}</span></td>
+      <td class="result-cell num">${valorCell(formatarValor(l.valor, l.casas), l.status)}<span class="unit">${esc(l.unidade)}</span></td>
       <td class="ref">${refTexto(l.ref, l.casas)}</td>
       <td>${rangeBar(l.valor, l.ref, l.status)}</td>
       <td style="text-align:center">${statusPill(l.status)}</td>
@@ -104,7 +114,7 @@ function tabelaLeucograma(total: LinhaSimples | undefined, difs: LinhaDiferencia
     rows.push(`<tr>
       <td class="exam-name">${esc(total.nome)}</td>
       <td></td><td></td>
-      <td class="result-cell num"><span class="num">${formatarValor(total.valor, total.casas)}</span></td>
+      <td class="result-cell num">${valorCell(formatarValor(total.valor, total.casas), total.status)}</td>
       <td class="ref">${refTexto(total.ref, total.casas)}</td>
       <td style="text-align:center">${statusPill(total.status)}</td>
     </tr>`)
@@ -112,9 +122,9 @@ function tabelaLeucograma(total: LinhaSimples | undefined, difs: LinhaDiferencia
   for (const d of difs) {
     rows.push(`<tr>
       <td class="exam-name">${esc(d.nome)}</td>
-      <td class="result-cell num"><span class="num">${d.relativo ? formatarValor(d.relativo, casasRel) : '—'}</span></td>
+      <td class="result-cell num">${d.relativo ? valorCell(formatarValor(d.relativo, casasRel), d.status_rel) : '<span class="num">—</span>'}</td>
       <td class="ref">${refTexto(d.ref_rel, casasRel)}</td>
-      <td class="result-cell num"><span class="num">${d.absoluto ? formatarValor(d.absoluto, casasAbs) : '—'}</span></td>
+      <td class="result-cell num">${d.absoluto ? valorCell(formatarValor(d.absoluto, casasAbs), d.status_abs) : '<span class="num">—</span>'}</td>
       <td class="ref">${refTexto(d.ref_abs, casasAbs)}</td>
       <td style="text-align:center">${statusPill(d.status)}</td>
     </tr>`)
