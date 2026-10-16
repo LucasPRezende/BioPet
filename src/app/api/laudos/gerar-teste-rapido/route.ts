@@ -5,6 +5,7 @@ import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
 import { generateTesteRapidoPDF, type TesteRapidoPDFData } from '@/lib/generate-teste-rapido-pdf'
 import { savePdf, deletePdf } from '@/lib/pdf-storage'
 import { jaTemLaudo } from '@/lib/laudo-duplicado'
+import { comissaoLaudo } from '@/lib/comissao-exame-db'
 
 export async function POST(request: NextRequest) {
   const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value
@@ -35,7 +36,7 @@ export async function POST(request: NextRequest) {
   }
 
   const { pdfData, tutor, telefone, sexo, raca, medico_responsavel, data_laudo,
-          veterinario_id, tutor_id, pet_id, agendamento_id, preco_exame, comissao } = body
+          veterinario_id, tutor_id, pet_id, agendamento_id, preco_exame } = body
 
   if (!pdfData?.nome_pet || !pdfData?.especie || !tutor || !telefone) {
     return NextResponse.json({ error: 'Campos obrigatórios ausentes.' }, { status: 400 })
@@ -82,7 +83,9 @@ export async function POST(request: NextRequest) {
         pet_id,
         preco_exame:        preco_exame ?? null,
         custo_exame:        null,
-        valor_comissao:     comissao ?? null,
+        // Só a comissão de quem fez o laudo; a da clínica fica nos testes do
+        // agendamento (agendamento_testes_rapidos).
+        valor_comissao:     await comissaoLaudo('Teste Rápido'),
       })
       .select('*, veterinarios(nome), system_users(nome)')
       .single()

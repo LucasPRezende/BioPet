@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { AgendamentoForm } from '@/components/AgendamentoForm'
 import { isHorarioEspecial as isHorarioEspecialLib } from '@/lib/feriados'
 import { precoExame, precoBioquimica, fromComissao, valorLiquido, type FormaPagamento } from '@/lib/pricing'
+import { algumGeraComissaoClinica } from '@/lib/comissao-exame'
 
 interface Tutor { id: number; nome: string | null; telefone: string }
 interface Pet   { id: number; nome: string; especie: string | null; raca: string | null }
@@ -42,6 +43,7 @@ interface ComissaoInfo {
   preco_cartao_comercial:    number | null
   preco_pix_fora_horario:    number | null
   preco_cartao_fora_horario: number | null
+  comissao_clinica:          number | null
 }
 
 function isEspecial(hora: string, totalMin: number, data: string, feriadoDatas?: string[], horarioFim?: string, horarioInicio?: string): boolean {
@@ -443,7 +445,8 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
       }
       const info = comMap.get(ex.tipo_exame)
       if (!info) return sum
-      return sum + precoExame(fromComissao(info), { forma, especial })
+      const comClinica = clinica ? Number(info.comissao_clinica ?? 0) : 0
+      return sum + Math.max(0, precoExame(fromComissao(info), { forma, especial }) - comClinica)
     }, 0)
 
     const descontoTotal = exames.reduce((s, ex) => s + Number(ex.desconto ?? 0), 0)
@@ -467,7 +470,8 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
     // Usa ag.duracao_minutos como base + duração do novo exame — evita depender de null no banco
     const duracaoAtiva = (ag.duracao_minutos ?? 0) + (info.duracao_minutos ?? 0)
     const esp          = ag.encaixe ? false : isEspecial(hora, duracaoAtiva, data, feriadoDatas, horarioFim, horarioInicio)
-    const valor = precoExame(fromComissao(info), { forma: isPix ? 'pix' : 'cartao', especial: esp })
+    const comClinica = pagResp === 'clinica' ? Number(info.comissao_clinica ?? 0) : 0
+    const valor = Math.max(0, precoExame(fromComissao(info), { forma: isPix ? 'pix' : 'cartao', especial: esp }) - comClinica)
     userChangedRef.current = true
     setExamesAtivos(prev => [...prev, { tipo_exame: exameParaAdicionar, valor, duracao_minutos: info.duracao_minutos ?? null }])
     setExameParaAdicionar('')
@@ -510,7 +514,9 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
         }
         const info = cMap.get(ex.tipo_exame)
         if (!info) return ex
-        return { ...ex, valor: valorLiquido(precoExame(fromComissao(info), { forma, especial: esp }), desc), desconto: desc }
+        const comClinicaS = clinicaS ? Number(info.comissao_clinica ?? 0) : 0
+        const bruto = Math.max(0, precoExame(fromComissao(info), { forma, especial: esp }) - comClinicaS)
+        return { ...ex, valor: valorLiquido(bruto, desc), desconto: desc }
       })
       const calc = examesCalc.reduce((s, ex) => s + (ex.valor ?? 0), 0)
       if (calc > 0) { valorFinal = calc; examesAtualizados = examesCalc }
@@ -837,10 +843,10 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
               </select>
             </div>
 
-            {pagResp === 'tutor' && examesAtivos.some(e => e.tipo_exame === 'Teste Rápido') && clinicas.length > 0 && (
+            {pagResp === 'tutor' && algumGeraComissaoClinica(examesAtivos.map(e => e.tipo_exame), comissoes) && clinicas.length > 0 && (
               <div>
                 <label className="block text-xs font-semibold text-gray-500 mb-1">
-                  Clínica parceira (comissão do teste rápido)
+                  Clínica parceira (recebe comissão)
                 </label>
                 <select value={comissaoClinicaId} onChange={e => setComissaoClinicaId(e.target.value)} className={INPUT}>
                   <option value="">Nenhuma / não aplicável</option>

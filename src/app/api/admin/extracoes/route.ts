@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { tiposComExtracao } from '@/lib/comissao-exame'
+import { carregarComissoes } from '@/lib/comissao-exame-db'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
 
 export async function GET(request: NextRequest) {
@@ -18,9 +20,13 @@ export async function GET(request: NextRequest) {
   const d = new Date(year, month, 1)
   const mesFim = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
 
-  // Coleta todos os IDs com hemogasimetria (nova tabela + legado)
+  // Coleta os IDs com algum exame que paga comissão de extração (tabela de
+  // Preços). O legado (sem agendamento_exames) só existia para hemogasometria.
+  const tipos = tiposComExtracao(await carregarComissoes())
   const [{ data: aeRows }, { data: legacyRows }] = await Promise.all([
-    supabase.from('agendamento_exames').select('agendamento_id').ilike('tipo_exame', '%hemogasometria%'),
+    tipos.length > 0
+      ? supabase.from('agendamento_exames').select('agendamento_id').in('tipo_exame', tipos)
+      : Promise.resolve({ data: [] as { agendamento_id: number }[] }),
     supabase.from('agendamentos').select('id').ilike('tipo_exame', '%hemogasometria%'),
   ])
 

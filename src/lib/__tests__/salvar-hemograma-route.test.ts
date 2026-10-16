@@ -6,7 +6,7 @@ import { NextRequest } from 'next/server'
 // a agenda continua pedindo o laudo e a comissão não é encontrada.
 const inserts: Record<string, unknown>[] = []
 let agendamentoExames: { tipo_exame: string }[] = []
-let comissoes: { tipo_exame: string; preco_pix_comercial: number; custo_exame: number; valor_comissao: number }[] = []
+let comissoes: { tipo_exame: string; preco_pix_comercial: number; custo_exame: number; comissao_laudo: number; comissao_clinica: number }[] = []
 const filtrosEq: Record<string, unknown>[] = []
 
 function builder(tabela: string) {
@@ -62,7 +62,8 @@ beforeEach(() => {
   inserts.length = 0
   filtrosEq.length = 0
   agendamentoExames = []
-  comissoes = [{ tipo_exame: 'HEMOGRAMA', preco_pix_comercial: 50, custo_exame: 0, valor_comissao: 30 }]
+  // Hemograma: a comissão é da clínica, quem faz o laudo não recebe nada.
+  comissoes = [{ tipo_exame: 'HEMOGRAMA', preco_pix_comercial: 50, custo_exame: 0, comissao_laudo: 0, comissao_clinica: 30 }]
 })
 
 describe('POST salvar-hemograma', () => {
@@ -71,14 +72,21 @@ describe('POST salvar-hemograma', () => {
     const r = await POST(req(767))
     expect(r.status).toBe(201)
     expect(inserts[0]).toMatchObject({
-      tipo_exame: 'HEMOGRAMA', preco_exame: 50, custo_exame: 0, valor_comissao: 30, agendamento_id: 767,
+      tipo_exame: 'HEMOGRAMA', preco_exame: 50, custo_exame: 0, valor_comissao: 0, agendamento_id: 767,
     })
   })
 
   it('sem agendamento, usa o nome cadastrado em Preços', async () => {
     const r = await POST(req(null))
     expect(r.status).toBe(201)
-    expect(inserts[0]).toMatchObject({ tipo_exame: 'HEMOGRAMA', valor_comissao: 30 })
+    expect(inserts[0]).toMatchObject({ tipo_exame: 'HEMOGRAMA', valor_comissao: 0 })
+  })
+
+  it('laudo grava só a comissão de quem laudou (comissao_laudo)', async () => {
+    comissoes = [{ tipo_exame: 'HEMOGRAMA', preco_pix_comercial: 50, custo_exame: 0, comissao_laudo: 12, comissao_clinica: 30 }]
+    const r = await POST(req(null))
+    expect(r.status).toBe(201)
+    expect(inserts[0]).toMatchObject({ valor_comissao: 12 })
   })
 
   it('sem exame cadastrado, cai no nome padrão "Hemograma"', async () => {

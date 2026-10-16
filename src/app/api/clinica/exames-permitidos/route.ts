@@ -26,7 +26,7 @@ export async function GET() {
     .select(
       'tipo_exame, duracao_minutos, varia_por_horario, permite_multiplo, ' +
       'preco_pix_comercial, preco_cartao_comercial, ' +
-      'preco_pix_fora_horario, preco_cartao_fora_horario'
+      'preco_pix_fora_horario, preco_cartao_fora_horario, comissao_clinica'
     )
     .in('tipo_exame', tipos.length > 0 ? tipos : ['__nenhum__'])
 
@@ -34,6 +34,7 @@ export async function GET() {
     tipo_exame: string; duracao_minutos: number | null; varia_por_horario: boolean; permite_multiplo: boolean
     preco_pix_comercial: number | null; preco_cartao_comercial: number | null
     preco_pix_fora_horario: number | null; preco_cartao_fora_horario: number | null
+    comissao_clinica: number | null
   }[]
 
   const exames = tipos.map(tipo => {
@@ -48,6 +49,8 @@ export async function GET() {
       valor_cartao:         c?.preco_cartao_comercial ?? null,
       valor_especial_pix:   varia ? (c?.preco_pix_fora_horario    ?? null) : null,
       valor_especial_cartao:varia ? (c?.preco_cartao_fora_horario ?? null) : null,
+      // Comissão desta clínica no exame: abate do repasse quando ela paga.
+      comissao_clinica:     Number(c?.comissao_clinica ?? 0),
     }
   })
 

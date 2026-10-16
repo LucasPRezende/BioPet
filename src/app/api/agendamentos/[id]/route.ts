@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { ehAgrupador, num } from '@/lib/comissao-exame'
+import { carregarComissoes } from '@/lib/comissao-exame-db'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
 import { sendWhatsAppText } from '@/lib/evolution'
 import { recalcularTotal, reconciliarLinkPagamento, type EstadoPagamento } from '@/lib/agendamento-helpers'
@@ -126,6 +128,9 @@ export async function PATCH(
 
   if (Array.isArray(exames_adicionar) && exames_adicionar.length > 0) {
     const novos = exames_adicionar as { tipo_exame: string; duracao_minutos: number; valor: number | null; desconto?: number }[]
+    // Comissão da clínica vem da tabela de Preços, nunca do cliente.
+    const tabela = await carregarComissoes()
+    const gratuito = String(forma_pagamento ?? antesPag?.forma_pagamento ?? '').toLowerCase() === 'gratuito'
     await supabase
       .from('agendamento_exames')
       .insert(novos.map(e => ({
@@ -135,6 +140,9 @@ export async function PATCH(
         valor:            e.valor,
         desconto:         Number(e.desconto ?? 0),
         horario_especial: false,
+        comissao_clinica: gratuito || ehAgrupador(e.tipo_exame)
+          ? 0
+          : num(tabela.find(c => c.tipo_exame === e.tipo_exame)?.comissao_clinica),
       })))
   }
 

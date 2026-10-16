@@ -9,7 +9,9 @@ interface Comissao {
   id:                       number
   tipo_exame:               string
   custo_exame:              number
-  valor_comissao:           number
+  comissao_laudo:           number
+  comissao_clinica:         number
+  comissao_extracao:        number
   varia_por_horario:        boolean
   permite_multiplo:         boolean
   preco_pix_comercial:      number | null
@@ -48,7 +50,9 @@ interface TesteRapidoExame {
 
 type EditRow = {
   custo_exame:               string
-  valor_comissao:            string
+  comissao_laudo:            string
+  comissao_clinica:          string
+  comissao_extracao:         string
   varia_por_horario:         boolean
   permite_multiplo:          boolean
   preco_pix_comercial:       string
@@ -90,7 +94,7 @@ function NovoTipoModal({ onClose, onCreated }: { onClose: () => void; onCreated:
     const res = await fetch('/api/comissoes', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tipo_exame: nome.trim(), preco_exame: 0, custo_exame: 0, valor_comissao: 0 }),
+      body: JSON.stringify({ tipo_exame: nome.trim(), custo_exame: 0 }),
     })
     const data = await res.json()
     if (res.ok) { onCreated(data) }
@@ -293,7 +297,7 @@ function BioquimicaSection() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-gray-400">
-          Preços por sub-exame individual — clique no valor para editar.
+          Preço e comissão da clínica de cada sub-exame — clique no valor para editar. A <strong>comissão da clínica</strong> é o quanto a clínica parceira recebe por sub-exame.
         </p>
         <button disabled title="Novos exames temporariamente desabilitados"
           className="bg-gray-100 text-gray-400 border border-gray-200 font-semibold px-4 py-2.5 rounded-lg text-sm cursor-not-allowed">
@@ -427,7 +431,7 @@ function BioquimicaSection() {
           </table>
           <div className="px-4 py-3 border-t border-gray-50 bg-gray-50">
             <p className="text-xs text-gray-400">
-              Clique no valor (Pix ou Cartão) para editar inline. Pressione Enter ou clique fora para salvar.
+              Clique no valor (Pix, Cartão ou Comissão) para editar. Pressione Enter ou clique fora para salvar.
             </p>
           </div>
         </div>
@@ -629,7 +633,7 @@ function TesteRapidoSection() {
   return (
     <div className="space-y-4">
       <p className="text-sm text-gray-400">
-        Preços e comissão por teste — clique no valor para editar. A <strong>comissão</strong> é o quanto a clínica coletora retém do valor do exame.
+        Preço e comissão da clínica de cada teste — clique no valor para editar. A <strong>comissão da clínica</strong> é o quanto a clínica parceira recebe por teste.
       </p>
 
       {testes.length === 0 ? (
@@ -709,67 +713,124 @@ function TesteRapidoSection() {
   )
 }
 
-// ── Página principal ──────────────────────────────────────────────────────────
 
-export default function ComissoesPage() {
-  const [activeTab,  setActiveTab]  = useState<'exames' | 'bioquimica' | 'testes'>('exames')
-  const [comissoes,  setComissoes]  = useState<Comissao[]>([])
-  const [editValues, setEditValues] = useState<Record<number, EditRow>>({})
-  const [loading,    setLoading]    = useState(true)
-  const [saving,     setSaving]     = useState(false)
-  const [success,    setSuccess]    = useState(false)
-  const [error,      setError]      = useState('')
-  const [novoModal,  setNovoModal]  = useState(false)
+// ── Quem recebe comissão ──────────────────────────────────────────────────────
+// Os três beneficiários possíveis (migration v48). Um exame pode pagar mais de um.
 
-  function toEditRow(c: Comissao): EditRow {
-    return {
-      custo_exame:               String(c.custo_exame               ?? 0),
-      valor_comissao:            String(c.valor_comissao            ?? 0),
-      varia_por_horario:         c.varia_por_horario                ?? false,
-      permite_multiplo:          c.permite_multiplo                 ?? false,
-      preco_pix_comercial:       String(c.preco_pix_comercial       ?? 0),
-      preco_cartao_comercial:    String(c.preco_cartao_comercial    ?? ''),
-      preco_pix_fora_horario:    String(c.preco_pix_fora_horario    ?? ''),
-      preco_cartao_fora_horario: String(c.preco_cartao_fora_horario ?? ''),
-      duracao_minutos:           String(c.duracao_minutos           ?? ''),
-      observacao:                c.observacao                       ?? '',
-    }
+const BENEFICIARIOS = [
+  {
+    campo:  'comissao_laudo',
+    titulo: 'Laudo',
+    quem:   'Quem gerou o laudo',
+    ajuda:  'Usuário do sistema que emitiu o laudo (só conta se ele estiver marcado para receber comissão).',
+    cor:    'bg-blue-50 text-blue-700 border-blue-200',
+  },
+  {
+    campo:  'comissao_clinica',
+    titulo: 'Clínica',
+    quem:   'Clínica parceira',
+    ajuda:  'Clínica que coletou ou encaminhou. Se a clínica paga, sai descontado do repasse; se o tutor paga a BioPet, fica devido à clínica.',
+    cor:    'bg-emerald-50 text-emerald-700 border-emerald-200',
+  },
+  {
+    campo:  'comissao_extracao',
+    titulo: 'Extração',
+    quem:   'Vet que extraiu o sangue',
+    ajuda:  'Veterinário atribuído na tela de Extrações.',
+    cor:    'bg-rose-50 text-rose-700 border-rose-200',
+  },
+] as const
+
+type CampoComissao = typeof BENEFICIARIOS[number]['campo']
+
+const AGRUPADORES = ['Bioquímica', 'Teste Rápido']
+
+function ComissaoChips({ c }: { c: Comissao }) {
+  if (AGRUPADORES.includes(c.tipo_exame)) {
+    return (
+      <span className={`inline-block text-[11px] font-semibold border rounded-full px-2 py-0.5 ${BENEFICIARIOS[1].cor}`}>
+        Clínica · por sub-exame
+      </span>
+    )
   }
+  const chips = BENEFICIARIOS.filter(b => Number(c[b.campo] ?? 0) > 0)
+  if (chips.length === 0) return <span className="text-xs text-gray-300">Sem comissão</span>
+  return (
+    <div className="flex flex-wrap gap-1">
+      {chips.map(b => (
+        <span key={b.campo} className={`text-[11px] font-semibold border rounded-full px-2 py-0.5 whitespace-nowrap ${b.cor}`}>
+          {b.titulo} R$ {fmtBRL(Number(c[b.campo]))}
+        </span>
+      ))}
+    </div>
+  )
+}
 
-  const fetchComissoes = useCallback(async () => {
-    const res = await fetch('/api/comissoes')
-    if (res.ok) {
-      const data: Comissao[] = await res.json()
-      setComissoes(data)
-      const vals: Record<number, EditRow> = {}
-      for (const c of data) vals[c.id] = toEditRow(c)
-      setEditValues(vals)
-    }
-    setLoading(false)
-  }, [])
+function totalComissoes(r: Pick<EditRow, CampoComissao>) {
+  return p(r.comissao_laudo) + p(r.comissao_clinica) + p(r.comissao_extracao)
+}
 
-  useEffect(() => { fetchComissoes() }, [fetchComissoes])
-
-  function setField<K extends keyof EditRow>(id: number, field: K, val: EditRow[K]) {
-    setEditValues(prev => ({ ...prev, [id]: { ...prev[id], [field]: val } }))
+function toEditRow(c: Comissao): EditRow {
+  return {
+    custo_exame:               String(c.custo_exame               ?? 0),
+    comissao_laudo:            String(c.comissao_laudo            ?? 0),
+    comissao_clinica:          String(c.comissao_clinica          ?? 0),
+    comissao_extracao:         String(c.comissao_extracao         ?? 0),
+    varia_por_horario:         c.varia_por_horario                ?? false,
+    permite_multiplo:          c.permite_multiplo                 ?? false,
+    preco_pix_comercial:       String(c.preco_pix_comercial       ?? 0),
+    preco_cartao_comercial:    String(c.preco_cartao_comercial    ?? ''),
+    preco_pix_fora_horario:    String(c.preco_pix_fora_horario    ?? ''),
+    preco_cartao_fora_horario: String(c.preco_cartao_fora_horario ?? ''),
+    duracao_minutos:           String(c.duracao_minutos           ?? ''),
+    observacao:                c.observacao                       ?? '',
   }
+}
 
-  function lucro(id: number) {
-    const r = editValues[id]; if (!r) return 0
-    return p(r.preco_pix_comercial) - p(r.custo_exame) - p(r.valor_comissao)
-  }
+function Toggle({ on, onClick, label }: { on: boolean; onClick: () => void; label: string }) {
+  return (
+    <button type="button" onClick={onClick} className="flex items-center gap-2 text-left">
+      <span className={`w-9 h-5 rounded-full transition relative shrink-0 ${on ? 'bg-[#c4a35a]' : 'bg-gray-200'}`}>
+        <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${on ? 'left-4' : 'left-0.5'}`} />
+      </span>
+      <span className="text-sm text-gray-600">{label}</span>
+    </button>
+  )
+}
 
-  async function handleSave() {
-    setSaving(true); setError(''); setSuccess(false)
-    const payload = comissoes.map(c => {
-      const r      = editValues[c.id]
-      const varia  = r.varia_por_horario
-      const pixCom = r.preco_pix_comercial    ? p(r.preco_pix_comercial)    : null
-      const carCom = r.preco_cartao_comercial ? p(r.preco_cartao_comercial) : null
-      return {
-        id:                        c.id,
+// ── Modal de edição de um exame ───────────────────────────────────────────────
+
+function ExameEditModal({ exame, onClose, onSaved, onDeleted }: {
+  exame:     Comissao
+  onClose:   () => void
+  onSaved:   (c: Comissao[]) => void
+  onDeleted: (id: number) => void
+}) {
+  const [r,      setR]      = useState<EditRow>(toEditRow(exame))
+  const [saving, setSaving] = useState(false)
+  const [error,  setError]  = useState('')
+  const agrupador = AGRUPADORES.includes(exame.tipo_exame)
+
+  const set = <K extends keyof EditRow>(k: K, v: EditRow[K]) => setR(prev => ({ ...prev, [k]: v }))
+
+  const preco    = p(r.preco_pix_comercial)
+  const comissao = totalComissoes(r)
+  const lucro    = preco - p(r.custo_exame) - comissao
+
+  async function salvar() {
+    setSaving(true); setError('')
+    const varia  = r.varia_por_horario
+    const pixCom = r.preco_pix_comercial    ? p(r.preco_pix_comercial)    : null
+    const carCom = r.preco_cartao_comercial ? p(r.preco_cartao_comercial) : null
+    const res = await fetch('/api/comissoes', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify([{
+        id:                        exame.id,
         custo_exame:               p(r.custo_exame),
-        valor_comissao:            p(r.valor_comissao),
+        comissao_laudo:            agrupador ? 0 : p(r.comissao_laudo),
+        comissao_clinica:          agrupador ? 0 : p(r.comissao_clinica),
+        comissao_extracao:         agrupador ? 0 : p(r.comissao_extracao),
         varia_por_horario:         varia,
         permite_multiplo:          r.permite_multiplo,
         preco_pix_comercial:       pixCom,
@@ -778,181 +839,330 @@ export default function ComissoesPage() {
         preco_cartao_fora_horario: varia ? (r.preco_cartao_fora_horario ? p(r.preco_cartao_fora_horario) : null) : carCom,
         duracao_minutos:           r.duracao_minutos ? parseInt(r.duracao_minutos) : null,
         observacao:                r.observacao || null,
-      }
+      }]),
     })
-    const res = await fetch('/api/comissoes', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
-    if (res.ok) {
-      const updated: Comissao[] = await res.json()
-      setComissoes(updated)
-      const vals: Record<number, EditRow> = {}
-      for (const c of updated) vals[c.id] = toEditRow(c)
-      setEditValues(vals)
-      setSuccess(true)
-      setTimeout(() => setSuccess(false), 3000)
-    } else {
-      const data = await res.json()
-      setError(data.error ?? 'Erro ao salvar.')
-    }
+    const data = await res.json().catch(() => ({}))
+    if (res.ok) onSaved(data)
+    else setError(data.error ?? 'Erro ao salvar.')
     setSaving(false)
   }
 
-  async function handleDelete(id: number, nome: string) {
-    if (!confirm(`Remover "${nome}"? Laudos já emitidos não serão afetados.`)) return
-    const res = await fetch(`/api/comissoes?id=${id}`, { method: 'DELETE' })
-    if (res.ok) {
-      setComissoes(prev => prev.filter(c => c.id !== id))
-      setEditValues(prev => { const n = { ...prev }; delete n[id]; return n })
-    }
+  async function remover() {
+    if (!confirm(`Remover "${exame.tipo_exame}"? Laudos já emitidos não serão afetados.`)) return
+    const res = await fetch(`/api/comissoes?id=${exame.id}`, { method: 'DELETE' })
+    if (res.ok) onDeleted(exame.id)
+    else setError('Erro ao remover.')
   }
+
+  const secao = 'text-[11px] font-bold text-gray-400 uppercase tracking-wide'
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4 py-6 overflow-y-auto" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden my-auto" onClick={e => e.stopPropagation()}>
+        <div className="bg-[#19202d] px-6 py-4 flex items-center justify-between">
+          <h3 className="text-white font-bold">{exame.tipo_exame}</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-white text-xl leading-none">×</button>
+        </div>
+
+        <div className="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
+
+          {/* Preço */}
+          {agrupador ? (
+            <p className="text-sm text-gray-500 bg-gray-50 rounded-lg px-4 py-3">
+              O preço e a comissão da clínica de <strong>{exame.tipo_exame}</strong> são definidos por sub-exame,
+              na aba <strong>{exame.tipo_exame}</strong>.
+            </p>
+          ) : (
+            <section className="space-y-3">
+              <p className={secao}>Preço cobrado</p>
+              <Toggle on={r.varia_por_horario} onClick={() => set('varia_por_horario', !r.varia_por_horario)}
+                label="Preço diferente fora do horário comercial" />
+              {r.varia_por_horario ? (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-blue-50 rounded-xl p-3 space-y-2">
+                    <p className="text-[10px] font-bold text-blue-600 uppercase tracking-wide">Horário comercial</p>
+                    <NumInput label="Pix (R$)"    value={r.preco_pix_comercial}    onChange={v => set('preco_pix_comercial', v)} />
+                    <NumInput label="Cartão (R$)" value={r.preco_cartao_comercial} onChange={v => set('preco_cartao_comercial', v)} />
+                  </div>
+                  <div className="bg-amber-50 rounded-xl p-3 space-y-2">
+                    <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wide">Fora do horário</p>
+                    <NumInput label="Pix (R$)"    value={r.preco_pix_fora_horario}    onChange={v => set('preco_pix_fora_horario', v)} />
+                    <NumInput label="Cartão (R$)" value={r.preco_cartao_fora_horario} onChange={v => set('preco_cartao_fora_horario', v)} />
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  <NumInput label="Pix (R$)"    value={r.preco_pix_comercial}    onChange={v => set('preco_pix_comercial', v)} />
+                  <NumInput label="Cartão (R$)" value={r.preco_cartao_comercial} onChange={v => set('preco_cartao_comercial', v)} />
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* Comissões */}
+          {!agrupador && (
+            <section className="space-y-3">
+              <div>
+                <p className={secao}>Comissões — quem recebe e quanto</p>
+                <p className="text-xs text-gray-400 mt-1">Deixe 0 em quem não recebe. Um exame pode pagar mais de um.</p>
+              </div>
+              <div className="divide-y divide-gray-100 border border-gray-100 rounded-xl">
+                {BENEFICIARIOS.map(b => (
+                  <div key={b.campo} className="flex items-center gap-4 px-4 py-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`text-[11px] font-semibold border rounded-full px-2 py-0.5 ${b.cor}`}>{b.titulo}</span>
+                        <span className="text-sm font-medium text-[#19202d]">{b.quem}</span>
+                      </div>
+                      <p className="text-[11px] text-gray-400 mt-1 leading-snug">{b.ajuda}</p>
+                    </div>
+                    <div className="w-28 shrink-0">
+                      <input type="number" step="0.01" min="0" value={r[b.campo]}
+                        onChange={e => set(b.campo, e.target.value)} className={N} aria-label={`Comissão ${b.titulo} (R$)`} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Custo e lucro */}
+          <section className="space-y-3">
+            <p className={secao}>Custo e lucro</p>
+            <div className="grid grid-cols-2 gap-3 items-end">
+              <NumInput label="Custo do exame (R$)" value={r.custo_exame} onChange={v => set('custo_exame', v)} />
+              {!agrupador && (
+                <div className={`rounded-lg px-3 py-2 text-right ${lucro >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Lucro BioPet (Pix)</p>
+                  <p className={`text-base font-bold ${lucro >= 0 ? 'text-green-700' : 'text-red-600'}`}>R$ {fmtBRL(lucro)}</p>
+                </div>
+              )}
+            </div>
+            {!agrupador && (
+              <p className="text-[11px] text-gray-400">
+                R$ {fmtBRL(preco)} (Pix, horário comercial) − R$ {fmtBRL(p(r.custo_exame))} de custo − R$ {fmtBRL(comissao)} de comissões.
+              </p>
+            )}
+          </section>
+
+          {/* Agendamento */}
+          <section className="space-y-3">
+            <p className={secao}>Agendamento</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Duração (min)</label>
+                <input type="number" min="5" value={r.duracao_minutos}
+                  onChange={e => set('duracao_minutos', e.target.value)} className={N} placeholder="30" />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Observação</label>
+                <input type="text" value={r.observacao}
+                  onChange={e => set('observacao', e.target.value)} className={T} placeholder="Ex: Jejum 12h" />
+              </div>
+            </div>
+            <Toggle on={r.permite_multiplo} onClick={() => set('permite_multiplo', !r.permite_multiplo)}
+              label="Permite marcar mais de um no mesmo agendamento" />
+          </section>
+
+          {error && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
+        </div>
+
+        <div className="px-6 py-4 border-t border-gray-100 flex items-center gap-3">
+          {!agrupador && (
+            <button onClick={remover} className="text-xs text-red-400 hover:text-red-600 transition mr-auto">Remover exame</button>
+          )}
+          <button onClick={onClose} className={`${agrupador ? 'ml-auto' : ''} border border-gray-200 text-gray-500 px-4 py-2.5 rounded-lg text-sm hover:bg-gray-50 transition`}>
+            Cancelar
+          </button>
+          <button onClick={salvar} disabled={saving}
+            className="bg-[#19202d] hover:bg-[#232d3f] text-white font-semibold px-5 py-2.5 rounded-lg text-sm transition disabled:opacity-60">
+            {saving ? 'Salvando...' : 'Salvar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Página principal ──────────────────────────────────────────────────────────
+
+function precoResumo(c: Comissao) {
+  if (AGRUPADORES.includes(c.tipo_exame)) return <span className="text-xs text-gray-400">por sub-exame</span>
+  const pix = Number(c.preco_pix_comercial ?? 0)
+  const car = c.preco_cartao_comercial != null ? Number(c.preco_cartao_comercial) : null
+  return (
+    <div className="leading-tight">
+      <div className="font-semibold text-[#19202d]">R$ {fmtBRL(pix)}</div>
+      {car != null && car !== pix && <div className="text-[11px] text-gray-400">cartão R$ {fmtBRL(car)}</div>}
+      {c.varia_por_horario && (
+        <div className="text-[11px] text-amber-600">fora do horário R$ {fmtBRL(Number(c.preco_pix_fora_horario ?? 0))}</div>
+      )}
+    </div>
+  )
+}
+
+function lucroDe(c: Comissao) {
+  return Number(c.preco_pix_comercial ?? 0) - Number(c.custo_exame ?? 0)
+    - Number(c.comissao_laudo ?? 0) - Number(c.comissao_clinica ?? 0) - Number(c.comissao_extracao ?? 0)
+}
+
+export default function ComissoesPage() {
+  const [activeTab, setActiveTab] = useState<'exames' | 'bioquimica' | 'testes'>('exames')
+  const [comissoes, setComissoes] = useState<Comissao[]>([])
+  const [loading,   setLoading]   = useState(true)
+  const [busca,     setBusca]     = useState('')
+  const [editando,  setEditando]  = useState<Comissao | null>(null)
+  const [novoModal, setNovoModal] = useState(false)
+  const [aviso,     setAviso]     = useState('')
+
+  const fetchComissoes = useCallback(async () => {
+    const res = await fetch('/api/comissoes')
+    if (res.ok) setComissoes(await res.json())
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { fetchComissoes() }, [fetchComissoes])
+
+  function avisar(msg: string) { setAviso(msg); setTimeout(() => setAviso(''), 3000) }
+
+  const termo    = busca.trim().toLowerCase()
+  const visiveis = comissoes.filter(c => !termo || c.tipo_exame.toLowerCase().includes(termo))
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <main className="max-w-4xl mx-auto px-4 py-8">
+      <main className="max-w-5xl mx-auto px-4 py-8">
         <div className="mb-6">
           <h2 className="text-xl font-bold text-[#19202d]">Preços e Comissões</h2>
-          <p className="text-sm text-gray-400 mt-0.5">Gerencie preços de exames e sub-exames de bioquímica.</p>
+          <p className="text-sm text-gray-400 mt-0.5">Quanto cada exame custa e quem recebe comissão por ele.</p>
         </div>
 
         {/* Abas */}
         <div className="flex gap-2 mb-6 bg-white rounded-xl border shadow-sm p-1.5">
           {([
-            { key: 'exames',     label: 'Exames Gerais' },
+            { key: 'exames',     label: 'Exames' },
             { key: 'bioquimica', label: '🧪 Bioquímica' },
             { key: 'testes',     label: '💉 Teste Rápido' },
           ] as const).map(tab => (
             <button key={tab.key} onClick={() => setActiveTab(tab.key)}
               className={`flex-1 py-2 rounded-lg text-sm font-semibold transition ${
-                activeTab === tab.key
-                  ? 'bg-[#19202d] text-white'
-                  : 'text-gray-500 hover:bg-gray-50'
+                activeTab === tab.key ? 'bg-[#19202d] text-white' : 'text-gray-500 hover:bg-gray-50'
               }`}>
               {tab.label}
             </button>
           ))}
         </div>
 
-        {/* ── ABA EXAMES GERAIS ──────────────────────────────────────────── */}
+        {/* ── ABA EXAMES ─────────────────────────────────────────────────── */}
         {activeTab === 'exames' && (
-          <>
-            <div className="flex items-center justify-between mb-6">
-              <p className="text-sm text-gray-400">Valores são salvos no laudo no momento da emissão — histórico preservado.</p>
-              <div className="flex gap-2">
+          <div className="space-y-4">
+
+            {/* Legenda: quem pode receber */}
+            <div className="bg-white rounded-xl border shadow-sm p-4">
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-3">Quem pode receber comissão</p>
+              <div className="grid sm:grid-cols-3 gap-3">
+                {BENEFICIARIOS.map(b => (
+                  <div key={b.campo} className="flex gap-2 items-start">
+                    <span className={`text-[11px] font-semibold border rounded-full px-2 py-0.5 shrink-0 ${b.cor}`}>{b.titulo}</span>
+                    <p className="text-xs text-gray-500 leading-snug"><strong className="text-gray-700">{b.quem}.</strong> {b.ajuda}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+              <input type="search" value={busca} onChange={e => setBusca(e.target.value)}
+                placeholder="Buscar exame..." className={T + ' sm:max-w-xs bg-white'} />
+              <div className="flex items-center gap-3">
+                {aviso && <span className="text-sm text-green-600 font-medium">{aviso}</span>}
                 <button onClick={() => setNovoModal(true)}
-                  className="bg-amber-50 hover:bg-amber-100 text-[#8a6e36] border border-[#8a6e36]/30 font-semibold px-4 py-2.5 rounded-lg transition text-sm">
-                  + Novo Tipo
-                </button>
-                <button onClick={handleSave} disabled={saving}
-                  className="bg-[#19202d] hover:bg-[#232d3f] disabled:opacity-60 text-white font-semibold px-5 py-2.5 rounded-lg transition text-sm">
-                  {saving ? 'Salvando...' : success ? '✓ Salvo!' : 'Salvar tudo'}
+                  className="bg-[#19202d] hover:bg-[#232d3f] text-white font-semibold px-4 py-2.5 rounded-lg transition text-sm">
+                  + Novo exame
                 </button>
               </div>
             </div>
 
-            {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3 mb-4">{error}</p>}
-
             {loading ? (
               <div className="text-center py-16 text-gray-400">Carregando...</div>
-            ) : comissoes.length === 0 ? (
+            ) : visiveis.length === 0 ? (
               <div className="bg-white rounded-xl border shadow-sm p-10 text-center text-gray-400 text-sm">
-                Nenhum tipo de exame. Clique em &quot;+ Novo Tipo&quot; para adicionar.
+                {comissoes.length === 0 ? 'Nenhum exame cadastrado.' : 'Nenhum exame encontrado.'}
               </div>
             ) : (
-              <div className="space-y-4">
-                {comissoes.map(c => {
-                  const r = editValues[c.id]
-                  if (!r) return null
-                  const l = lucro(c.id)
+              <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+                <div className="h-1 bg-gold-stripe" />
 
-                  return (
-                    <div key={c.id} className="bg-white rounded-xl border shadow-sm overflow-hidden">
-                      <div className="h-1 bg-gold-stripe" />
-                      <div className="p-5 space-y-4">
+                {/* Desktop */}
+                <table className="w-full text-sm hidden md:table">
+                  <thead>
+                    <tr className="border-b border-gray-100 bg-gray-50 text-[10px] font-bold text-gray-400 uppercase tracking-wide">
+                      <th className="text-left px-4 py-3">Exame</th>
+                      <th className="text-right px-4 py-3">Preço (Pix)</th>
+                      <th className="text-left px-4 py-3">Comissões</th>
+                      <th className="text-right px-4 py-3">Custo</th>
+                      <th className="text-right px-4 py-3">Lucro BioPet</th>
+                      <th className="px-4 py-3"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {visiveis.map(c => {
+                      const agrupador = AGRUPADORES.includes(c.tipo_exame)
+                      const l = lucroDe(c)
+                      return (
+                        <tr key={c.id} className="hover:bg-gray-50/60 cursor-pointer" onClick={() => setEditando(c)}>
+                          <td className="px-4 py-3">
+                            <div className="font-medium text-[#19202d]">{c.tipo_exame}</div>
+                            {c.observacao && <div className="text-[11px] text-gray-400">{c.observacao}</div>}
+                          </td>
+                          <td className="px-4 py-3 text-right">{precoResumo(c)}</td>
+                          <td className="px-4 py-3"><ComissaoChips c={c} /></td>
+                          <td className="px-4 py-3 text-right text-gray-500">
+                            {Number(c.custo_exame ?? 0) > 0 ? `R$ ${fmtBRL(Number(c.custo_exame))}` : '—'}
+                          </td>
+                          <td className={`px-4 py-3 text-right font-semibold ${agrupador ? 'text-gray-300' : l >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                            {agrupador ? '—' : `R$ ${fmtBRL(l)}`}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <span className="text-xs font-semibold text-[#8a6e36]">Editar</span>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
 
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <h3 className="font-bold text-[#19202d] text-base">{c.tipo_exame}</h3>
-                            <span className={`text-xs font-semibold mt-0.5 inline-block ${l >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                              Lucro BioPet: R$ {fmtBRL(l)}
-                            </span>
+                {/* Mobile */}
+                <ul className="md:hidden divide-y divide-gray-100">
+                  {visiveis.map(c => {
+                    const agrupador = AGRUPADORES.includes(c.tipo_exame)
+                    const l = lucroDe(c)
+                    return (
+                      <li key={c.id}>
+                        <button onClick={() => setEditando(c)} className="w-full text-left px-4 py-3 space-y-2">
+                          <div className="flex items-start justify-between gap-3">
+                            <span className="font-medium text-[#19202d]">{c.tipo_exame}</span>
+                            <span className="text-right text-sm">{precoResumo(c)}</span>
                           </div>
-                          <div className="flex items-center gap-3 shrink-0">
-                            <label className="flex items-center gap-2 cursor-pointer">
-                              <div
-                                onClick={() => setField(c.id, 'permite_multiplo', !r.permite_multiplo)}
-                                className={`w-9 h-5 rounded-full transition relative ${r.permite_multiplo ? 'bg-[#c4a35a]' : 'bg-gray-200'}`}
-                              >
-                                <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${r.permite_multiplo ? 'left-4' : 'left-0.5'}`} />
-                              </div>
-                              <span className="text-xs font-medium text-gray-500 whitespace-nowrap">Permite mais de um</span>
-                            </label>
-                            <label className="flex items-center gap-2 cursor-pointer">
-                              <div
-                                onClick={() => setField(c.id, 'varia_por_horario', !r.varia_por_horario)}
-                                className={`w-9 h-5 rounded-full transition relative ${r.varia_por_horario ? 'bg-[#c4a35a]' : 'bg-gray-200'}`}
-                              >
-                                <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${r.varia_por_horario ? 'left-4' : 'left-0.5'}`} />
-                              </div>
-                              <span className="text-xs font-medium text-gray-500 whitespace-nowrap">Varia por horário</span>
-                            </label>
-                            <button onClick={() => handleDelete(c.id, c.tipo_exame)}
-                              className="text-xs text-red-400 hover:text-red-600 transition p-1" title="Remover">✕</button>
+                          <div className="flex items-center justify-between gap-3">
+                            <ComissaoChips c={c} />
+                            {!agrupador && (
+                              <span className={`text-xs font-semibold shrink-0 ${l >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                                lucro R$ {fmtBRL(l)}
+                              </span>
+                            )}
                           </div>
-                        </div>
-
-                        {r.varia_por_horario ? (
-                          <div className="space-y-3">
-                            <div className="grid grid-cols-2 gap-3">
-                              <div className="bg-blue-50 rounded-xl p-3 space-y-2">
-                                <p className="text-[10px] font-bold text-blue-600 uppercase tracking-wide">Horário comercial</p>
-                                <NumInput label="Pix (R$)"    value={r.preco_pix_comercial}    onChange={v => setField(c.id, 'preco_pix_comercial', v)} />
-                                <NumInput label="Cartão (R$)" value={r.preco_cartao_comercial}  onChange={v => setField(c.id, 'preco_cartao_comercial', v)} />
-                              </div>
-                              <div className="bg-amber-50 rounded-xl p-3 space-y-2">
-                                <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wide">Fora do horário</p>
-                                <NumInput label="Pix (R$)"    value={r.preco_pix_fora_horario}    onChange={v => setField(c.id, 'preco_pix_fora_horario', v)} />
-                                <NumInput label="Cartão (R$)" value={r.preco_cartao_fora_horario}  onChange={v => setField(c.id, 'preco_cartao_fora_horario', v)} />
-                              </div>
-                            </div>
-                            <p className="text-[10px] text-gray-400">O lucro é calculado com o preço Pix no horário comercial como referência.</p>
-                          </div>
-                        ) : (
-                          <div className="grid grid-cols-2 gap-3">
-                            <NumInput label="Preço Pix (R$)"    value={r.preco_pix_comercial}   onChange={v => setField(c.id, 'preco_pix_comercial', v)} />
-                            <NumInput label="Preço Cartão (R$)" value={r.preco_cartao_comercial} onChange={v => setField(c.id, 'preco_cartao_comercial', v)} />
-                          </div>
-                        )}
-
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1 border-t border-gray-50">
-                          <NumInput label="Custo (R$)"     value={r.custo_exame}    onChange={v => setField(c.id, 'custo_exame', v)} />
-                          <NumInput label="Comissão (R$)"  value={r.valor_comissao} onChange={v => setField(c.id, 'valor_comissao', v)} />
-                          <div>
-                            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Duração (min)</label>
-                            <input type="number" min="5" value={r.duracao_minutos}
-                              onChange={e => setField(c.id, 'duracao_minutos', e.target.value)}
-                              className={N} placeholder="30" />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Observação</label>
-                            <input type="text" value={r.observacao}
-                              onChange={e => setField(c.id, 'observacao', e.target.value)}
-                              className={T} placeholder="Ex: Jejum 12h" />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
               </div>
             )}
 
-            <p className="text-xs text-gray-400 mt-4">
-              <strong>Lucro BioPet</strong> = Preço − Custo − Comissão do veterinário
+            <p className="text-xs text-gray-400">
+              Clique num exame para editar. <strong>Lucro BioPet</strong> = preço Pix no horário comercial − custo − todas as comissões.
+              Os valores são gravados no laudo/agendamento na hora — mudar aqui não altera o que já foi feito.
             </p>
-          </>
+          </div>
         )}
 
         {/* ── ABA BIOQUÍMICA ─────────────────────────────────────────────── */}
@@ -962,13 +1172,22 @@ export default function ComissoesPage() {
         {activeTab === 'testes' && <TesteRapidoSection />}
       </main>
 
+      {editando && (
+        <ExameEditModal
+          exame={editando}
+          onClose={() => setEditando(null)}
+          onSaved={lista => { setComissoes(lista); setEditando(null); avisar('✓ Salvo') }}
+          onDeleted={id => { setComissoes(prev => prev.filter(c => c.id !== id)); setEditando(null); avisar('Exame removido') }}
+        />
+      )}
+
       {novoModal && (
         <NovoTipoModal
           onClose={() => setNovoModal(false)}
           onCreated={c => {
             setComissoes(prev => [...prev, c].sort((a, b) => a.tipo_exame.localeCompare(b.tipo_exame)))
-            setEditValues(prev => ({ ...prev, [c.id]: toEditRow(c) }))
             setNovoModal(false)
+            setEditando(c)
           }}
         />
       )}

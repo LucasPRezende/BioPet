@@ -6,29 +6,19 @@ import { generateBioquimicaPDF, type BioquimicaPDFData } from '@/lib/generate-bi
 import { savePdf, deletePdf } from '@/lib/pdf-storage'
 import { jaTemLaudo } from '@/lib/laudo-duplicado'
 
-async function getComissao(agendamentoId: number | null) {
+async function getComissao() {
   const { data } = await supabase
     .from('comissoes_exame')
-    .select('preco_pix_comercial, custo_exame, valor_comissao')
+    .select('preco_pix_comercial, custo_exame, comissao_laudo')
     .eq('tipo_exame', 'Bioquímica')
     .single()
 
-  // Comissão da clínica coletora = soma da comissão dos sub-exames deste agendamento
-  let comissaoClinica: number | null = data?.valor_comissao ?? null
-  if (agendamentoId) {
-    const { data: subs } = await supabase
-      .from('agendamento_bioquimica')
-      .select('comissao')
-      .eq('agendamento_id', agendamentoId)
-    if (subs && subs.length > 0) {
-      comissaoClinica = subs.reduce((s, b) => s + Number(b.comissao ?? 0), 0)
-    }
-  }
-
+  // laudos.valor_comissao é só a comissão de quem fez o laudo. A da clínica
+  // coletora fica nos sub-exames do agendamento (agendamento_bioquimica).
   return {
     preco_exame:    data?.preco_pix_comercial ?? null,
     custo_exame:    data?.custo_exame    ?? null,
-    valor_comissao: comissaoClinica,
+    valor_comissao: data?.comissao_laudo ?? null,
   }
 }
 
@@ -81,7 +71,7 @@ export async function POST(request: NextRequest) {
 
     await savePdf(filename, pdfBuffer)
 
-    const financeiro = await getComissao(agendamento_id)
+    const financeiro = await getComissao()
 
     const { data, error } = await supabase
       .from('laudos')

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { ESPECIES } from '@/lib/especies'
 import { isHorarioEspecial as isHorarioEspecialLib, motivoHorarioEspecial } from '@/lib/feriados'
 import { precoExame } from '@/lib/pricing'
+import { ehAgrupador } from '@/lib/comissao-exame'
 import { normalizeTelefone } from '@/lib/telefone'
 import TelefoneInput from '@/components/TelefoneInput'
 
@@ -19,6 +20,7 @@ interface ExameInfo {
   valor_cartao:          number | null
   valor_especial_pix:    number | null
   valor_especial_cartao: number | null
+  comissao_clinica:      number   // abate do repasse quando a clínica paga
 }
 
 // `comissao` só vem pra admin; a clínica recebe `repasse_pix` já líquido
@@ -266,6 +268,8 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
   const raioXSelecionado = examesSelecionados.some(e => e.tipo_exame.toLowerCase().includes('raio') && !e.tipo_exame.toLowerCase().includes('acréscim'))
   const temBioquimica    = examesSelecionados.some(e => e.tipo_exame === 'Bioquímica')
   const temTesteRapido   = examesSelecionados.some(e => e.tipo_exame === 'Teste Rápido')
+  // Algum exame paga comissão a uma clínica parceira → pergunta qual clínica.
+  const geraComissaoClinica = examesSelecionados.some(e => ehAgrupador(e.tipo_exame) || e.comissao_clinica > 0)
   const quantidadeExame  = (tipoExame: string) => examesQuantidade[tipoExame] ?? 1
   const totalDuracao     = examesSelecionados.reduce((s, e) => s + e.duracao_minutos * quantidadeExame(e.tipo_exame), 0)
                          + (acrescimoExame ? estudosAdicionaisDesc.length * acrescimoExame.duracao_minutos : 0)
@@ -309,7 +313,9 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
     ? (pagamentoResp === 'clinica' ? totalRepasseBio : totalBioquimica)
     : e.tipo_exame === 'Teste Rápido'
     ? (pagamentoResp === 'clinica' ? totalRepasseTeste : totalTesteRapido)
-    : calcularValorExame(e, pagamentoResp === 'clinica' ? 'pix' : formaPagamento, especial)
+    : pagamentoResp === 'clinica'
+    ? Math.max(0, calcularValorExame(e, 'pix', especial) - e.comissao_clinica)
+    : calcularValorExame(e, formaPagamento, especial)
   const podeDescontar = modo === 'admin' && isAdmin && !gratuito
   const descontoTotal = podeDescontar
     ? examesSelecionados.reduce((s, e) => s + Math.min(descontos[e.tipo_exame] ?? 0, valorBrutoExame(e)), 0)
@@ -353,6 +359,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
         tipo_exame: string; duracao_minutos: number | null; varia_por_horario: boolean; permite_multiplo: boolean
         preco_pix_comercial: number | null; preco_cartao_comercial: number | null
         preco_pix_fora_horario: number | null; preco_cartao_fora_horario: number | null
+        comissao_clinica: number | null
       }[]) => setExamesDisponiveis(d.map(c => ({
         tipo_exame:            c.tipo_exame,
         duracao_minutos:       c.duracao_minutos ?? 30,
@@ -362,6 +369,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
         valor_cartao:          c.preco_cartao_comercial ?? null,
         valor_especial_pix:    c.preco_pix_fora_horario    ?? null,
         valor_especial_cartao: c.preco_cartao_fora_horario ?? null,
+        comissao_clinica:      Number(c.comissao_clinica ?? 0),
       }))))
       fetch('/api/veterinarios').then(r => r.ok ? r.json() : []).then(d => setVets(d ?? []))
       fetch('/api/admin/clinicas').then(r => r.ok ? r.json() : []).then(d =>
@@ -590,7 +598,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
       forma_pagamento:       gratuito ? 'gratuito' : pagamentoResp === 'tutor' ? formaPagamento : 'a confirmar',
       entrega_pagamento:     gratuito ? null : pagamentoResp === 'tutor' ? entregaPagamento : null,
       clinica_id:            pagamentoResp === 'clinica' && clinicaId ? Number(clinicaId) : null,
-      comissao_clinica_id:   pagamentoResp === 'tutor' && temTesteRapido && clinicaComissaoId ? Number(clinicaComissaoId) : null,
+      comissao_clinica_id:   pagamentoResp === 'tutor' && geraComissaoClinica && clinicaComissaoId ? Number(clinicaComissaoId) : null,
       valor:                 totalValor,
       bioquimica_selecionados: bioquimicaPayload,
       testes_rapidos_selecionados: testesRapidosPayload,
@@ -1183,10 +1191,10 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
               </div>
             )}
 
-            {pagamentoResp === 'tutor' && temTesteRapido && modo === 'admin' && clinicas.length > 0 && (
+            {pagamentoResp === 'tutor' && geraComissaoClinica && modo === 'admin' && clinicas.length > 0 && (
               <div>
                 <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
-                  Clínica parceira (comissão do teste rápido)
+                  Clínica parceira (recebe comissão)
                 </label>
                 <select value={clinicaComissaoId} onChange={e => setClinicaComissaoId(e.target.value)} className={INPUT}>
                   <option value="">Nenhuma / não aplicável</option>

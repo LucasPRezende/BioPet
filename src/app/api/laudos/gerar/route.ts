@@ -10,13 +10,13 @@ async function getComissao(tipoExame: string | null) {
   if (!tipoExame) return { preco_exame: null, custo_exame: null, valor_comissao: null }
   const { data } = await supabase
     .from('comissoes_exame')
-    .select('preco_pix_comercial, custo_exame, valor_comissao')
+    .select('preco_pix_comercial, custo_exame, comissao_laudo')
     .eq('tipo_exame', tipoExame)
     .single()
   return {
     preco_exame:    data?.preco_pix_comercial ?? null,
     custo_exame:    data?.custo_exame    ?? null,
-    valor_comissao: data?.valor_comissao ?? null,
+    valor_comissao: data?.comissao_laudo ?? null, // só a comissão de quem fez o laudo
   }
 }
 

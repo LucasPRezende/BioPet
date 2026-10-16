@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
   const adminSession = await requireAdmin(request)
   if (!adminSession) return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 })
 
-  let body: { tipo_exame?: string; custo_exame?: number; valor_comissao?: number }
+  let body: { tipo_exame?: string; custo_exame?: number }
   try {
     body = await request.json()
   } catch {
@@ -45,9 +45,8 @@ export async function POST(request: NextRequest) {
   const { data, error } = await supabase
     .from('comissoes_exame')
     .insert({
-      tipo_exame:     tipo,
-      custo_exame:    body.custo_exame    ?? 0,
-      valor_comissao: body.valor_comissao ?? 0,
+      tipo_exame:  tipo,
+      custo_exame: body.custo_exame ?? 0,
     })
     .select('*')
     .single()
@@ -59,6 +58,8 @@ export async function POST(request: NextRequest) {
   return NextResponse.json(data, { status: 201 })
 }
 
+const naoNegativo = (v: unknown) => Math.max(0, Number(v) || 0)
+
 // Salvar alterações em lote
 export async function PUT(request: NextRequest) {
   const adminSession = await requireAdmin(request)
@@ -66,7 +67,8 @@ export async function PUT(request: NextRequest) {
 
   let body: {
     id: number
-    custo_exame: number; valor_comissao: number
+    custo_exame: number
+    comissao_laudo: number; comissao_clinica: number; comissao_extracao: number
     varia_por_horario?: boolean
     permite_multiplo?: boolean
     preco_pix_comercial?: number | null; preco_cartao_comercial?: number | null
@@ -87,7 +89,9 @@ export async function PUT(request: NextRequest) {
       .from('comissoes_exame')
       .update({
         custo_exame:               item.custo_exame,
-        valor_comissao:            item.valor_comissao,
+        comissao_laudo:            naoNegativo(item.comissao_laudo),
+        comissao_clinica:          naoNegativo(item.comissao_clinica),
+        comissao_extracao:         naoNegativo(item.comissao_extracao),
         varia_por_horario:         item.varia_por_horario         ?? false,
         permite_multiplo:          item.permite_multiplo          ?? false,
         preco_pix_comercial:       item.preco_pix_comercial       ?? null,

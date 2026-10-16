@@ -23,7 +23,8 @@ export async function GET(request: NextRequest) {
       clinica_comissao:clinicas!agendamentos_comissao_clinica_id_fkey(nome),
       pets(nome), tutores(nome),
       agendamento_testes_rapidos(comissao, testes_rapidos(nome)),
-      agendamento_bioquimica(comissao, bioquimica_exames(nome))
+      agendamento_bioquimica(comissao, bioquimica_exames(nome)),
+      agendamento_exames(tipo_exame, comissao_clinica)
     `)
     .or('clinica_id.not.is.null,comissao_clinica_id.not.is.null')
     .neq('status', 'cancelado')
@@ -82,14 +83,21 @@ export async function GET(request: NextRequest) {
     const bioComComissao = isComissaoClinica
       ? (Array.isArray(ag.agendamento_bioquimica) ? ag.agendamento_bioquimica as SubBio[] : []).filter(b => Number(b.comissao ?? 0) > 0)
       : []
+    // Demais exames (ex.: Hemograma): comissão gravada na linha do agendamento.
+    type LinhaExame = { tipo_exame: string; comissao_clinica: number | null }
+    const examesComComissao = isComissaoClinica
+      ? (Array.isArray(ag.agendamento_exames) ? ag.agendamento_exames as LinhaExame[] : []).filter(e => Number(e.comissao_clinica ?? 0) > 0)
+      : []
     const comissaoValor = testesComComissao.reduce((s, t) => s + Number(t.comissao ?? 0), 0)
       + bioComComissao.reduce((s, b) => s + Number(b.comissao ?? 0), 0)
+      + examesComComissao.reduce((s, e) => s + Number(e.comissao_clinica ?? 0), 0)
     // Nome do(s) sub-exame(s) que realmente geram a comissão — não o tipo_exame
     // do agendamento inteiro, que pode incluir outros exames sem comissão
     // (ex.: Raio-X + Teste Rápido no mesmo agendamento).
     const comissaoExameNome = [
       ...testesComComissao.map(t => nomeSub(t.testes_rapidos)).filter(Boolean),
       ...bioComComissao.map(b => nomeSub(b.bioquimica_exames)).filter(Boolean),
+      ...examesComComissao.map(e => e.tipo_exame),
     ].join(', ') || ag.tipo_exame
 
     // Detalhe do exame pra exibição (tabela de repasse): troca "Teste Rápido"/
