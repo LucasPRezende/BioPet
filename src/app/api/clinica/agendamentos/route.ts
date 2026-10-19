@@ -12,11 +12,13 @@ import {
   insertExames,
   insertBioquimica,
   insertTestesRapidos,
+  insertPcrs,
   precificarExames,
   resolverComissoes,
   type ExameInput,
   type BioquimicaInput,
   type TesteRapidoInput,
+  type PcrInput,
 } from '@/lib/agendamento-helpers'
 import { formaEfetiva } from '@/lib/pricing'
 
@@ -79,6 +81,7 @@ export async function POST(request: NextRequest) {
     valor,
     bioquimica_selecionados,    // [{ bioquimica_exame_id, valor_pix, valor_cartao }]
     testes_rapidos_selecionados, // [{ teste_rapido_id, valor_pix, valor_cartao }]
+    pcr_selecionados,            // [{ pcr_id, valor_pix, valor_cartao }]
   } = body ?? {}
 
   // Suporte a multi-exame (exames[]) e single (tipo_exame)
@@ -159,16 +162,18 @@ export async function POST(request: NextRequest) {
 
   // 4. Recalcula os preços no backend (fonte de verdade) e cria o agendamento
   // A comissão de cada item vem do catálogo no banco, nunca do corpo da requisição.
-  const { bio: bioPayload, testes: testePayload } = await resolverComissoes(
+  const { bio: bioPayload, testes: testePayload, pcrs: pcrPayload } = await resolverComissoes(
     Array.isArray(bioquimica_selecionados) ? bioquimica_selecionados as BioquimicaInput[] : [],
     Array.isArray(testes_rapidos_selecionados) ? testes_rapidos_selecionados as TesteRapidoInput[] : [],
-    { gratuito: (forma_pagamento ?? '').toLowerCase() === 'gratuito' },
+    { gratuito: (forma_pagamento ?? '').toLowerCase() === 'gratuito',
+      pcrs: Array.isArray(pcr_selecionados) ? pcr_selecionados as PcrInput[] : [] },
   )
   const examesPrecificados = await precificarExames(examesArr, {
     forma:           formaEfetiva(pagamento_responsavel, forma_pagamento),
     gratuito:        (forma_pagamento ?? '').toLowerCase() === 'gratuito',
     bio:             bioPayload,
     testesRapidos:   testePayload,
+    pcrs:            pcrPayload,
     dataHora:        data_hora,
     encaixe:         false,
     pagamentoClinica: pagamento_responsavel === 'clinica',
@@ -218,6 +223,7 @@ export async function POST(request: NextRequest) {
   await insertExames(agendamento.id, examesPrecificados)
   await insertBioquimica(agendamento.id, bioPayload)
   await insertTestesRapidos(agendamento.id, testePayload)
+  await insertPcrs(agendamento.id, pcrPayload)
 
   // 6. Nome do vet
   let vetNome = 'Não informado'

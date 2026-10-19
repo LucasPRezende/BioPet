@@ -46,6 +46,17 @@ interface TesteRapidoExame {
   repasse_pix?: number
 }
 
+interface PcrExame {
+  id:           number
+  nome:         string
+  codigo:       string | null
+  preco_pix:    number
+  preco_cartao: number
+  ativo?:       boolean
+  comissao?:    number
+  repasse_pix?: number
+}
+
 interface VetOpt    { id: number; nome: string }
 interface PetOpt    { id: number; nome: string; especie: string | null; raca: string | null; falecido?: boolean }
 interface TutorInfo { id: number; nome: string | null; telefone: string; cpf?: string | null }
@@ -242,6 +253,11 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
   const [testeRapidoSelecionados, setTesteRapidoSelecionados] = useState<number[]>([])
   const [loadingTeste,            setLoadingTeste]            = useState(false)
 
+  // PCR
+  const [pcrExames,       setPcrExames]       = useState<PcrExame[]>([])
+  const [pcrSelecionados, setPcrSelecionados] = useState<number[]>([])
+  const [loadingPcr,      setLoadingPcr]      = useState(false)
+
   // Raio-X estudos adicionais — array de descrições (uma por estudo adicional)
   const [estudosAdicionaisDesc, setEstudosAdicionaisDesc] = useState<string[]>([])
   // Descrição opcional por exame principal (keyed by tipo_exame)
@@ -268,6 +284,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
   const raioXSelecionado = examesSelecionados.some(e => e.tipo_exame.toLowerCase().includes('raio') && !e.tipo_exame.toLowerCase().includes('acréscim'))
   const temBioquimica    = examesSelecionados.some(e => e.tipo_exame === 'Bioquímica')
   const temTesteRapido   = examesSelecionados.some(e => e.tipo_exame === 'Teste Rápido')
+  const temPcr           = examesSelecionados.some(e => e.tipo_exame === 'PCR')
   // Algum exame paga comissão a uma clínica parceira → pergunta qual clínica.
   const geraComissaoClinica = examesSelecionados.some(e => ehAgrupador(e.tipo_exame) || e.comissao_clinica > 0)
   const quantidadeExame  = (tipoExame: string) => examesQuantidade[tipoExame] ?? 1
@@ -304,6 +321,13 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
     s + repassePix(testeRapidoExames.find(x => x.id === id)), 0)
   const totalRepasseBio = bioquimicaSelecionados.reduce((s, id) =>
     s + repassePix(bioquimicaExames.find(x => x.id === id)), 0)
+  const pcrDe = (id: number) => pcrExames.find(x => x.id === id)
+  const totalPcr = pcrSelecionados.reduce((s, id) => {
+    const p = pcrDe(id)
+    return s + (p ? (formaPagamento === 'cartao' ? p.preco_cartao : p.preco_pix) : 0)
+  }, 0)
+  const totalPcrPix     = pcrSelecionados.reduce((s, id) => s + (pcrDe(id)?.preco_pix ?? 0), 0)
+  const totalRepassePcr = pcrSelecionados.reduce((s, id) => s + repassePix(pcrDe(id)), 0)
   const valorUnitarioAcrescimo = acrescimoExame
     ? calcularValorExame(acrescimoExame, pagamentoResp === 'clinica' ? 'pix' : formaPagamento, especial)
     : 0
@@ -313,6 +337,8 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
     ? (pagamentoResp === 'clinica' ? totalRepasseBio : totalBioquimica)
     : e.tipo_exame === 'Teste Rápido'
     ? (pagamentoResp === 'clinica' ? totalRepasseTeste : totalTesteRapido)
+    : e.tipo_exame === 'PCR'
+    ? (pagamentoResp === 'clinica' ? totalRepassePcr : totalPcr)
     : pagamentoResp === 'clinica'
     ? Math.max(0, calcularValorExame(e, 'pix', especial) - e.comissao_clinica)
     : calcularValorExame(e, formaPagamento, especial)
@@ -328,6 +354,8 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
     ? totalBioquimicaPix
     : e.tipo_exame === 'Teste Rápido'
     ? totalTesteRapidoPix
+    : e.tipo_exame === 'PCR'
+    ? totalPcrPix
     : calcularValorExame(e, 'pix', especial)
   const totalSugeridoTutor = gratuito ? 0 : examesSelecionados.reduce(
     (s, e) => s + valorSugeridoExame(e) * quantidadeExame(e.tipo_exame), 0) + valorAcrescimo
@@ -391,6 +419,15 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
     setLoadingTeste(true)
     fetch('/api/comissoes/testes-rapidos').then(r => r.ok ? r.json() : []).then(d => setTesteRapidoExames(d)).finally(() => setLoadingTeste(false))
   }, [temTesteRapido, testeRapidoExames.length])
+
+  // Carrega PCRs (o admin recebe também os inativos do catálogo — só oferece os ativos)
+  useEffect(() => {
+    if (!temPcr || pcrExames.length > 0) return
+    setLoadingPcr(true)
+    fetch('/api/comissoes/pcr').then(r => r.ok ? r.json() : [])
+      .then((d: PcrExame[]) => setPcrExames(d.filter(p => p.ativo !== false)))
+      .finally(() => setLoadingPcr(false))
+  }, [temPcr, pcrExames.length])
 
   // Carrega horários livres (admin e clinica)
   const fetchHorarios = useCallback(async () => {
@@ -493,6 +530,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
       if (exists) {
         if (exame.tipo_exame === 'Bioquímica') setBioquimicaSelecionados([])
         if (exame.tipo_exame === 'Teste Rápido') setTesteRapidoSelecionados([])
+        if (exame.tipo_exame === 'PCR') setPcrSelecionados([])
         if (exame.tipo_exame.toLowerCase().includes('raio')) {
           setEstudosAdicionaisDesc([])
           setDescricoesPorExame(prev => { const n = { ...prev }; delete n[exame.tipo_exame]; return n })
@@ -519,6 +557,10 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
     setTesteRapidoSelecionados(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
   }
 
+  function toggleSubPcr(id: number) {
+    setPcrSelecionados(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  }
+
   function validarStep1(): string | null {
     if (!telefone.trim()) return 'Informe o telefone do responsável legal.'
     if (tutorNovo && !tutorNome.trim()) return 'Informe o nome do responsável legal.'
@@ -531,6 +573,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
     if (examesSelecionados.length === 0) return 'Selecione ao menos um exame.'
     if (temBioquimica && bioquimicaSelecionados.length === 0) return 'Selecione ao menos um sub-exame de Bioquímica.'
     if (temTesteRapido && testeRapidoSelecionados.length === 0) return 'Selecione ao menos um teste rápido.'
+    if (temPcr && pcrSelecionados.length === 0) return 'Selecione ao menos um PCR.'
     return null
   }
   function validarStep3(): string | null {
@@ -580,6 +623,10 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
       const t = testeRapidoExames.find(x => x.id === id)!
       return { teste_rapido_id: id, valor_pix: t.preco_pix, valor_cartao: t.preco_cartao }
     })
+    const pcrPayload = pcrSelecionados.map(id => {
+      const p = pcrDe(id)!
+      return { pcr_id: id, valor_pix: p.preco_pix, valor_cartao: p.preco_cartao }
+    })
     const base: Record<string, unknown> = {
       telefone:              telefone.trim(),
       tutor_nome:            tutorNome.trim() || null,
@@ -602,6 +649,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
       valor:                 totalValor,
       bioquimica_selecionados: bioquimicaPayload,
       testes_rapidos_selecionados: testesRapidosPayload,
+      pcr_selecionados:      pcrPayload,
       encaixe,
       notificar,
     }
@@ -645,7 +693,7 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
     setSedacaoNecessaria(false); setPetInternado(false); setNotificar(true)
     setPagamentoResp('tutor'); setFormaPagamento('pix'); setEntregaPagamento('link'); setGratuito(false)
     setData(dataPadrao ?? ''); setHoraSelecionada(''); setEncaixe(false)
-    setBioquimicaSelecionados([]); setTesteRapidoSelecionados([]); setEstudosAdicionaisDesc([]); setDescricoesPorExame({}); setErro('')
+    setBioquimicaSelecionados([]); setTesteRapidoSelecionados([]); setPcrSelecionados([]); setEstudosAdicionaisDesc([]); setDescricoesPorExame({}); setErro('')
   }
 
   if (modo === 'clinica' && concluido) {
@@ -864,8 +912,9 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
                 const sel   = examesSelecionados.some(e => e.tipo_exame === ex.tipo_exame)
                 const isBio = ex.tipo_exame === 'Bioquímica'
                 const isTeste = ex.tipo_exame === 'Teste Rápido'
+                const isPcr = ex.tipo_exame === 'PCR'
                 const isRaio = ex.tipo_exame.toLowerCase().includes('raio')
-                const isMultiplo = ex.permite_multiplo && !isBio && !isTeste && !isRaio
+                const isMultiplo = ex.permite_multiplo && !isBio && !isTeste && !isPcr && !isRaio
                 const qtd = quantidadeExame(ex.tipo_exame)
                 return (
                   <div key={ex.tipo_exame}>
@@ -880,8 +929,8 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
                         </div>
                         <div className="text-right text-xs shrink-0 ml-2">
                           <span className={sel ? 'text-gray-300' : 'text-gray-400'}>{ex.duracao_minutos} min</span>
-                          {(isBio || isTeste) && <span className={`ml-3 font-medium ${sel ? 'text-[#c4a35a]' : 'text-gray-400'}`}>preços por exame</span>}
-                          {!isBio && !isTeste && ex.valor_pix != null && <span className={`ml-3 font-semibold ${sel ? 'text-[#c4a35a]' : 'text-[#8a6e36]'}`}>{brl(ex.valor_pix)}</span>}
+                          {(isBio || isTeste || isPcr) && <span className={`ml-3 font-medium ${sel ? 'text-[#c4a35a]' : 'text-gray-400'}`}>preços por exame</span>}
+                          {!isBio && !isTeste && !isPcr && ex.valor_pix != null && <span className={`ml-3 font-semibold ${sel ? 'text-[#c4a35a]' : 'text-[#8a6e36]'}`}>{brl(ex.valor_pix)}</span>}
                         </div>
                       </div>
                     </button>
@@ -1025,6 +1074,51 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
                             <div className="flex justify-between text-xs font-bold text-[#19202d] border-t border-[#8a6e36]/20 pt-1">
                               <span>{pagamentoResp === 'clinica' ? 'Sugerido ao tutor' : 'Total Teste Rápido'}</span>
                               <span>{brl(pagamentoResp === 'clinica' ? totalTesteRapidoPix : totalTesteRapido)}</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {isPcr && sel && (
+                      <div className="mt-2 ml-4 p-3 bg-amber-50 border border-[#8a6e36]/20 rounded-xl space-y-2">
+                        <p className="text-xs font-semibold text-[#8a6e36] mb-2">🧬 Selecione os PCRs: <span className="text-red-400">*</span></p>
+                        {loadingPcr ? <p className="text-xs text-gray-400">Carregando...</p> : pcrExames.length === 0 ? (
+                          <p className="text-xs text-gray-400">Nenhum PCR ativo. Configure em Preços › PCR.</p>
+                        ) : (
+                          <div className="space-y-1.5">
+                            {pcrExames.map(p => {
+                              const checked = pcrSelecionados.includes(p.id)
+                              const preco   = formaPagamento === 'cartao' ? p.preco_cartao : p.preco_pix
+                              return (
+                                <button key={p.id} type="button" onClick={() => toggleSubPcr(p.id)}
+                                  className={`w-full text-left flex items-center justify-between px-3 py-2 rounded-lg border transition text-sm ${checked ? 'bg-[#19202d] text-white border-[#19202d]' : 'bg-white border-gray-200 hover:border-[#8a6e36]'}`}>
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span className={`w-3.5 h-3.5 rounded border-2 flex items-center justify-center shrink-0 ${checked ? 'border-white bg-white' : 'border-gray-300'}`}>
+                                      {checked && <span className="w-1.5 h-1.5 bg-[#19202d] rounded-sm" />}
+                                    </span>
+                                    <span className="font-medium truncate">{p.nome}</span>
+                                  </div>
+                                  {preco > 0 && <span className={`text-xs font-semibold shrink-0 ml-2 ${checked ? 'text-[#c4a35a]' : 'text-[#8a6e36]'}`}>{brl(preco)}</span>}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )}
+                        {pcrSelecionados.length > 0 && (
+                          <div className="mt-2 pt-2 border-t border-[#8a6e36]/20 space-y-1">
+                            {pcrSelecionados.map(id => {
+                              const p = pcrDe(id)!
+                              return (
+                                <div key={id} className="flex justify-between text-xs text-[#8a6e36]">
+                                  <span>{p.nome}</span>
+                                  <span className="font-semibold">{brl(pagamentoResp === 'clinica' ? p.preco_pix : formaPagamento === 'cartao' ? p.preco_cartao : p.preco_pix)}</span>
+                                </div>
+                              )
+                            })}
+                            <div className="flex justify-between text-xs font-bold text-[#19202d] border-t border-[#8a6e36]/20 pt-1">
+                              <span>{pagamentoResp === 'clinica' ? 'Sugerido ao tutor' : 'Total PCR'}</span>
+                              <span>{brl(pagamentoResp === 'clinica' ? totalPcrPix : totalPcr)}</span>
                             </div>
                           </div>
                         )}
@@ -1379,6 +1473,15 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
                     })}
                   </div>
                 )
+                if (e.tipo_exame === 'PCR') return (
+                  <div key={e.tipo_exame}>
+                    <div className="flex justify-between text-gray-600 mb-1"><span className="font-medium">🧬 PCR</span><span className="font-medium">{brl(totalPcr)}</span></div>
+                    {pcrSelecionados.map(id => {
+                      const p = pcrDe(id)!
+                      return <div key={id} className="flex justify-between text-gray-400 text-xs pl-3"><span>• {p.nome}</span><span>{brl(formaPagamento === 'cartao' ? p.preco_cartao : p.preco_pix)}</span></div>
+                    })}
+                  </div>
+                )
                 const qtd = quantidadeExame(e.tipo_exame)
                 return <div key={e.tipo_exame} className="flex justify-between text-gray-600"><span>{e.tipo_exame}{qtd > 1 ? ` ×${qtd}` : ''}</span><span className="font-medium">{brl(calcularValorExame(e, formaPagamento, especial) * qtd)}</span></div>
               })}
@@ -1407,6 +1510,8 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
                   ? `Bioquímica (${bioquimicaSelecionados.map(id => bioquimicaExames.find(x => x.id === id)?.nome ?? '').join(', ')})`
                 : e.tipo_exame === 'Teste Rápido' && testeRapidoSelecionados.length > 0
                   ? `Teste Rápido (${testeRapidoSelecionados.map(id => testeRapidoExames.find(x => x.id === id)?.nome ?? '').join(', ')})`
+                : e.tipo_exame === 'PCR' && pcrSelecionados.length > 0
+                  ? `PCR (${pcrSelecionados.map(id => pcrDe(id)?.nome ?? '').join(', ')})`
                 : e.tipo_exame
                 return qtd > 1 ? `${nome} ×${qtd}` : nome
               }).join(', ') },

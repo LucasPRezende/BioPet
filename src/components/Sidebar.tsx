@@ -42,6 +42,7 @@ const NAV: NavGroup[] = [
       { icon: '🧪', label: 'Bioquímica',  href: '/admin/novo-bioquimica'          },
       { icon: '🩸', label: 'Hemograma',   href: '/admin/novo-hemograma'           },
       { icon: '💉', label: 'Teste Rápido', href: '/admin/novo-teste-rapido'       },
+      { icon: '🧬', label: 'PCR',          href: '/admin/novo-pcr'                 },
       { icon: '📊', label: 'Ref. Bioquímica', href: '/admin/bioquimica/referencias' },
       { icon: '📊', label: 'Ref. Hemograma',  href: '/admin/hemograma/referencias'  },
     ],

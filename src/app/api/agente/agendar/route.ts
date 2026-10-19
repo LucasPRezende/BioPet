@@ -179,6 +179,18 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  // PCR: o preço depende de quais PCRs (sub-exames) o vet pediu, e a IA não
+  // escolhe sub-exames — sem isso o agendamento sairia por R$ 0. Vai pro atendente.
+  if (listaExames.some(e => e.tipo_exame === 'PCR')) {
+    return NextResponse.json(
+      {
+        error: 'precisa_atendente',
+        mensagem: 'PCR deve ser agendado por um atendente (o preço depende de quais PCRs foram pedidos). Use transferir_humano.',
+      },
+      { status: 422 },
+    )
+  }
+
   // Backend é a fonte de verdade do preço e da duração.
   const forma: FormaPagamento = String(forma_pagamento ?? '').toLowerCase().includes('cartao') ? 'cartao' : 'pix'
   const duracoes = await resolverDuracoes(listaExames.map(e => e.tipo_exame))

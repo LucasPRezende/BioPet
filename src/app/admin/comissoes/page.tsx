@@ -63,8 +63,14 @@ interface TesteRapidoExame {
   ordem:             number
 }
 
-type Aba    = 'exames' | 'bioquimica' | 'testes'
-type Tabela = 'comissoes_exame' | 'bioquimica_exames' | 'testes_rapidos'
+// PCR: mesmo formato do teste rápido + código do kit do fornecedor (migration v50).
+interface PcrExame extends TesteRapidoExame {
+  codigo: string | null
+}
+
+type TipoSub = 'bioquimica' | 'teste' | 'pcr'
+type Aba     = 'exames' | 'bioquimica' | 'testes' | 'pcr'
+type Tabela  = 'comissoes_exame' | 'bioquimica_exames' | 'testes_rapidos' | 'exames_pcr'
 type Valor  = number | boolean | null
 
 interface Pendente {
@@ -80,12 +86,21 @@ const ABA_DA_TABELA: Record<Tabela, string> = {
   comissoes_exame:   'Exames',
   bioquimica_exames: 'Bioquímica',
   testes_rapidos:    'Teste Rápido',
+  exames_pcr:        'PCR',
 }
 
 const TABELA_DA_ABA: Record<Aba, Tabela> = {
   exames:     'comissoes_exame',
   bioquimica: 'bioquimica_exames',
   testes:     'testes_rapidos',
+  pcr:        'exames_pcr',
+}
+
+// Sub-itens com catálogo próprio: tabela no banco e rota da API.
+const SUB: Record<TipoSub, { tabela: Tabela; api: string }> = {
+  bioquimica: { tabela: 'bioquimica_exames', api: '/api/comissoes/bioquimica' },
+  teste:      { tabela: 'testes_rapidos',    api: '/api/comissoes/testes-rapidos' },
+  pcr:        { tabela: 'exames_pcr',        api: '/api/comissoes/pcr' },
 }
 
 const ROTULO_CAMPO: Record<string, string> = {
@@ -135,7 +150,7 @@ const BENEFICIARIOS = [
     regras: [
       'Vai para a clínica que coletou ou encaminhou.',
       'Se a clínica cobrou do tutor, sai descontado do repasse. Se o tutor pagou a BioPet, a BioPet fica devendo à clínica.',
-      'Bioquímica e Teste Rápido: valor por sub-exame, nas abas deles.',
+      'Bioquímica, Teste Rápido e PCR: valor por sub-exame, nas abas deles.',
     ],
     texto:  'text-emerald-700', fundo: 'bg-emerald-50', borda: 'border-emerald-200', topo: 'border-t-emerald-700',
   },
@@ -656,10 +671,10 @@ function NovoExameModal({ onClose, onCreated }: { onClose: () => void; onCreated
 // ── Modais novo sub-exame / novo teste (nascem inativos) ─────────────────────
 
 function NovoSubModal({ tipo, nextOrdem, onClose, onCreated }: {
-  tipo: 'bioquimica' | 'teste'; nextOrdem: number; onClose: () => void; onCreated: () => void
+  tipo: TipoSub; nextOrdem: number; onClose: () => void; onCreated: () => void
 }) {
   const [nome,      setNome]      = useState('')
-  const [extra,     setExtra]     = useState('')   // código (bioquímica) ou subtítulo (teste)
+  const [extra,     setExtra]     = useState('')   // código (bioquímica/PCR) ou subtítulo (teste)
   const [pix,       setPix]       = useState('')
   const [cartao,    setCartao]    = useState('')
   const [custo,     setCusto]     = useState('')
@@ -667,6 +682,7 @@ function NovoSubModal({ tipo, nextOrdem, onClose, onCreated }: {
   const [saving,    setSaving]    = useState(false)
   const [error,     setError]     = useState('')
   const bio = tipo === 'bioquimica'
+  const pcr = tipo === 'pcr'
 
   async function criar() {
     setError('')
@@ -677,9 +693,12 @@ function NovoSubModal({ tipo, nextOrdem, onClose, onCreated }: {
     const body = bio
       ? { nome: nome.trim(), codigo: extra.trim() || null, preco_pix: vals.pix ?? 0, preco_cartao: vals.cartao,
           custo: vals.custo, comissao: vals.comissao ?? 0, ordem: nextOrdem, ativo: false }
+      : pcr
+      ? { nome: nome.trim(), codigo: extra.trim() || null, metodo_padrao: 'PCR', preco_pix: vals.pix ?? 0,
+          preco_cartao: vals.cartao, comissao: vals.comissao ?? 0, ordem: nextOrdem, ativo: false }
       : { nome: nome.trim(), descricao: extra.trim() || null, preco_pix: vals.pix ?? 0, preco_cartao: vals.cartao,
           comissao: vals.comissao ?? 0, ordem: nextOrdem, ativo: false }
-    const res = await fetch(bio ? '/api/comissoes/bioquimica' : '/api/comissoes/testes-rapidos', {
+    const res = await fetch(SUB[tipo].api, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     })
     const data = await res.json().catch(() => ({}))
@@ -690,7 +709,7 @@ function NovoSubModal({ tipo, nextOrdem, onClose, onCreated }: {
 
   const pixN = lerValor(pix)
   return (
-    <Modal titulo={bio ? 'Novo sub-exame de Bioquímica' : 'Novo teste rápido'} largura="max-w-md" onClose={onClose} rodape={<>
+    <Modal titulo={bio ? 'Novo sub-exame de Bioquímica' : pcr ? 'Novo exame de PCR' : 'Novo teste rápido'} largura="max-w-md" onClose={onClose} rodape={<>
       <button onClick={onClose} className={`ml-auto ${BTN_SECUNDARIO}`}>Cancelar</button>
       <button onClick={criar} disabled={saving} className={BTN_PRIMARIO}>{saving ? 'Criando...' : 'Criar inativo'}</button>
     </>}>
@@ -698,12 +717,14 @@ function NovoSubModal({ tipo, nextOrdem, onClose, onCreated }: {
         <div>
           <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Nome *</label>
           <input type="text" value={nome} onChange={e => setNome(e.target.value)} autoFocus className={T}
-            placeholder={bio ? 'Ex: TGP (ALT)' : 'Ex: Snap 4Dx Plus'} />
+            placeholder={bio ? 'Ex: TGP (ALT)' : pcr ? 'Ex: Ehrlichia spp.' : 'Ex: Snap 4Dx Plus'} />
         </div>
         <div>
-          <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">{bio ? 'Código (opcional)' : 'Subtítulo (opcional)'}</label>
+          <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+            {bio ? 'Código (opcional)' : pcr ? 'Código do kit (opcional)' : 'Subtítulo (opcional)'}
+          </label>
           <input type="text" value={extra} onChange={e => setExtra(e.target.value)} className={T}
-            placeholder={bio ? 'Ex: TGP' : 'Ex: Anticorpos IgG'} />
+            placeholder={bio ? 'Ex: TGP' : pcr ? 'Ex: PC08-0' : 'Ex: Anticorpos IgG'} />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <NumInput label="Pix (R$)" value={pix} onChange={setPix} />
@@ -712,7 +733,7 @@ function NovoSubModal({ tipo, nextOrdem, onClose, onCreated }: {
           {bio && <NumInput label="Custo (R$)" value={custo} onChange={setCusto} />}
           <NumInput label="Comissão clínica (R$)" value={comissao} onChange={setComissao} />
         </div>
-        {!bio && <p className="text-[11px] text-gray-400">Material, método, agentes e observação ficam no ✏️ Editar, depois de criar.</p>}
+        {!bio && <p className="text-[11px] text-gray-400">{pcr ? 'Subtítulo, material' : 'Material'}, método, agentes e observação ficam no ✏️ Editar, depois de criar.</p>}
         <p className="text-xs text-gray-500 bg-gray-50 rounded-lg px-4 py-3">
           Criado <strong>inativo</strong>: não aparece no agendamento até você ligar &quot;Ativo&quot;.
         </p>
@@ -724,12 +745,15 @@ function NovoSubModal({ tipo, nextOrdem, onClose, onCreated }: {
 
 // ── Modal de edição de um teste rápido (nome, subtítulo, material, método, observação) ──
 
-function TesteRapidoEditModal({ teste, onClose, onSaved }: {
-  teste:   TesteRapidoExame
+function TesteRapidoEditModal({ teste, tipo = 'teste', onClose, onSaved }: {
+  teste:   TesteRapidoExame | PcrExame
+  tipo?:   'teste' | 'pcr'
   onClose: () => void
   onSaved: (t: TesteRapidoExame) => void
 }) {
+  const pcr = tipo === 'pcr'
   const [nome,      setNome]      = useState(teste.nome)
+  const [codigo,    setCodigo]    = useState((teste as PcrExame).codigo ?? '')
   const [descricao, setDescricao] = useState(teste.descricao ?? '')
   const [material,  setMaterial]  = useState(teste.material_padrao ?? '')
   const [metodo,    setMetodo]    = useState(teste.metodo_padrao ?? '')
@@ -742,11 +766,12 @@ function TesteRapidoEditModal({ teste, onClose, onSaved }: {
     if (!nome.trim()) { setError('O nome é obrigatório.'); return }
     setSaving(true); setError('')
     const analitos = agentes.split('\n').map(a => a.trim()).filter(Boolean)
-    const res = await fetch(`/api/comissoes/testes-rapidos/${teste.id}`, {
+    const res = await fetch(`${SUB[tipo].api}/${teste.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         nome:              nome.trim(),
+        ...(pcr ? { codigo: codigo.trim() || null } : {}),
         descricao:         descricao.trim() || null,
         material_padrao:   material.trim() || null,
         metodo_padrao:     metodo.trim() || null,
@@ -767,13 +792,22 @@ function TesteRapidoEditModal({ teste, onClose, onSaved }: {
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4 py-6 overflow-y-auto" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden my-auto" onClick={e => e.stopPropagation()}>
         <div className="bg-[#19202d] px-6 py-4 flex items-center justify-between">
-          <h3 className="text-white font-bold text-sm">Editar teste rápido</h3>
+          <h3 className="text-white font-bold text-sm">{pcr ? 'Editar exame de PCR' : 'Editar teste rápido'}</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-white text-xl leading-none">×</button>
         </div>
         <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
-          <div>
-            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Nome *</label>
-            <input type="text" value={nome} onChange={e => setNome(e.target.value)} className={T} placeholder="Ex: Snap 4Dx Plus" />
+          <div className={pcr ? 'grid grid-cols-[1fr_9rem] gap-3' : ''}>
+            <div>
+              <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Nome *</label>
+              <input type="text" value={nome} onChange={e => setNome(e.target.value)} className={T}
+                placeholder={pcr ? 'Ex: Ehrlichia spp.' : 'Ex: Snap 4Dx Plus'} />
+            </div>
+            {pcr && (
+              <div>
+                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Código do kit</label>
+                <input type="text" value={codigo} onChange={e => setCodigo(e.target.value)} className={T} placeholder="Ex: PC08-0" />
+              </div>
+            )}
           </div>
           <div>
             <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Subtítulo (aparece abaixo do nome no laudo)</label>
@@ -786,16 +820,19 @@ function TesteRapidoEditModal({ teste, onClose, onSaved }: {
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Método padrão</label>
-              <input type="text" value={metodo} onChange={e => setMetodo(e.target.value)} className={T} placeholder="Ex: Imunocromatografia" />
+              <input type="text" value={metodo} onChange={e => setMetodo(e.target.value)} className={T}
+                placeholder={pcr ? 'Ex: PCR em tempo real' : 'Ex: Imunocromatografia'} />
             </div>
           </div>
           <div>
-            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Agentes (teste combo)</label>
+            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">{pcr ? 'Agentes (painel)' : 'Agentes (teste combo)'}</label>
             <textarea value={agentes} onChange={e => setAgentes(e.target.value)} rows={4}
               className={T + ' resize-none text-xs leading-relaxed'}
               placeholder={'Um agente por linha. Ex.:\nEhrlichia spp.\nAnaplasma spp.'} />
             <p className="text-[11px] text-gray-400 mt-1">
-              Para testes que detectam <strong>vários agentes</strong> (ex.: 4Dx, FIV/FeLV): um por linha. Na emissão o resultado é marcado Positivo/Negativo por agente. <strong>Deixe em branco</strong> para teste de resultado único.
+              {pcr
+                ? <>Para painéis que detectam <strong>vários agentes</strong> (ex.: Doenças do Carrapato, FIV e FeLV): um por linha.</>
+                : <>Para testes que detectam <strong>vários agentes</strong> (ex.: 4Dx, FIV/FeLV): um por linha.</>} Na emissão o resultado é marcado Positivo/Negativo por agente. <strong>Deixe em branco</strong> para teste de resultado único.
             </p>
           </div>
           <div>
@@ -956,7 +993,7 @@ function TabelaExames({ exames, pend, destacados, onEditar, onAbrirAba, toast }:
 
                     {agrupador ? (
                       <td colSpan={5} className="px-3 py-2.5">
-                        <button type="button" onClick={() => onAbrirAba(c.tipo_exame === 'Bioquímica' ? 'bioquimica' : 'testes')}
+                        <button type="button" onClick={() => onAbrirAba(c.tipo_exame === 'Bioquímica' ? 'bioquimica' : c.tipo_exame === 'PCR' ? 'pcr' : 'testes')}
                           className="w-full border border-dashed border-gray-300 rounded-lg px-3 py-2 text-xs text-gray-500 hover:border-[#8a6e36] hover:text-[#8a6e36] transition">
                           Preço e comissão da clínica por sub-exame · abrir aba {c.tipo_exame} →
                         </button>
@@ -1029,8 +1066,8 @@ function FragmentoLinhas({ children }: { children: React.ReactNode }) {
 // ── Abas Bioquímica e Teste Rápido ───────────────────────────────────────────
 
 function TabelaSub({ tipo, itens, pend, destacados, onReordenar, onEditarTeste, toast }: {
-  tipo:          'bioquimica' | 'teste'
-  itens:         (BioquimicaExame | TesteRapidoExame)[]
+  tipo:          TipoSub
+  itens:         (BioquimicaExame | TesteRapidoExame | PcrExame)[]
   pend:          Pend
   destacados:    Set<string>
   onReordenar:   (a: { id: number; ordem: number }, b: { id: number; ordem: number }) => void
@@ -1038,7 +1075,7 @@ function TabelaSub({ tipo, itens, pend, destacados, onReordenar, onEditarTeste, 
   toast:         (msg: string) => void
 }) {
   const bio = tipo === 'bioquimica'
-  const TAB: Tabela = bio ? 'bioquimica_exames' : 'testes_rapidos'
+  const TAB: Tabela = SUB[tipo].tabela
   const invalido = () => toast('Valor inválido. Use números, ex.: 120,50')
   const th = 'px-3 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide'
 
@@ -1050,7 +1087,7 @@ function TabelaSub({ tipo, itens, pend, destacados, onReordenar, onEditarTeste, 
       <p className="text-sm text-gray-500">
         {bio
           ? 'Preço, custo e comissão da clínica de cada sub-exame. Clique num valor para editar.'
-          : 'Preço e comissão da clínica de cada teste. Clique num valor para editar. O custo virá do estoque.'}
+          : `Preço e comissão da clínica de cada ${tipo === 'pcr' ? 'PCR' : 'teste'}. Clique num valor para editar. O custo virá do estoque.`}
       </p>
       {semCusto > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
@@ -1066,7 +1103,7 @@ function TabelaSub({ tipo, itens, pend, destacados, onReordenar, onEditarTeste, 
             <table className="w-full text-sm min-w-[760px]">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50">
-                  <th className={`${th} text-left`}>{bio ? 'Sub-exame' : 'Teste'}</th>
+                  <th className={`${th} text-left`}>{bio ? 'Sub-exame' : tipo === 'pcr' ? 'Exame' : 'Teste'}</th>
                   <th className={`${th} text-right`}>Pix</th>
                   <th className={`${th} text-right`}>Cartão 3x</th>
                   {bio && <th className={`${th} text-right`}>Custo</th>}
@@ -1087,12 +1124,13 @@ function TabelaSub({ tipo, itens, pend, destacados, onReordenar, onEditarTeste, 
                   const custo = bio ? (e as BioquimicaExame).custo : null
                   const lucro = custo == null ? null : Number(e.preco_pix) - Number(custo) - Number(e.comissao)
                   const pAtivo = p('ativo')
+                  const codigo = 'codigo' in e ? e.codigo : null
 
                   return (
                     <tr key={e.id} className={`transition-colors ${!e.ativo ? 'opacity-60' : ''} ${destacados.has(`${TAB}:${e.id}`) ? 'bg-green-50' : ''}`}>
                       <td className="px-3 py-2.5">
                         <div className="font-medium text-[#19202d]">
-                          {bio && (e as BioquimicaExame).codigo && <span className="font-mono text-xs text-gray-400 mr-2">{(e as BioquimicaExame).codigo}</span>}
+                          {codigo && <span className="font-mono text-xs text-gray-400 mr-2">{codigo}</span>}
                           {e.nome}
                         </div>
                         {!bio && (e as TesteRapidoExame).descricao && <div className="text-[11px] text-gray-400">{(e as TesteRapidoExame).descricao}</div>}
@@ -1139,7 +1177,7 @@ function TabelaSub({ tipo, itens, pend, destacados, onReordenar, onEditarTeste, 
                         {!bio && (
                           <button onClick={() => onEditarTeste(original as TesteRapidoExame)}
                             className="text-xs text-[#8a6e36] hover:text-[#5a4a28] transition px-1.5 py-1 font-semibold"
-                            title="Editar nome, material, método, agentes e observações">✏️ Editar</button>
+                            title={`Editar nome${tipo === 'pcr' ? ', código' : ''}, material, método, agentes e observações`}>✏️ Editar</button>
                         )}
                         {e.ativo && (
                           <button onClick={() => { commit('ativo')(false); toast(`${e.nome} marcado para desativar. Confirme em "Revisar e salvar".`) }}
@@ -1257,10 +1295,12 @@ export default function ComissoesPage() {
   const [exames,     setExames]     = useState<Comissao[]>([])
   const [bios,       setBios]       = useState<BioquimicaExame[]>([])
   const [testes,     setTestes]     = useState<TesteRapidoExame[]>([])
+  const [pcrs,       setPcrs]       = useState<PcrExame[]>([])
   const [loading,    setLoading]    = useState(true)
   const [busca,      setBusca]      = useState('')
   const [editando,   setEditando]   = useState<Comissao | null>(null)
   const [editTeste,  setEditTeste]  = useState<TesteRapidoExame | null>(null)
+  const [editPcr,    setEditPcr]    = useState<PcrExame | null>(null)
   const [novo,       setNovo]       = useState<Aba | null>(null)
   const [revisando,  setRevisando]  = useState(false)
   const [toastMsg,   setToastMsg]   = useState('')
@@ -1273,12 +1313,13 @@ export default function ComissoesPage() {
   }, [])
 
   const carregar = useCallback(async () => {
-    const [r1, r2, r3] = await Promise.all([
-      fetch('/api/comissoes'), fetch('/api/comissoes/bioquimica'), fetch('/api/comissoes/testes-rapidos'),
+    const [r1, r2, r3, r4] = await Promise.all([
+      fetch('/api/comissoes'), fetch(SUB.bioquimica.api), fetch(SUB.teste.api), fetch(SUB.pcr.api),
     ])
     if (r1.ok) setExames(await r1.json())
     if (r2.ok) setBios(await r2.json())
     if (r3.ok) setTestes(await r3.json())
+    if (r4.ok) setPcrs(await r4.json())
     setLoading(false)
   }, [])
 
@@ -1298,9 +1339,8 @@ export default function ComissoesPage() {
   }
 
   // Ordem salva na hora (como sempre foi): troca a ordem dos dois itens.
-  async function reordenar(tipo: 'bioquimica' | 'teste', a: { id: number; ordem: number }, b: { id: number; ordem: number }) {
-    const base = tipo === 'bioquimica' ? '/api/comissoes/bioquimica' : '/api/comissoes/testes-rapidos'
-    const patch = (id: number, ordem: number) => fetch(`${base}/${id}`, {
+  async function reordenar(tipo: TipoSub, a: { id: number; ordem: number }, b: { id: number; ordem: number }) {
+    const patch = (id: number, ordem: number) => fetch(`${SUB[tipo].api}/${id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ordem }),
     })
     await Promise.all([patch(a.id, b.ordem), patch(b.id, a.ordem)])
@@ -1316,7 +1356,10 @@ export default function ComissoesPage() {
   const termo = busca.trim().toLowerCase()
   const examesVisiveis = exames.filter(e => !termo || e.tipo_exame.toLowerCase().includes(termo))
 
-  const ROTULO_NOVO: Record<Aba, string> = { exames: '+ Novo exame', bioquimica: '+ Novo sub-exame', testes: '+ Novo teste' }
+  const ROTULO_NOVO: Record<Aba, string> = { exames: '+ Novo exame', bioquimica: '+ Novo sub-exame', testes: '+ Novo teste', pcr: '+ Novo PCR' }
+  const TIPO_DA_ABA: Partial<Record<Aba, TipoSub>> = { bioquimica: 'bioquimica', testes: 'teste', pcr: 'pcr' }
+  const ITENS_DO_TIPO: Record<TipoSub, { ordem: number }[]> = { bioquimica: bios, teste: testes, pcr: pcrs }
+  const tipoNovo = novo ? TIPO_DA_ABA[novo] : undefined
   const nPend = pend.lista.length
 
   return (
@@ -1340,6 +1383,7 @@ export default function ComissoesPage() {
               { key: 'exames',     label: 'Exames' },
               { key: 'bioquimica', label: '🧪 Bioquímica' },
               { key: 'testes',     label: '💉 Teste Rápido' },
+              { key: 'pcr',        label: '🧬 PCR' },
             ] as const).map(t => {
               const n = pend.lista.filter(p => p.tabela === TABELA_DA_ABA[t.key]).length
               return (
@@ -1369,9 +1413,12 @@ export default function ComissoesPage() {
         ) : aba === 'bioquimica' ? (
           <TabelaSub tipo="bioquimica" itens={bios} pend={pend} destacados={destacados}
             onReordenar={(a, b) => reordenar('bioquimica', a, b)} onEditarTeste={() => {}} toast={toast} />
-        ) : (
+        ) : aba === 'testes' ? (
           <TabelaSub tipo="teste" itens={testes} pend={pend} destacados={destacados}
             onReordenar={(a, b) => reordenar('teste', a, b)} onEditarTeste={setEditTeste} toast={toast} />
+        ) : (
+          <TabelaSub tipo="pcr" itens={pcrs} pend={pend} destacados={destacados}
+            onReordenar={(a, b) => reordenar('pcr', a, b)} onEditarTeste={t => setEditPcr(t as PcrExame)} toast={toast} />
         )}
       </main>
 
@@ -1425,9 +1472,14 @@ export default function ComissoesPage() {
             setNovo(null); destacar([`comissoes_exame:${c.id}`]); toast(`${c.tipo_exame} criado inativo`)
           }} />
       )}
-      {(novo === 'bioquimica' || novo === 'testes') && (
-        <NovoSubModal tipo={novo === 'bioquimica' ? 'bioquimica' : 'teste'}
-          nextOrdem={(novo === 'bioquimica' ? bios : testes).reduce((m, x) => Math.max(m, x.ordem ?? 0), 0) + 1}
+      {editPcr && (
+        <TesteRapidoEditModal teste={editPcr} tipo="pcr" onClose={() => setEditPcr(null)}
+          onSaved={t => { setPcrs(prev => prev.map(x => x.id === t.id ? t as PcrExame : x)); setEditPcr(null); toast('✓ Salvo') }} />
+      )}
+
+      {tipoNovo && (
+        <NovoSubModal tipo={tipoNovo}
+          nextOrdem={ITENS_DO_TIPO[tipoNovo].reduce((m, x) => Math.max(m, x.ordem ?? 0), 0) + 1}
           onClose={() => setNovo(null)}
           onCreated={async () => { setNovo(null); await carregar(); toast('Criado inativo') }} />
       )}

@@ -16,7 +16,7 @@ import { supabase } from '@/lib/supabase'
 const MODELO_AUDIO  = process.env.AGENTE_GEMINI_MODELO_AUDIO  ?? 'gemini-2.5-flash'
 const MODELO_IMAGEM = process.env.AGENTE_GEMINI_MODELO_IMAGEM ?? 'gemini-2.5-pro'
 
-async function getGeminiKey(): Promise<string> {
+export async function getGeminiKey(): Promise<string> {
   if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY.trim()
   const { data } = await supabase
     .from('system_config')

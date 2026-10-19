@@ -28,6 +28,14 @@ interface TesteRapidoSub {
   testes_rapidos:  { nome: string; descricao: string | null } | null
 }
 
+interface PcrSub {
+  id:           number
+  valor_pix:    number
+  valor_cartao: number
+  comissao?:    number
+  exames_pcr:   { nome: string; codigo: string | null } | null
+}
+
 interface AgExame {
   tipo_exame:      string
   valor:           number | null
@@ -84,6 +92,7 @@ interface Agendamento {
   agendamento_exames?:   AgExame[] | null
   agendamento_bioquimica?: BioquimicaSubExame[] | null
   agendamento_testes_rapidos?: TesteRapidoSub[] | null
+  agendamento_pcr?: PcrSub[] | null
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -433,9 +442,11 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
     const especial     = ag.encaixe ? false : isEspecial(hora, duracaoAtiva, data, feriadoDatas, horarioFim, horarioInicio)
     const bioRows   = ag.agendamento_bioquimica ?? []
     const testeRows = ag.agendamento_testes_rapidos ?? []
+    const pcrRows   = ag.agendamento_pcr ?? []
     const clinica   = pagResp === 'clinica'
     const comBio    = clinica ? bioRows.reduce((s, b) => s + Number(b.comissao ?? 0), 0) : 0
     const comTeste  = clinica ? testeRows.reduce((s, t) => s + Number(t.comissao ?? 0), 0) : 0
+    const comPcr    = clinica ? pcrRows.reduce((s, p) => s + Number(p.comissao ?? 0), 0) : 0
 
     const forma: FormaPagamento = isPix ? 'pix' : 'cartao'
     const calc = exames.reduce((sum, ex) => {
@@ -444,6 +455,9 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
       }
       if (ex.tipo_exame === 'Teste Rápido') {
         return sum + Math.max(0, precoBioquimica(testeRows, forma) - comTeste)
+      }
+      if (ex.tipo_exame === 'PCR') {
+        return sum + Math.max(0, precoBioquimica(pcrRows, forma) - comPcr)
       }
       const info = comMap.get(ex.tipo_exame)
       if (!info) return sum
@@ -502,9 +516,11 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
       const esp          = ag.encaixe ? false : isEspecial(hora, duracaoAtiva, data, feriadoDatas, horarioFim, horarioInicio)
       const bios   = ag.agendamento_bioquimica ?? []
       const testes = ag.agendamento_testes_rapidos ?? []
+      const pcrsS  = ag.agendamento_pcr ?? []
       const clinicaS = pagResp === 'clinica'
       const comBioS   = clinicaS ? bios.reduce((s, b) => s + Number(b.comissao ?? 0), 0) : 0
       const comTesteS = clinicaS ? testes.reduce((s, t) => s + Number(t.comissao ?? 0), 0) : 0
+      const comPcrS   = clinicaS ? pcrsS.reduce((s, p) => s + Number(p.comissao ?? 0), 0) : 0
       const forma: FormaPagamento = isPix ? 'pix' : 'cartao'
       const examesCalc: AgExame[] = exsAg.map(ex => {
         const desc = Number(ex.desconto ?? 0)
@@ -513,6 +529,9 @@ function EditAgendamentoModal({ ag, onClose, onSaved }: {
         }
         if (ex.tipo_exame === 'Teste Rápido') {
           return { ...ex, valor: valorLiquido(Math.max(0, precoBioquimica(testes, forma) - comTesteS), desc), desconto: desc }
+        }
+        if (ex.tipo_exame === 'PCR') {
+          return { ...ex, valor: valorLiquido(Math.max(0, precoBioquimica(pcrsS, forma) - comPcrS), desc), desconto: desc }
         }
         const info = cMap.get(ex.tipo_exame)
         if (!info) return ex
@@ -975,6 +994,7 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
   const exames       = ag.agendamento_exames ?? []
   const bioRows      = ag.agendamento_bioquimica ?? []
   const testeRows    = ag.agendamento_testes_rapidos ?? []
+  const pcrRows      = ag.agendamento_pcr ?? []
 
   // Um botão de emitir laudo por exame individual, filtrado pelas permissões do usuário
   // e excluindo exames que já têm laudo emitido
@@ -1009,16 +1029,19 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
   // Repasse pela clínica = preço − comissão da clínica coletora
   const comBio   = isClinica ? bioRows.reduce((s, b) => s + Number(b.comissao ?? 0), 0) : 0
   const comTeste = isClinica ? testeRows.reduce((s, t) => s + Number(t.comissao ?? 0), 0) : 0
+  const comPcr   = isClinica ? pcrRows.reduce((s, p) => s + Number(p.comissao ?? 0), 0) : 0
   let totalExames = 0
   const examesComVal = exames.map(ex => {
     const isBio   = ex.tipo_exame === 'Bioquímica' && bioRows.length > 0
     const isTeste = ex.tipo_exame === 'Teste Rápido' && testeRows.length > 0
+    const isPcr   = ex.tipo_exame === 'PCR' && pcrRows.length > 0
     const desc  = Number(ex.desconto ?? 0)
     const val   = isBio   ? Math.max(0, bioRows.reduce((s, b) => s + Number(isPix ? b.valor_pix : b.valor_cartao), 0) - comBio - desc)
                 : isTeste ? Math.max(0, testeRows.reduce((s, t) => s + Number(isPix ? t.valor_pix : t.valor_cartao), 0) - comTeste - desc)
+                : isPcr   ? Math.max(0, pcrRows.reduce((s, p) => s + Number(isPix ? p.valor_pix : p.valor_cartao), 0) - comPcr - desc)
                 : (ex.valor ?? 0)
     totalExames += val
-    return { ...ex, val, isBio, isTeste }
+    return { ...ex, val, isBio, isTeste, isPcr }
   })
   // Backend é a fonte de verdade: ag.valor == soma(agendamento_exames.valor),
   // invariante garantido por recalcularTotal (Fase 2). Soma direta das partes.
@@ -1247,6 +1270,20 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
                             })}
                           </div>
                         )}
+                        {ex.isPcr && (
+                          <div className="pl-3 mt-0.5 border-l-2 border-amber-200 space-y-0.5">
+                            {pcrRows.map(p => {
+                              const nome = p.exames_pcr?.nome ?? '—'
+                              const pVal = Number(isPix ? p.valor_pix : p.valor_cartao)
+                              return (
+                                <p key={p.id} className="text-xs text-gray-500 flex justify-between gap-4">
+                                  <span>• {nome}</span>
+                                  {pVal > 0 && <span className="tabular-nums">{formatBRL(pVal)}</span>}
+                                </p>
+                              )
+                            })}
+                          </div>
+                        )}
                       </div>
                     ))}
                     {descontoTotal > 0 && (
@@ -1410,12 +1447,14 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
                     const isHemograma = exameHemogramaDe(tipo) !== null
                     const isHemo = !isHemograma && tipo.toLowerCase().includes('hemo')
                     const isTeste = tipo.toLowerCase().includes('teste rápido') || tipo.toLowerCase().includes('teste rapido')
+                    const isPcr   = tipo === 'PCR'
                     const params = new URLSearchParams({ agendamento_id: String(ag.id), tipo_exame: tipo })
                     if (desc) params.set('descricao', desc)
                     const href   = isBio   ? `/admin/novo-bioquimica?agendamento_id=${ag.id}`
                                  : isHemo  ? `/admin/novo-hemogasometria?agendamento_id=${ag.id}`
                                  : isHemograma ? `/admin/novo-hemograma?agendamento_id=${ag.id}&tipo_exame=${encodeURIComponent(tipo)}`
                                  : isTeste ? `/admin/novo-teste-rapido?agendamento_id=${ag.id}`
+                                 : isPcr   ? `/admin/novo-pcr?agendamento_id=${ag.id}`
                                  : `/admin/novo?${params.toString()}`
                     return (
                       <Link key={i} href={href}
@@ -1424,10 +1463,11 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
                         : isHemo  ? 'bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700'
                         : isHemograma ? 'bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700'
                         : isTeste ? 'bg-teal-50 hover:bg-teal-100 border border-teal-200 text-teal-700'
+                        : isPcr   ? 'bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700'
                                   : 'bg-[#c4a35a]/10 hover:bg-[#c4a35a]/20 border border-[#c4a35a]/40 text-[#8a6e36]'
                         }`}
                         onClick={onClose}>
-                        <span>{isBio ? '🧪' : isHemo ? '🫁' : isHemograma ? '🩸' : isTeste ? '💉' : '📋'} Emitir laudo — {tipo}{desc ? ` — ${desc}` : ''}</span>
+                        <span>{isBio ? '🧪' : isHemo ? '🫁' : isHemograma ? '🩸' : isTeste ? '💉' : isPcr ? '🧬' : '📋'} Emitir laudo — {tipo}{desc ? ` — ${desc}` : ''}</span>
                         <span>→</span>
                       </Link>
                     )

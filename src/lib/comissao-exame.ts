@@ -7,13 +7,13 @@
 //   comissao_clinica   → clínica parceira (comissao_clinica_id / abate do repasse)
 //   comissao_extracao  → vet que extraiu o sangue (agendamentos.comissao_extracao)
 //
-// Bioquímica e Teste Rápido são "agrupadores": a comissão da clínica deles
-// mora em cada sub-exame (bioquimica_exames / testes_rapidos), não aqui.
+// Bioquímica, Teste Rápido e PCR são "agrupadores": a comissão da clínica deles
+// mora em cada sub-exame (bioquimica_exames / testes_rapidos / exames_pcr), não aqui.
 //
 // Só funções puras (usadas também no front); as consultas ao banco ficam em
 // comissao-exame-db.ts. Testes em __tests__/comissao-exame.test.ts.
 
-export const AGRUPADORES = ['Bioquímica', 'Teste Rápido'] as const
+export const AGRUPADORES = ['Bioquímica', 'Teste Rápido', 'PCR'] as const
 
 export const ehAgrupador = (tipo: string) => (AGRUPADORES as readonly string[]).includes(tipo)
 

@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
       clinica_comissao:clinicas!agendamentos_comissao_clinica_id_fkey(nome),
       pets(nome), tutores(nome),
       agendamento_testes_rapidos(comissao, testes_rapidos(nome)),
+      agendamento_pcr(comissao, exames_pcr(nome)),
       agendamento_bioquimica(comissao, bioquimica_exames(nome)),
       agendamento_exames(tipo_exame, comissao_clinica)
     `)
@@ -83,9 +84,13 @@ export async function GET(request: NextRequest) {
       (ag.forma_pagamento ?? '').toLowerCase() !== 'gratuito'
     type SubTeste = { comissao: number; testes_rapidos: { nome: string } | { nome: string }[] | null }
     type SubBio   = { comissao: number; bioquimica_exames: { nome: string } | { nome: string }[] | null }
+    type SubPcr   = { comissao: number; exames_pcr: { nome: string } | { nome: string }[] | null }
     const nomeSub = (rel: { nome: string } | { nome: string }[] | null) => (Array.isArray(rel) ? rel[0] : rel)?.nome
     const testesComComissao = (isComissaoClinica || comissaoAguardando)
       ? (Array.isArray(ag.agendamento_testes_rapidos) ? ag.agendamento_testes_rapidos as SubTeste[] : []).filter(t => Number(t.comissao ?? 0) > 0)
+      : []
+    const pcrComComissao = (isComissaoClinica || comissaoAguardando)
+      ? (Array.isArray(ag.agendamento_pcr) ? ag.agendamento_pcr as SubPcr[] : []).filter(p => Number(p.comissao ?? 0) > 0)
       : []
     const bioComComissao = (isComissaoClinica || comissaoAguardando)
       ? (Array.isArray(ag.agendamento_bioquimica) ? ag.agendamento_bioquimica as SubBio[] : []).filter(b => Number(b.comissao ?? 0) > 0)
@@ -97,6 +102,7 @@ export async function GET(request: NextRequest) {
       : []
     const comissaoValor = testesComComissao.reduce((s, t) => s + Number(t.comissao ?? 0), 0)
       + bioComComissao.reduce((s, b) => s + Number(b.comissao ?? 0), 0)
+      + pcrComComissao.reduce((s, p) => s + Number(p.comissao ?? 0), 0)
       + examesComComissao.reduce((s, e) => s + Number(e.comissao_clinica ?? 0), 0)
     // Nome do(s) sub-exame(s) que realmente geram a comissão — não o tipo_exame
     // do agendamento inteiro, que pode incluir outros exames sem comissão
@@ -104,6 +110,7 @@ export async function GET(request: NextRequest) {
     const comissaoExameNome = [
       ...testesComComissao.map(t => nomeSub(t.testes_rapidos)).filter(Boolean),
       ...bioComComissao.map(b => nomeSub(b.bioquimica_exames)).filter(Boolean),
+      ...pcrComComissao.map(p => `PCR ${nomeSub(p.exames_pcr) ?? ''}`.trim()),
       ...examesComComissao.map(e => e.tipo_exame),
     ].join(', ') || ag.tipo_exame
 
@@ -115,9 +122,12 @@ export async function GET(request: NextRequest) {
       .map(t => nomeSub(t.testes_rapidos)).filter(Boolean)
     const todosBioNomes = (Array.isArray(ag.agendamento_bioquimica) ? ag.agendamento_bioquimica as SubBio[] : [])
       .map(b => nomeSub(b.bioquimica_exames)).filter(Boolean)
+    const todosPcrNomes = (Array.isArray(ag.agendamento_pcr) ? ag.agendamento_pcr as SubPcr[] : [])
+      .map(p => nomeSub(p.exames_pcr)).filter(Boolean)
     const exameDetalhe = ag.tipo_exame.split(',').map((s: string) => s.trim()).map((t: string) => {
       if (t === 'Teste Rápido' && todosTestesNomes.length > 0) return todosTestesNomes.join(', ')
       if (t === 'Bioquímica'   && todosBioNomes.length > 0)    return todosBioNomes.join(', ')
+      if (t === 'PCR'          && todosPcrNomes.length > 0)    return todosPcrNomes.map(n => `PCR ${n}`).join(', ')
       return t
     }).join(', ')
 

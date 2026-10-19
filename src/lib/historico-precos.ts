@@ -7,7 +7,7 @@
 import { randomUUID } from 'node:crypto'
 import { supabase } from './supabase'
 
-export type TabelaPreco = 'comissoes_exame' | 'bioquimica_exames' | 'testes_rapidos'
+export type TabelaPreco = 'comissoes_exame' | 'bioquimica_exames' | 'testes_rapidos' | 'exames_pcr'
 
 export interface EntradaHistorico {
   tabela:      TabelaPreco

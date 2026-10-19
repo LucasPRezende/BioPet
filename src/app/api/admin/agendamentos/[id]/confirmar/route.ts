@@ -98,6 +98,12 @@ export async function POST(
     .select('valor_pix, valor_cartao, testes_rapidos(nome)')
     .eq('agendamento_id', agId)
 
+  // Busca PCRs (se houver)
+  const { data: pcrRows } = await supabase
+    .from('agendamento_pcr')
+    .select('valor_pix, valor_cartao, exames_pcr(nome)')
+    .eq('agendamento_id', agId)
+
   function brl(n: number) {
     return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
   }
@@ -131,6 +137,17 @@ export async function POST(
           return `  • ${nome} — ${brl(val)}`
         }).join('\n')
         partes.push(`Teste Rápido:\n${testeLinhas}\n  Total: ${brl(testeTotal)}`)
+      } else if (e.tipo_exame === 'PCR' && pcrRows && pcrRows.length > 0) {
+        const pcrBruto = pcrRows.reduce((sum, p) => sum + Number(isPix ? p.valor_pix : p.valor_cartao), 0)
+        const pcrTotal = Math.max(0, pcrBruto - Number(e.desconto ?? 0))
+        const pcrLinhas = pcrRows.map(p => {
+          const nome = Array.isArray(p.exames_pcr)
+            ? p.exames_pcr[0]?.nome
+            : (p.exames_pcr as { nome: string } | null)?.nome ?? '—'
+          const val = Number(isPix ? p.valor_pix : p.valor_cartao)
+          return `  • ${nome} — ${brl(val)}`
+        }).join('\n')
+        partes.push(`PCR:\n${pcrLinhas}\n  Total: ${brl(pcrTotal)}`)
       } else {
         partes.push(e.tipo_exame)
       }

@@ -16,7 +16,7 @@ interface Alteracao {
   depois: number | boolean | null
 }
 
-const TABELAS: TabelaPreco[] = ['comissoes_exame', 'bioquimica_exames', 'testes_rapidos']
+const TABELAS: TabelaPreco[] = ['comissoes_exame', 'bioquimica_exames', 'testes_rapidos', 'exames_pcr']
 
 export async function POST(request: NextRequest) {
   const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value

@@ -28,7 +28,8 @@ export async function GET(
       clinicas!agendamentos_clinica_id_fkey(nome),
       agendamento_exames(tipo_exame, descricao),
       agendamento_bioquimica(id, bioquimica_exames(nome)),
-      agendamento_testes_rapidos(id, testes_rapidos(nome))
+      agendamento_testes_rapidos(id, testes_rapidos(nome)),
+      agendamento_pcr(id, exames_pcr(nome))
     `)
     .eq('id', Number(params.id))
     .single()
@@ -62,6 +63,9 @@ export async function GET(
   const testeNomes = (ag.agendamento_testes_rapidos ?? [])
     .map(t => one<{ nome: string }>(t.testes_rapidos)?.nome)
     .filter((n): n is string => !!n)
+  const pcrNomes = (ag.agendamento_pcr ?? [])
+    .map(p => one<{ nome: string }>(p.exames_pcr)?.nome)
+    .filter((n): n is string => !!n)
 
   const rows = ag.agendamento_exames ?? []
   const exames: string[] = rows.length > 0
@@ -70,6 +74,8 @@ export async function GET(
           ? `Bioquímica (${bioNomes.join(', ')})`
         : e.tipo_exame === 'Teste Rápido' && testeNomes.length > 0
           ? `Teste Rápido (${testeNomes.join(', ')})`
+        : e.tipo_exame === 'PCR' && pcrNomes.length > 0
+          ? `PCR (${pcrNomes.join(', ')})`
           : e.tipo_exame,
       )
     : ag.tipo_exame.split(',').map((s: string) => s.trim()).filter(Boolean)
