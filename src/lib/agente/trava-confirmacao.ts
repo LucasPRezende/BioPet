@@ -25,6 +25,8 @@ const AFIRMACOES = [
 export interface ChamadaDoTurno {
   nome: string
   resultado: unknown
+  /** Parâmetros que o modelo passou à tool (ex.: `silencioso` em transferir_humano). */
+  entrada?: Record<string, any>
 }
 
 /** True se o texto declara que um agendamento acabou de ser criado. */

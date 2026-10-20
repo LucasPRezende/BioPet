@@ -13,6 +13,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { supabase } from '@/lib/supabase'
 import { normalizarTelefone, marcarAtendimentoHumano } from './conversa'
 import { violouTrava, TEXTO_SEM_CONFIRMACAO, type ChamadaDoTurno } from './trava-confirmacao'
+import { escalouEmSilencio, TEXTO_HISTORICO_SILENCIO } from './escalada-silenciosa'
 
 // Lazy init (igual ao client do Supabase): o Next importa o module no build,
 // quando process.env ainda não está disponível.
@@ -203,7 +204,7 @@ export const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'meus_agendamentos',
-    description: 'Lista os próximos agendamentos do tutor (pelo telefone da conversa) em "agendamentos". Também traz "historico_recente": agendamentos dos últimos 45 dias que foram cancelados ou tiveram falta (sem o tutor comparecer). Se "agendamentos" vier vazio mas o cliente insistir que tem algo marcado, olhe "historico_recente" antes de escalar — se achar um "faltou", explique isso objetivamente ao cliente (ex.: "vejo que você faltou nesse horário em X") em vez de dizer só "não encontrei nada". Mas NÃO decida sozinha sobre repor ou dar uma exceção — isso é sempre com um atendente (use transferir_humano se o cliente pedir pra repor).',
+    description: 'Lista os próximos agendamentos do tutor (pelo telefone da conversa) em "agendamentos". Também traz "historico_recente": agendamentos dos últimos 45 dias que foram cancelados ou tiveram falta (sem o tutor comparecer). Se "agendamentos" vier vazio mas o cliente insistir que tem algo marcado, olhe "historico_recente" antes de escalar — se achar um "faltou", explique isso objetivamente ao cliente (ex.: "vejo que você faltou nesse horário em X") em vez de dizer só "não encontrei nada". Mas NÃO decida sozinha sobre repor ou dar uma exceção — isso é sempre com um atendente (use transferir_humano se o cliente pedir pra repor). Cada agendamento traz "ja_comecou": true quando o horário marcado já chegou (há menos de 2h) — o exame está em curso ou acabou de começar. Nesse caso NÃO diga que não há agendamento nem que "já passou"; se o cliente avisar atraso/"estou a caminho", diga que a equipe foi avisada e use transferir_humano (motivo pergunta_tecnica) para a clínica saber.',
     input_schema: { type: 'object', properties: {} },
   },
   {
@@ -263,6 +264,11 @@ export const TOOLS: Anthropic.Tool[] = [
           enum: ['pergunta_laudo', 'pergunta_tecnica', 'erro_tecnico', 'ia_travou', 'laudo_urgente', 'laudo_atrasado'],
         },
         resumo: { type: 'string', description: 'Resumo curto do que o cliente pediu/disse.' },
+        silencioso: {
+          type: 'boolean',
+          description:
+            'true = escalar SEM mandar nenhuma resposta ao cliente. Use SÓ para assunto pessoal/administrativo endereçado à Dra. Luciana ou à Andreza (ver regra ASSUNTO PESSOAL), com motivo ia_travou. Em qualquer outro caso omita.',
+        },
       },
       required: ['motivo'],
     },
@@ -511,6 +517,8 @@ export function systemEstavel(): string {
     '- VALOR: o sistema calcula o preço final no backend a partir dos exames; você informa o valor ao cliente com base em consultar_precos, mas não precisa enviar valor ao agendar.',
     '- NOME DO EXAME: ao agendar, use o tipo_exame EXATAMENTE como aparece em consultar_precos (mesma grafia). Se usar um nome diferente, o sistema não encontra o preço e fica zerado.',
     '- CONFIRMAÇÃO ANTES DE AGENDAR — a pergunta pendente vem PRIMEIRO, não depois: já aconteceu de o cliente achar que o agendamento já tinha sido feito e ignorar a pergunta, porque ela veio só no final de uma mensagem que soava como "já está tudo certo". Comece a mensagem pela pergunta que falta responder (ex.: "Posso confirmar esse agendamento?" ou, se ainda faltar a forma de pagamento, "Prefere pagar por PIX ou Cartão?"), e só DEPOIS mostre o resumo (pet, exame, data/hora, valor) como apoio. NUNCA abra com "Perfeito!", "Vou confirmar..." ou qualquer frase que soe como o agendamento já feito — nada está confirmado até o cliente responder E você chamar agendar. Use o dia da semana exatamente como veio no "dia_semana" de horarios_livres — não invente nem recalcule. Só chame agendar depois que o cliente responder de forma explícita.',
+    '- NUNCA DIGA QUE UM HORÁRIO ESTÁ "RESERVADO", "GARANTIDO" OU "MARCADO" ANTES DE AGENDAR: horário que apareceu em horarios_livres está LIVRE, não reservado — diga "está livre" ou "tenho às 14h30". Só a tool agendar/agendar_revisao com sucesso (agendamento_id) reserva algo. Se o cliente responder "pode ser" para um horário que você ofereceu mas ainda faltam dados (exame, pet, veterinário, forma de pagamento), peça o que falta SEM dizer que o horário já está seu (já aconteceu de dizer "14h30 está reservado para você" sem agendamento nenhum). Horário especial e Raio-X nunca ficam reservados por você — a equipe confirma.',
+    '- ASSUNTO PESSOAL/ADMINISTRATIVO COM A DRA. LUCIANA OU A ANDREZA — NÃO RESPONDA, ESCALE EM SILÊNCIO: quando a mensagem for claramente uma conversa pessoal ou de trabalho com a Luciana/Andreza que NÃO envolve pet, exame, laudo, pagamento nem agendamento (ex.: obra, ar-condicionado, escada, prestador de serviço, "o projeto", pedido de desculpa por atraso em algo combinado, conversa de amizade ou de colega), chame transferir_humano com motivo "ia_travou", silencioso:true e um resumo começando com "ASSUNTO PESSOAL:", e NÃO escreva texto ao cliente (a resposta fica em branco de propósito — quem responde é a própria Luciana). NÃO explique que é assistente virtual, NÃO dê telefone de ninguém, NÃO pergunte "é sobre exame?". Só vale quando a conversa NÃO está no meio de um atendimento de exame; na dúvida (pode ser sobre um pet/exame), responda normalmente e pergunte. Cumprimentos soltos ("bom dia", "obrigado"), perguntas sobre horário/preço e qualquer menção a pet/exame NÃO são assunto pessoal.',
     '- NUNCA DIGA QUE O AGENDAMENTO FOI FEITO SEM TER CHAMADO A TOOL: isso vale pra agendar E agendar_revisao. O cliente respondeu "sim"? Isso autoriza você a CHAMAR a tool — não autoriza declarar sucesso direto. A frase de sucesso só pode vir DEPOIS de rodar a tool NESTA MESMA resposta e ver um resultado de sucesso (com agendamento_id). Já aconteceu de dizer que tinha agendado sem nunca ter chamado agendar_revisao — o cliente ficou achando que tinha hora marcada e não tinha nada no sistema. Se a tool devolver erro (ex.: "precisa_atendente"), NUNCA diga que deu certo — explique o problema e use transferir_humano.',
     '- O data_hora do agendamento é horário local no formato YYYY-MM-DDTHH:MM:00.',
     '- O agendamento entra como PENDENTE, NÃO confirmado na hora: você NÃO tem autoridade pra prometer que o exame vai acontecer — só fez a SOLICITAÇÃO, quem confirma é a BioPet depois. Ao fechar um agendamento (agendar ou agendar_revisao) com sucesso, a mensagem final é OBRIGATÓRIA ter estas duas partes, sempre, mesmo que o cliente diga que já está na clínica ou já vai entrar: (1) abrir com "Agendamento solicitado ✓" — NUNCA "confirmado!" ou qualquer wording que soe como certeza; (2) logo em seguida, um aviso separado e explícito com emoji de atenção, algo como "⚠️ Isso ainda não é a confirmação — a BioPet confirma em breve por aqui, junto com o link de pagamento. Só aí seu horário fica garantido." Já aconteceu de uma cliente não entender que "solicitado" não é a mesma coisa que "certo" mesmo com o ✓ na frase, e a IA ainda arrematou com algo tipo "aproveite que você já está lá!" — isso PIORA a confusão, pois sugere que pode ir fazer o exame já. NUNCA diga "aproveite que já está lá" ou qualquer frase que sugira que o exame está garantido ou que dá pra ir direto fazer — sempre reforce que falta a confirmação da BioPet antes disso.',
@@ -688,7 +696,7 @@ export async function responder(
       for (const block of resp.content) {
         if (block.type === 'tool_use') {
           const out = await executar(block.name, block.input as Record<string, any>, telefone)
-          chamadasTurno.push({ nome: block.name, resultado: out })
+          chamadasTurno.push({ nome: block.name, resultado: out, entrada: block.input as Record<string, any> })
           results.push({
             type: 'tool_result',
             tool_use_id: block.id,
@@ -708,6 +716,16 @@ export async function responder(
     // cliente, mas o modelo "acha" que já disse). Só escala se o turno
     // INTEIRO não gerou texto nenhum, em rodada nenhuma.
     const textoFinal = textoDaRodada || ultimoTextoNaoVazio
+
+    // Escalada SILENCIOSA: assunto pessoal/administrativo com a Luciana. A
+    // equipe já foi avisada pela tool; o cliente não recebe resposta da IA
+    // (resposta vazia — o webhook não envia). O histórico registra o fato para
+    // o modelo não achar que respondeu algo.
+    if (escalouEmSilencio(chamadasTurno)) {
+      const ultima = messages[messages.length - 1]
+      if (ultima?.role === 'assistant') ultima.content = [{ type: 'text', text: TEXTO_HISTORICO_SILENCIO }]
+      return { resposta: '', historico: semThinking(messages), uso: { ...uso, custoUSD: custoUSD(uso) } }
+    }
 
     if (!textoFinal) {
       // Turno inteiro sem nenhum texto gerado (não é "excedeu rodadas" — é

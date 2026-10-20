@@ -172,7 +172,11 @@ const LAUDOS = {
   ],
 }
 
-function fakeResultado(nome: string, input: Record<string, any>, opts: { novoCliente?: boolean } = {}): unknown {
+function fakeResultado(
+  nome: string,
+  input: Record<string, any>,
+  opts: { novoCliente?: boolean; agendamentoEmCurso?: boolean } = {},
+): unknown {
   switch (nome) {
     case 'identificar_tutor':
       return opts.novoCliente ? { tutor: null, pets: [], atendimento_humano: false } : CONTEXTO
@@ -282,7 +286,20 @@ function fakeResultado(nome: string, input: Record<string, any>, opts: { novoCli
       }
       return { agendamento_id: 999, valor_total: 0, gratuito: true, laudo_incluido: false }
     }
-    case 'meus_agendamentos':   return { agendamentos: [] }
+    case 'meus_agendamentos':
+      // Exame que começou há ~20 min (a API real mantém até 2h depois do início).
+      return opts.agendamentoEmCurso
+        ? {
+            agendamentos: [
+              {
+                id: 901, pet_nome: 'Rex', tipo_exame: 'Ultrassom Abdominal Total',
+                data_hora: '2026-10-20T14:00:00', data_formatada: 'terça-feira, 20/10 às 14h',
+                status: 'agendado', valor: 200, forma_pagamento: 'cartao', ja_comecou: true,
+              },
+            ],
+            historico_recente: [],
+          }
+        : { agendamentos: [] }
     case 'cancelar_agendamento':return { sucesso: true }
     case 'remarcar_agendamento':return { sucesso: true }
     case 'listar_laudos':       return LAUDOS
@@ -322,7 +339,7 @@ export type ResponderFn = (
 /** Cria uma conversa stateful com tools fake que registram as chamadas. */
 export function novaConversa(
   responderFn: ResponderFn = responder,
-  opts: { novoCliente?: boolean } = {},
+  opts: { novoCliente?: boolean; agendamentoEmCurso?: boolean } = {},
 ): Conversa {
   const calls: ToolCall[] = []
   const respostas: string[] = []

@@ -128,6 +128,11 @@ async function processar(
       infoCliente,
     })
     await salvarConversa(telefone, historico, msgId)
+    // Resposta vazia = escalada silenciosa (assunto pessoal): equipe avisada, cliente sem resposta.
+    if (!resposta.trim()) {
+      console.log(`[agente/webhook] escalada silenciosa (assunto pessoal): ${telefone}`)
+      return
+    }
     await sendWhatsAppText(telefone, resposta, 'ia')
   } catch (err) {
     console.error('[agente/webhook] erro ao processar:', err)
