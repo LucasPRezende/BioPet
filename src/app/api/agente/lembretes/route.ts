@@ -3,6 +3,13 @@ import { supabase } from '@/lib/supabase'
 import { verifyAgentKey } from '@/lib/agent-auth'
 import { sendWhatsAppText } from '@/lib/evolution'
 import { acionarHumanoPorClienteSumido } from '@/lib/agente/orquestrador'
+import { normalizeTelefone } from '@/lib/telefone'
+import {
+  temProgressoReal,
+  terminaEmPergunta,
+  ehOfertaSecundaria,
+  equipeRespondeuDepois,
+} from '@/lib/agente/lembrete-regras'
 
 /**
  * Cutuca clientes que ignoraram uma pergunta da IA (pedido do Lucas,
@@ -30,30 +37,6 @@ function textoDoTurno(msg: any): string {
 
 function temToolUse(msg: any): boolean {
   return Array.isArray(msg?.content) && msg.content.some((b: any) => b?.type === 'tool_use')
-}
-
-/**
- * Só considera "pergunta de decisão real" se alguma tool já foi chamada na
- * conversa (preço, horário, cadastro, etc.) — filtra saudação de abertura
- * tipo "Como posso ajudar?" sem continuação, que também termina em "?" mas
- * não é uma decisão pendente de verdade. Achado ao vivo em 25/09/2026: das
- * 4 primeiras conversas cutucadas em prod, 3 eram só isso.
- */
-function temProgressoReal(historico: any[]): boolean {
-  return historico.some((m) => temToolUse(m))
-}
-
-/**
- * "Aliás, ..." é o gancho padrão usado nas ofertas SECUNDÁRIAS (ex.: revisão
- * gratuita — ver montarInfoClienteNovo em revisoes-disponiveis.ts) que a IA
- * pendura no fim de uma resposta já resolvida. Achado ao vivo em 28/09/2026
- * (Thaís/Domínik): cliente pegou o laudo que queria e ignorou o "Aliás, vi
- * que o Domínik ainda não marcou a revisão gratuita — quer aproveitar?" — não
- * é uma decisão travando nada, é um convite opcional. Cutucar por isso é
- * mais chato que útil.
- */
-function ehOfertaSecundaria(texto: string): boolean {
-  return /aliás/i.test(texto)
 }
 
 export async function GET(request: NextRequest) {
@@ -95,9 +78,21 @@ export async function GET(request: NextRequest) {
     if (ultima?.role !== 'assistant' || temToolUse(ultima)) continue
 
     const texto = textoDoTurno(ultima)
-    if (!texto || !texto.endsWith('?')) continue
+    if (!texto || !terminaEmPergunta(texto)) continue
     if (!temProgressoReal(historico)) continue
     if (ehOfertaSecundaria(texto)) continue
+
+    // Sistema ou atendente já falou com o cliente depois da pergunta da IA (ex.:
+    // a equipe criou o agendamento e mandou a confirmação) — pergunta resolvida.
+    const { data: ultimaEquipe } = await supabase
+      .from('agente_mensagens_enviadas')
+      .select('criado_em')
+      .eq('telefone', normalizeTelefone(conv.telefone))
+      .in('origem', ['sistema', 'humano'])
+      .order('criado_em', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (equipeRespondeuDepois(ultimaEquipe?.criado_em as string | undefined, conv.atualizado_em)) continue
 
     if (!conv.lembrete_enviado_em) {
       const desde = agora.getTime() - new Date(conv.atualizado_em).getTime()

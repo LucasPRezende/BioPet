@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { verifyAgentKey } from '@/lib/agent-auth'
 import { normalizeTelefone } from '@/lib/telefone'
 import { agoraLocalISO } from '@/lib/agendamento-helpers'
+import { limiteInferiorMeusAgendamentos, jaComecou } from '@/lib/agente/janela-agendamentos'
 
 const DIAS = [
   'domingo', 'segunda-feira', 'terça-feira', 'quarta-feira',
@@ -63,6 +64,9 @@ export async function GET(request: NextRequest) {
   // de Brasília sem timezone) — comparar contra ISO em UTC faria agendamentos
   // dentro de ~3h somem da lista (ver agoraLocalISO).
   const agora = agoraLocalISO()
+  // Folga de 2h depois do início: quem avisa "estou a caminho" no horário do
+  // exame ainda precisa enxergar o agendamento (ver janela-agendamentos.ts).
+  const limiteInferior = limiteInferiorMeusAgendamentos(agora)
   const quarentaECincoDiasAtras = new Date(Date.now() - 45 * 86_400_000).toISOString()
 
   const [{ data: rows, error }, { data: recentesRows, error: recentesError }] = await Promise.all([
@@ -71,7 +75,7 @@ export async function GET(request: NextRequest) {
       .select('id, tipo_exame, data_hora, status, valor, forma_pagamento, pets(nome)')
       .eq('tutor_id', tutor.id)
       .in('status', ['agendado', 'em atendimento'])
-      .gt('data_hora', agora)
+      .gt('data_hora', limiteInferior)
       .order('data_hora'),
     // Faltou/cancelado recentes: sem isso, a IA só via "não achei nada" pra
     // um cliente que insiste ter um agendamento — sem saber dizer SE ele
@@ -99,6 +103,7 @@ export async function GET(request: NextRequest) {
     status:          ag.status,
     valor:           ag.valor,
     forma_pagamento: ag.forma_pagamento,
+    ja_comecou:      jaComecou(ag.data_hora, agora),
   }))
 
   const historico_recente = (recentesRows ?? []).map((ag) => ({

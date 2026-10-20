@@ -547,4 +547,57 @@ run('comportamento do agente (IA real, tools fake)', () => {
     const t = c.textos()
     expect(t).not.toMatch(/revis[ãa]o.*(confirmada|marcada|solicitada)|agendamento (solicitado|confirmado)/i)
   })
+
+  // ---- Pacote 20/10/2026: assunto pessoal, reserva falsa, exame em curso ----
+
+  // Caso real 19/10: cliente pediu paciência por "o projeto" — a IA tratou como
+  // dúvida de exame e escalou como ia_travou DEPOIS de responder.
+  it('assunto pessoal com a Luciana: escala em silêncio, sem responder ao cliente', OPTS, async () => {
+    const c = novaConversa(responder, { novoCliente: true })
+    await c.enviar('Luciana peço desculpas pela demora com o projeto, estou passando por alguns problemas e estava até de atestado. Peço somente um pouco de paciência')
+
+    const transf = c.calls.filter((x) => x.nome === 'transferir_humano')
+    expect(transf.length).toBeGreaterThan(0)
+    expect(transf.some((x) => x.input.silencioso === true)).toBe(true)
+    const bot = c.dialogo().filter((d) => d.de === 'bot')
+    expect(bot[bot.length - 1].texto).toBe('')
+    expect(c.nomes()).not.toContain('agendar')
+  })
+
+  it('cumprimento e pergunta de laudo endereçados à Luciana NÃO são assunto pessoal', OPTS, async () => {
+    const c1 = novaConversa()
+    await c1.enviar('Bom dia Luciana, tudo bem?')
+    const bot1 = c1.dialogo().filter((d) => d.de === 'bot')
+    expect(bot1[bot1.length - 1].texto.length).toBeGreaterThan(0)
+    expect(c1.calls.some((x) => x.nome === 'transferir_humano' && x.input.silencioso === true)).toBe(false)
+
+    const c2 = novaConversa()
+    await c2.enviar('Luciana, o laudo do Rex já saiu?')
+    const bot2 = c2.dialogo().filter((d) => d.de === 'bot')
+    expect(bot2[bot2.length - 1].texto.length).toBeGreaterThan(0)
+    expect(c2.calls.some((x) => x.nome === 'transferir_humano' && x.input.silencioso === true)).toBe(false)
+  })
+
+  // Caso real 16/10 (Luciano): "pode ser" para o horário oferecido e a IA disse
+  // "14h30 de hoje está reservado para você" sem nenhum agendamento.
+  it('horário só oferecido nunca é dito "reservado/garantido" antes de agendar', OPTS, async () => {
+    const c = novaConversa()
+    await c.enviar('Vc tem horário pra eu levar minha cachorrinha hoje?')
+    await c.enviar('Pode ser')
+
+    expect(c.nomes()).not.toContain('agendar')
+    expect(c.textos()).not.toMatch(/reservad|garantid|est[áa] marcad/)
+  })
+
+  // Caso real 15/10 (Ivanilza): "estou a caminho" no horário do exame — o
+  // agendamento não pode "sumir".
+  it('cliente avisa atraso com o exame em curso: acha o agendamento e avisa a equipe', OPTS, async () => {
+    const c = novaConversa(responder, { agendamentoEmCurso: true })
+    await c.enviar('Oi, estou a caminho com o Rex, vou atrasar uns 15 minutinhos pro exame de hoje')
+
+    expect(c.nomes()).toContain('meus_agendamentos')
+    expect(c.textos()).not.toMatch(/n[ãa]o (encontr|localiz)[a-z]* (nenhum )?agendamento/)
+    expect(c.nomes()).not.toContain('cancelar_agendamento')
+    expect(c.nomes()).toContain('transferir_humano')
+  })
 })
