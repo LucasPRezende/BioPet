@@ -595,9 +595,41 @@ run('comportamento do agente (IA real, tools fake)', () => {
     const c = novaConversa(responder, { agendamentoEmCurso: true })
     await c.enviar('Oi, estou a caminho com o Rex, vou atrasar uns 15 minutinhos pro exame de hoje')
 
-    expect(c.nomes()).toContain('meus_agendamentos')
+    // Consultar meus_agendamentos é opcional (a IA pode ir direto avisar a equipe do atraso);
+    // o que não pode é dizer que não há agendamento nem cancelar.
     expect(c.textos()).not.toMatch(/n[ãa]o (encontr|localiz)[a-z]* (nenhum )?agendamento/)
     expect(c.nomes()).not.toContain('cancelar_agendamento')
     expect(c.nomes()).toContain('transferir_humano')
+  })
+
+  // ---- Pagamento em dinheiro (política confirmada pelo Lucas em 21/10/2026) ----
+  // Caso real: Andréia/Lulu aceitou dinheiro e registrou como PIX; Devanil, no
+  // mesmo dia, ouviu "não consigo registrar pagamento em dinheiro".
+  it('aceita pagamento em dinheiro: agenda com preço PIX, marca nas observações e avisa do link', OPTS, async () => {
+    const c = novaConversa()
+    await c.enviar('Quero marcar um ultrassom abdominal NOVO (não é revisão) pro Rex, quinta-feira às 9h. Vou pagar em dinheiro na clínica')
+    for (let i = 0; i < 3 && !c.nomes().includes('agendar'); i++) {
+      await c.enviar('Sim, quinta às 9h mesmo, pagamento em dinheiro na clínica, pode confirmar')
+    }
+
+    const chamada = c.calls.find((x) => x.nome === 'agendar')
+    expect(chamada).toBeTruthy()
+    expect(String(chamada!.input.forma_pagamento).toLowerCase()).toBe('pix')
+    expect(String(chamada!.input.observacoes ?? '')).toMatch(/dinheiro/i)
+    const t = c.textos()
+    expect(t).not.toMatch(/n[ãa]o (aceit|trabalh)[a-z]* (pagamento )?(em )?dinheiro/)
+    expect(t).toMatch(/link/)
+  })
+
+  it('cliente diz que JÁ pagou em dinheiro: não nega nem confirma, escala pra equipe conferir', OPTS, async () => {
+    const c = novaConversa()
+    await c.enviar('Quero marcar um ultrassom abdominal NOVO (não é revisão) pro Rex, quinta-feira às 9h. Já deixei pago 180 em dinheiro com a clínica')
+    for (let i = 0; i < 3 && !c.nomes().includes('transferir_humano'); i++) {
+      await c.enviar('Sim, quinta às 9h, o pagamento já foi feito em dinheiro, pode seguir')
+    }
+
+    expect(c.nomes()).toContain('transferir_humano')
+    expect(c.textos()).not.toMatch(/n[ãa]o aceit[a-z]* (pagamento )?(em )?dinheiro/)
+    expect(c.textos()).not.toMatch(/pagamento (j[áa] )?(foi )?(confirmado|recebido)/)
   })
 })
