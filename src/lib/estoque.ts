@@ -2,8 +2,8 @@ import 'server-only'
 import { supabase } from './supabase'
 import { agoraLocalISO } from './agendamento-helpers'
 import {
-  somarConsumo, montarReservas, juntarReservas, precisaRepor, consumoLaudoPcr, itensExtracao, ITEM_EXTRACAO,
-  type Vinculo, type Reserva, type ItemAgendado,
+  somarConsumo, montarReservas, juntarReservas, precisaRepor, consumoLaudoPcr, itensExtracao, ITEM_EXTRACAO, faltasEstoque,
+  type Vinculo, type Reserva, type ItemAgendado, type FaltaEstoque,
 } from './estoque-regras'
 
 // Estoque de consumíveis (migrations v44, v45 e v52). Cada compra é um lote com saldo
@@ -235,4 +235,18 @@ export async function consumir(consumivelId: number, quantidade: number, opts: O
   })
   if (error) throw new Error(error.message)
   return Number(data ?? 0)
+}
+
+/**
+ * Aviso de estoque insuficiente para um agendamento novo (testes rápidos + PCRs,
+ * com 1 extração de DNA/RNA se houver PCR). Só informa, não bloqueia.
+ */
+export async function avisoEstoqueAgendamento(testeIds: number[], pcrIds: number[]): Promise<FaltaEstoque[]> {
+  if (testeIds.length === 0 && pcrIds.length === 0) return []
+  const [consumiveis, deTestes, dePcrs] = await Promise.all([
+    resumoEstoque(), consumoTestesRapidos(testeIds), consumoPcrs(pcrIds, true),
+  ])
+  const necessidade = new Map(deTestes)
+  for (const [id, q] of Array.from(dePcrs)) necessidade.set(id, (necessidade.get(id) ?? 0) + q)
+  return faltasEstoque(necessidade, consumiveis)
 }

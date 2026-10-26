@@ -121,3 +121,29 @@ export function itensExtracao(itens: ItemAgendado[]): ItemAgendado[] {
   }
   return Array.from(porAg.values())
 }
+
+export interface FaltaEstoque {
+  id:         number
+  nome:       string
+  unidade:    string
+  precisa:    number   // quanto este agendamento vai gastar
+  disponivel: number   // estoque − o que outros agendamentos já reservaram
+}
+
+/**
+ * Aviso ao agendar: consumíveis em que o que o agendamento vai gastar passa do
+ * disponível. Só avisa — o agendamento continua permitido. Consumível inativo
+ * não entra (não dá baixa).
+ */
+export function faltasEstoque(
+  necessidade:  Map<number, number>,
+  consumiveis:  { id: number; nome: string; unidade: string; disponivel: number; ativo: boolean }[],
+): FaltaEstoque[] {
+  const faltas: FaltaEstoque[] = []
+  for (const [id, precisa] of Array.from(necessidade)) {
+    const c = consumiveis.find(x => x.id === id)
+    if (!c || !c.ativo || c.disponivel - precisa >= 0) continue
+    faltas.push({ id, nome: c.nome, unidade: c.unidade, precisa, disponivel: c.disponivel })
+  }
+  return faltas.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+}

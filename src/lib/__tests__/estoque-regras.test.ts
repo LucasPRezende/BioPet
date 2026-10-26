@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  somarConsumo, montarReservas, juntarReservas, precisaRepor, consumoLaudoPcr, itensExtracao, ITEM_EXTRACAO,
+  somarConsumo, montarReservas, juntarReservas, precisaRepor, consumoLaudoPcr, itensExtracao, ITEM_EXTRACAO, faltasEstoque,
   type Vinculo, type ItemAgendado,
 } from '@/lib/estoque-regras'
 
@@ -111,5 +111,30 @@ describe('itensExtracao — reserva do extrator', () => {
     const itens = [ag(100, 2, '2026-10-27T10:00:00'), ag(100, 3, '2026-10-27T10:00:00'), ag(101, 2, '2026-10-28T10:00:00')]
     const r = montarReservas(itensExtracao(itens), [{ item_id: ITEM_EXTRACAO, consumivel_id: 99, quantidade: 1 }], new Set())
     expect(r.get(99)?.map(x => [x.agendamento_id, x.quantidade])).toEqual([[100, 1], [101, 1]])
+  })
+})
+
+describe('faltasEstoque — aviso ao agendar (não bloqueia)', () => {
+  const cons = [
+    { id: 20, nome: 'Kit PCR Babesia',     unidade: 'teste',    disponivel: 1, ativo: true },
+    { id: 30, nome: 'Kit PCR Ehrlichia',   unidade: 'teste',    disponivel: 5, ativo: true },
+    { id: 99, nome: 'Extrator de DNA/RNA', unidade: 'extração', disponivel: 0, ativo: true },
+    { id: 40, nome: 'Kit antigo',          unidade: 'teste',    disponivel: 0, ativo: false },
+  ]
+
+  it('avisa só o que passa do disponível', () => {
+    const faltas = faltasEstoque(new Map([[20, 2], [30, 1], [99, 1]]), cons)
+    expect(faltas.map(f => [f.nome, f.precisa, f.disponivel])).toEqual([
+      ['Extrator de DNA/RNA', 1, 0],
+      ['Kit PCR Babesia', 2, 1],
+    ])
+  })
+
+  it('usar exatamente o disponível não avisa', () => {
+    expect(faltasEstoque(new Map([[20, 1]]), cons)).toEqual([])
+  })
+
+  it('consumível inativo ou que não existe não avisa', () => {
+    expect(faltasEstoque(new Map([[40, 1], [777, 1]]), cons)).toEqual([])
   })
 })

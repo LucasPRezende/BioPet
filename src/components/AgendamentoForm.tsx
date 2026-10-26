@@ -258,6 +258,9 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
   const [pcrSelecionados, setPcrSelecionados] = useState<number[]>([])
   const [loadingPcr,      setLoadingPcr]      = useState(false)
 
+  // Aviso de estoque insuficiente (só no painel; não bloqueia o agendamento)
+  const [faltasEstoque, setFaltasEstoque] = useState<{ id: number; nome: string; unidade: string; precisa: number; disponivel: number }[]>([])
+
   // Raio-X estudos adicionais — array de descrições (uma por estudo adicional)
   const [estudosAdicionaisDesc, setEstudosAdicionaisDesc] = useState<string[]>([])
   // Descrição opcional por exame principal (keyed by tipo_exame)
@@ -359,6 +362,28 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
     : calcularValorExame(e, 'pix', especial)
   const totalSugeridoTutor = gratuito ? 0 : examesSelecionados.reduce(
     (s, e) => s + valorSugeridoExame(e) * quantidadeExame(e.tipo_exame), 0) + valorAcrescimo
+
+  // Aviso de estoque: recalcula quando muda a escolha de testes rápidos / PCRs.
+  // Falha na consulta só esconde o aviso — nunca atrapalha o agendamento.
+  const testesParaEstoque = temTesteRapido ? testeRapidoSelecionados : []
+  const pcrsParaEstoque   = temPcr ? pcrSelecionados : []
+  const chaveEstoque = `${testesParaEstoque.join(',')}|${pcrsParaEstoque.join(',')}`
+  useEffect(() => {
+    if (modo !== 'admin' || chaveEstoque === '|') { setFaltasEstoque([]); return }
+    let ativo = true
+    const t = setTimeout(() => {
+      fetch('/api/estoque/aviso-agendamento', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ testes_ids: testesParaEstoque, pcrs_ids: pcrsParaEstoque }),
+      })
+        .then(r => r.ok ? r.json() : { faltas: [] })
+        .then(d => { if (ativo) setFaltasEstoque(d.faltas ?? []) })
+        .catch(() => { if (ativo) setFaltasEstoque([]) })
+    }, 300)
+    return () => { ativo = false; clearTimeout(t) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modo, chaveEstoque])
 
   // Detecta admin (desconto é exclusivo de admin no modo admin)
   useEffect(() => {
@@ -1127,6 +1152,21 @@ export function AgendamentoForm({ modo, onClose, onCreated, dataPadrao }: Agenda
                   </div>
                 )
               })}
+            </div>
+          )}
+          {modo === 'admin' && faltasEstoque.length > 0 && (
+            <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm">
+              <p className="font-semibold text-amber-800">⚠ Estoque insuficiente para este agendamento</p>
+              <p className="text-xs text-amber-700 mt-0.5">Dá para agendar normalmente — é só um aviso para repor a tempo.</p>
+              <ul className="mt-1.5 space-y-0.5 text-xs text-amber-800">
+                {faltasEstoque.map(f => (
+                  <li key={f.id}>
+                    • <strong>{f.nome}</strong>: precisa de {f.precisa} {f.unidade}, {f.disponivel <= 0
+                      ? (f.disponivel === 0 ? 'não há disponível' : `já faltam ${-f.disponivel} para outros agendamentos`)
+                      : `só ${f.disponivel} disponível`}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
           {examesSelecionados.length > 0 && (
