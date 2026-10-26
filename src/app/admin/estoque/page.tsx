@@ -739,7 +739,7 @@ function ModalConsumivel({ consumivel, testes, pcrs, onClose, onSaved }: {
             </label>
           ))}
         </div>
-        <p className="text-[11px] text-gray-400 mt-1">Um PCR pode gastar mais de um kit (ex.: &quot;FIV e FeLV&quot; usa o de FIV e o de FeLV) — marque-o em cada kit.</p>
+        <p className="text-[11px] text-gray-400 mt-1">Um PCR pode gastar mais de um kit (ex.: um painel) — marque-o em cada kit que ele usa.</p>
       </div>
       )}
       {consumivel && (

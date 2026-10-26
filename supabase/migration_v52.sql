@@ -3,9 +3,8 @@
 -- Pré-requisitos: v44 e v45 (estoque de consumíveis) e v50 (catálogo exames_pcr).
 --
 -- Diferente do teste rápido (1 kit por teste, testes_rapidos.consumivel_id), um
--- PCR pode gastar mais de um kit: o "FIV e FeLV" não tem kit próprio e usa uma
--- reação do kit de FIV e uma do de FeLV; um painel pode usar vários. Por isso o
--- vínculo é uma tabela PCR → consumível com quantidade, editável em Estoque.
+-- PCR pode gastar mais de um kit (ex.: um painel que roda vários kits). Por isso
+-- o vínculo é uma tabela PCR → consumível com quantidade, editável em Estoque.
 --
 -- consumiveis.codigo guarda o código do kit do fornecedor (o mesmo de
 -- exames_pcr.codigo, ex.: "PC05-0") — é o que está na nota fiscal.
@@ -13,8 +12,9 @@
 -- 1. consumiveis.codigo
 -- 2. exame_pcr_consumiveis (PCR → kit, quantidade por exame)
 -- 3. Seed: um consumível por código de kit do catálogo, vinculado ao PCR do
---    mesmo código; "FIV e FeLV" vinculado aos kits de FIV e de FeLV.
---    PCRs sem código e que não são combinação conhecida (ex.: painéis) ficam
+--    mesmo código. "FIV e FeLV" tem kit próprio (uma caixa faz os dois) e,
+--    como não tem código no catálogo, ganha um consumível pelo nome.
+--    Os demais PCRs sem código (ex.: Anaplasma platys, painéis) ficam
 --    SEM vínculo — configurar na tela de Estoque.
 
 BEGIN;
@@ -50,11 +50,16 @@ SELECT p.id, c.id, 1
   JOIN consumiveis c ON c.codigo = p.codigo
 ON CONFLICT DO NOTHING;
 
--- "FIV e FeLV" (sem kit próprio) → uma reação do kit de FIV e uma do de FeLV
+-- "FIV e FeLV": kit próprio (uma caixa faz os dois), sem código no catálogo
+INSERT INTO consumiveis (nome, unidade, categoria)
+SELECT 'Kit PCR FIV e FeLV', 'teste', 'pcr'
+ WHERE EXISTS (SELECT 1 FROM exames_pcr WHERE nome = 'FIV e FeLV' AND codigo IS NULL)
+   AND NOT EXISTS (SELECT 1 FROM consumiveis WHERE nome = 'Kit PCR FIV e FeLV');
+
 INSERT INTO exame_pcr_consumiveis (pcr_id, consumivel_id, quantidade)
 SELECT p.id, c.id, 1
   FROM exames_pcr p
-  JOIN consumiveis c ON c.codigo IN ('PF08-0', 'PF09-0')
+  JOIN consumiveis c ON c.nome = 'Kit PCR FIV e FeLV'
  WHERE p.nome = 'FIV e FeLV' AND p.codigo IS NULL
 ON CONFLICT DO NOTHING;
 

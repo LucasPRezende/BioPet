@@ -26,8 +26,8 @@ export interface ItemAgendado {
 
 /**
  * Quanto de cada consumível os itens gastam. Item repetido conta de novo; item
- * sem vínculo não gasta nada. Ex.: PCR "FIV e FeLV" ligado aos kits de FIV e de
- * FeLV → 1 de cada.
+ * sem vínculo não gasta nada. Ex.: um painel de PCR ligado a dois kits → 1 de
+ * cada.
  */
 export function somarConsumo(itemIds: number[], vinculos: Vinculo[]): Map<number, number> {
   const total = new Map<number, number>()

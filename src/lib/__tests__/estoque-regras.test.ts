@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { somarConsumo, montarReservas, juntarReservas, precisaRepor, type Vinculo, type ItemAgendado } from '@/lib/estoque-regras'
 
-// Catálogo de exemplo: teste rápido 1 → kit 10; PCR "FIV" (2) → kit 20;
-// PCR "FeLV" (3) → kit 30; PCR "FIV e FeLV" (4) → kits 20 e 30; PCR 5 sem kit.
+// Catálogo de exemplo: teste rápido 1 → kit 10; PCR 2 → kit 20; PCR 3 → kit 30;
+// painel de PCR (4) que roda os kits 20 e 30; PCR 5 sem kit.
 const vinculos: Vinculo[] = [
   { item_id: 1, consumivel_id: 10, quantidade: 1 },
   { item_id: 2, consumivel_id: 20, quantidade: 1 },
@@ -19,7 +19,7 @@ describe('somarConsumo — quanto cada laudo gasta', () => {
     expect(somarConsumo([1], vinculos)).toEqual(new Map([[10, 1]]))
   })
 
-  it('combinação gasta um de cada kit (FIV e FeLV → kit de FIV + kit de FeLV)', () => {
+  it('painel que roda dois kits gasta um de cada', () => {
     expect(somarConsumo([4], vinculos)).toEqual(new Map([[20, 1], [30, 1]]))
   })
 

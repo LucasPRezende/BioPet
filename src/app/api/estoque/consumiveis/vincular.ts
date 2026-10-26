@@ -19,8 +19,8 @@ export async function vincularTestes(consumivelId: number, testesIds: unknown[])
 }
 
 // Faz exatamente `pcrsIds` gastarem este consumível. Diferente do teste rápido,
-// um PCR pode gastar vários consumíveis (ex.: "FIV e FeLV" usa o kit de FIV e o
-// de FeLV), então só mexe nos vínculos DESTE consumível. Vínculo que continua
+// um PCR pode gastar vários consumíveis (ex.: um painel que roda mais de um kit),
+// então só mexe nos vínculos DESTE consumível. Vínculo que continua
 // mantém a quantidade; vínculo novo entra com 1.
 export async function vincularPcrs(consumivelId: number, pcrsIds: unknown[]): Promise<string | null> {
   const ids = pcrsIds.map(Number).filter(n => Number.isInteger(n) && n > 0)

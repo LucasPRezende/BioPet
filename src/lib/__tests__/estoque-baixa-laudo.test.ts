@@ -35,13 +35,21 @@ beforeEach(() => {
 })
 
 describe('consumo do laudo de PCR', () => {
-  it('"FIV e FeLV" gasta o kit de FIV e o de FeLV', async () => {
+  it('"FIV e FeLV" gasta só o kit próprio (uma caixa faz os dois)', async () => {
     banco.tabelas.exame_pcr_consumiveis = [
       { pcr_id: 2, consumivel_id: 20, quantidade: 1, exames_pcr: { nome: 'FIV' } },
-      { pcr_id: 4, consumivel_id: 20, quantidade: 1, exames_pcr: { nome: 'FIV e FeLV' } },
-      { pcr_id: 4, consumivel_id: 30, quantidade: 1, exames_pcr: { nome: 'FIV e FeLV' } },
+      { pcr_id: 3, consumivel_id: 30, quantidade: 1, exames_pcr: { nome: 'Leucemia Felina (FeLV)' } },
+      { pcr_id: 4, consumivel_id: 40, quantidade: 1, exames_pcr: { nome: 'FIV e FeLV' } },
     ]
-    expect(await consumoPcrs([4])).toEqual(new Map([[20, 1], [30, 1]]))
+    expect(await consumoPcrs([4])).toEqual(new Map([[40, 1]]))
+  })
+
+  it('painel ligado a dois kits gasta um de cada', async () => {
+    banco.tabelas.exame_pcr_consumiveis = [
+      { pcr_id: 13, consumivel_id: 20, quantidade: 1, exames_pcr: { nome: 'Painel' } },
+      { pcr_id: 13, consumivel_id: 30, quantidade: 1, exames_pcr: { nome: 'Painel' } },
+    ]
+    expect(await consumoPcrs([13])).toEqual(new Map([[20, 1], [30, 1]]))
   })
 
   it('laudo sem PCR marcado não consulta nem gasta nada', async () => {
