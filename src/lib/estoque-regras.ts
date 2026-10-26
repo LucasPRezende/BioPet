@@ -88,3 +88,36 @@ export function juntarReservas(...mapas: Map<number, Reserva[]>[]): Map<number, 
 export function precisaRepor(c: { disponivel: number; estoque_minimo: number }): boolean {
   return c.disponivel < 0 || (c.estoque_minimo > 0 && c.disponivel <= c.estoque_minimo)
 }
+
+/** item_id usado para a extração de DNA/RNA nas reservas (não é um PCR do catálogo). */
+export const ITEM_EXTRACAO = -1
+
+/**
+ * Consumo de um laudo de PCR: o kit de cada PCR + UMA extração de DNA/RNA para
+ * a amostra. Sem extração nova quando o extraído guardado foi reaproveitado
+ * (`novaExtracao` = false) ou quando não há extrator cadastrado.
+ */
+export function consumoLaudoPcr(
+  pcrIds:       number[],
+  vinculos:     Vinculo[],
+  extratorId:   number | null,
+  novaExtracao: boolean,
+): Map<number, number> {
+  const total = somarConsumo(pcrIds, vinculos)
+  if (novaExtracao && extratorId && pcrIds.length > 0) {
+    total.set(extratorId, (total.get(extratorId) ?? 0) + 1)
+  }
+  return total
+}
+
+/**
+ * Para a reserva do extrator: uma linha por agendamento que tem PCR (uma
+ * amostra = uma extração), não importa quantos PCRs ele tenha.
+ */
+export function itensExtracao(itens: ItemAgendado[]): ItemAgendado[] {
+  const porAg = new Map<number, ItemAgendado>()
+  for (const it of itens) {
+    if (!porAg.has(it.agendamento_id)) porAg.set(it.agendamento_id, { ...it, item_id: ITEM_EXTRACAO })
+  }
+  return Array.from(porAg.values())
+}

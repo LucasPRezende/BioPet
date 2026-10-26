@@ -13,7 +13,8 @@ vi.mock('@/lib/supabase', () => ({
   supabase: {
     from: (tabela: string) => {
       const b: Record<string, unknown> = {}
-      for (const m of ['select', 'eq', 'in', 'not', 'is', 'gt', 'gte', 'order']) b[m] = () => b
+      for (const m of ['select', 'eq', 'neq', 'in', 'not', 'is', 'gt', 'gte', 'order', 'limit']) b[m] = () => b
+      b.maybeSingle = async () => ({ data: (banco.tabelas[tabela] ?? [])[0] ?? null, error: null })
       b.update = (valores: Record<string, unknown>) => { banco.updates.push({ tabela, valores }); return b }
       b.then = (ok: (v: unknown) => unknown) => Promise.resolve({ data: banco.tabelas[tabela] ?? [], error: null }).then(ok)
       return b
@@ -50,6 +51,16 @@ describe('consumo do laudo de PCR', () => {
       { pcr_id: 13, consumivel_id: 30, quantidade: 1, exames_pcr: { nome: 'Painel' } },
     ]
     expect(await consumoPcrs([13])).toEqual(new Map([[20, 1], [30, 1]]))
+  })
+
+  it('gasta também 1 extração de DNA/RNA por laudo, e nenhuma se reaproveitou o extraído', async () => {
+    banco.tabelas.exame_pcr_consumiveis = [
+      { pcr_id: 6, consumivel_id: 60, quantidade: 1, exames_pcr: { nome: 'Babesia spp.' } },
+      { pcr_id: 7, consumivel_id: 70, quantidade: 1, exames_pcr: { nome: 'Ehrlichia spp.' } },
+    ]
+    banco.tabelas.consumiveis = [{ id: 99 }] // o extrator ativo
+    expect(await consumoPcrs([6, 7])).toEqual(new Map([[60, 1], [70, 1], [99, 1]]))
+    expect(await consumoPcrs([6, 7], false)).toEqual(new Map([[60, 1], [70, 1]]))
   })
 
   it('laudo sem PCR marcado não consulta nem gasta nada', async () => {

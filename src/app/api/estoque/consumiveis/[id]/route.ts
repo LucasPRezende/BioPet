@@ -24,7 +24,7 @@ export async function PATCH(
   if (!consumivelId) return NextResponse.json({ error: 'ID inválido.' }, { status: 400 })
 
   const body = await request.json().catch(() => null)
-  const { nome, unidade, categoria, codigo, estoque_minimo, ativo, testes_ids, pcrs_ids } = body ?? {}
+  const { nome, unidade, categoria, codigo, extrator_pcr, estoque_minimo, ativo, testes_ids, pcrs_ids } = body ?? {}
 
   const updates: Record<string, unknown> = {}
   if (nome !== undefined) {
@@ -36,6 +36,15 @@ export async function PATCH(
   if (codigo         !== undefined) updates.codigo         = String(codigo ?? '').trim() || null
   if (estoque_minimo !== undefined) updates.estoque_minimo = Math.max(0, Math.floor(Number(estoque_minimo) || 0))
   if (ativo          !== undefined) updates.ativo          = Boolean(ativo)
+
+  if (extrator_pcr   !== undefined) updates.extrator_pcr   = extrator_pcr === true
+
+  // Só um extrator: marcar este desmarca o anterior
+  if (updates.extrator_pcr === true) {
+    const { error: eExt } = await supabase
+      .from('consumiveis').update({ extrator_pcr: false }).eq('extrator_pcr', true).neq('id', consumivelId)
+    if (eExt) return NextResponse.json({ error: eExt.message }, { status: 500 })
+  }
 
   if (Object.keys(updates).length > 0) {
     const { error } = await supabase.from('consumiveis').update(updates).eq('id', consumivelId)

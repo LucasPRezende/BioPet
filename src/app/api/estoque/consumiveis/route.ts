@@ -17,8 +17,14 @@ export async function POST(request: NextRequest) {
   if (!admin) return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 })
 
   const body = await request.json().catch(() => null)
-  const { nome, unidade, categoria, codigo, estoque_minimo, testes_ids, pcrs_ids } = body ?? {}
+  const { nome, unidade, categoria, codigo, extrator_pcr, estoque_minimo, testes_ids, pcrs_ids } = body ?? {}
   if (!nome?.trim()) return NextResponse.json({ error: 'Nome é obrigatório.' }, { status: 400 })
+
+  // Só um extrator: marcar este desmarca o anterior
+  if (extrator_pcr === true) {
+    const { error: eExt } = await supabase.from('consumiveis').update({ extrator_pcr: false }).eq('extrator_pcr', true)
+    if (eExt) return NextResponse.json({ error: eExt.message }, { status: 500 })
+  }
 
   const { data, error } = await supabase
     .from('consumiveis')
@@ -27,6 +33,7 @@ export async function POST(request: NextRequest) {
       unidade:        unidade?.trim() || 'un',
       categoria:      categoria?.trim() || 'outro',
       codigo:         codigo?.trim() || null,
+      extrator_pcr:   extrator_pcr === true,
       estoque_minimo: Math.max(0, Math.floor(Number(estoque_minimo) || 0)),
     })
     .select('*')

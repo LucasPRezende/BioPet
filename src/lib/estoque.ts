@@ -2,7 +2,7 @@ import 'server-only'
 import { supabase } from './supabase'
 import { agoraLocalISO } from './agendamento-helpers'
 import {
-  somarConsumo, montarReservas, juntarReservas, precisaRepor,
+  somarConsumo, montarReservas, juntarReservas, precisaRepor, consumoLaudoPcr, itensExtracao, ITEM_EXTRACAO,
   type Vinculo, type Reserva, type ItemAgendado,
 } from './estoque-regras'
 
@@ -28,6 +28,7 @@ export interface ConsumivelResumo {
   unidade:         string
   categoria:       string
   codigo:          string | null // código do kit do fornecedor (o da nota fiscal)
+  extrator_pcr:    boolean       // extrator de DNA/RNA: sai 1 por laudo de PCR (amostra)
   estoque_minimo:  number
   ativo:           boolean
   estoque:         number        // saldo dos lotes − saídas pendentes (pode ser negativo)
@@ -62,14 +63,24 @@ async function vinculosPcr(): Promise<(Vinculo & { nome: string })[]> {
   })
 }
 
+// O extrator de DNA/RNA (sai 1 por laudo de PCR). null se não houver um ativo.
+async function extratorPcrId(): Promise<number | null> {
+  const { data, error } = await supabase
+    .from('consumiveis').select('id').eq('extrator_pcr', true).eq('ativo', true).limit(1).maybeSingle()
+  if (error) throw new Error(error.message)
+  return data?.id ?? null
+}
+
 // Itens de agendamentos em aberto, de hoje em diante, que ainda não têm laudo
 // daquele exame (o laudo é o que dá baixa). Atrasados sem laudo ficam de fora —
-// já aparecem no alerta "exames sem laudo" e muitos são faltas.
+// já aparecem no alerta "exames sem laudo" e muitos são faltas. Com
+// `extratorId`, reserva também uma extração por agendamento (amostra).
 async function reservasDe(
   tabela: 'agendamento_testes_rapidos' | 'agendamento_pcr',
   colunaItem: 'teste_rapido_id' | 'pcr_id',
   tipoExame: 'Teste Rápido' | 'PCR',
   vinculos: Vinculo[],
+  extratorId: number | null = null,
 ): Promise<Map<number, Reserva[]>> {
   const inicioHoje = `${agoraLocalISO().slice(0, 10)}T00:00:00`
   const { data, error } = await supabase
@@ -96,13 +107,19 @@ async function reservasDe(
     if (lErr) throw new Error(lErr.message)
     for (const l of laudos ?? []) comLaudo.add(l.agendamento_id)
   }
-  return montarReservas(itens, vinculos, comLaudo)
+  const reservas = montarReservas(itens, vinculos, comLaudo)
+  if (!extratorId) return reservas
+  return juntarReservas(reservas, montarReservas(
+    itensExtracao(itens),
+    [{ item_id: ITEM_EXTRACAO, consumivel_id: extratorId, quantidade: 1 }],
+    comLaudo,
+  ))
 }
 
 // Situação atual de todos os consumíveis (ativos e inativos).
 export async function resumoEstoque(): Promise<ConsumivelResumo[]> {
   const [cons, lotes, pend, vTestes, vPcr] = await Promise.all([
-    supabase.from('consumiveis').select('id, nome, unidade, categoria, codigo, estoque_minimo, ativo').order('nome'),
+    supabase.from('consumiveis').select('id, nome, unidade, categoria, codigo, extrator_pcr, estoque_minimo, ativo').order('nome'),
     supabase.from('consumivel_compras')
       .select('consumivel_id, saldo, custo_unitario, validade, data_compra, id')
       .gt('saldo', 0)
@@ -115,9 +132,10 @@ export async function resumoEstoque(): Promise<ConsumivelResumo[]> {
     if (r.error) throw new Error(r.error.message)
   }
 
+  const extratorId = (cons.data ?? []).find(c => c.extrator_pcr && c.ativo)?.id ?? null
   const reservas = juntarReservas(
     await reservasDe('agendamento_testes_rapidos', 'teste_rapido_id', 'Teste Rápido', vTestes),
-    await reservasDe('agendamento_pcr', 'pcr_id', 'PCR', vPcr),
+    await reservasDe('agendamento_pcr', 'pcr_id', 'PCR', vPcr, extratorId),
   )
 
   const out = new Map<number, ConsumivelResumo>()
@@ -167,10 +185,14 @@ export async function consumoTestesRapidos(testeIds: number[]): Promise<Map<numb
   return somarConsumo(testeIds, await vinculosTestesRapidos())
 }
 
-/** Consumo dos PCRs de um laudo (os kits ligados a cada PCR, com a quantidade). */
-export async function consumoPcrs(pcrIds: number[]): Promise<Map<number, number>> {
+/**
+ * Consumo de um laudo de PCR: o kit de cada PCR + 1 extração de DNA/RNA da
+ * amostra. `novaExtracao` = false quando reaproveitaram o extraído guardado.
+ */
+export async function consumoPcrs(pcrIds: number[], novaExtracao = true): Promise<Map<number, number>> {
   if (pcrIds.length === 0) return new Map()
-  return somarConsumo(pcrIds, await vinculosPcr())
+  const [vinculos, extratorId] = await Promise.all([vinculosPcr(), novaExtracao ? extratorPcrId() : null])
+  return consumoLaudoPcr(pcrIds, vinculos, extratorId, novaExtracao)
 }
 
 // Dá baixa do consumo de um laudo e grava o custo nele (laudos.custo_exame, que

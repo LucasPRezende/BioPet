@@ -20,6 +20,7 @@ interface Consumivel {
   testes:           { id: number; nome: string }[]
   pcrs:             { id: number; nome: string; quantidade: number }[]
   codigo:           string | null
+  extrator_pcr:     boolean
 }
 
 interface TesteRapido { id: number; nome: string; consumivel_id: number | null }
@@ -100,6 +101,7 @@ function fmtDataHora(iso: string) {
 
 // Mesma regra do alerta do dashboard (precisaRepor em lib/estoque)
 function usadoEm(c: Consumivel): string | null {
+  if (c.extrator_pcr) return 'Extração de DNA/RNA — sai 1 por laudo de PCR (amostra)'
   const nomes = [
     ...c.testes.map(t => t.nome),
     ...c.pcrs.map(p => (p.quantidade > 1 ? `${p.nome} (${p.quantidade}×)` : p.nome)),
@@ -656,6 +658,7 @@ function ModalConsumivel({ consumivel, testes, pcrs, onClose, onSaved }: {
   const [vinculo, setVinculo] = useState<number[]>(consumivel?.testes.map(t => t.id) ?? [])
   const [vinculoPcr, setVinculoPcr] = useState<number[]>(consumivel?.pcrs.map(p => p.id) ?? [])
   const [codigo,  setCodigo]  = useState(consumivel?.codigo ?? '')
+  const [extrator, setExtrator] = useState(consumivel?.extrator_pcr ?? false)
   const [salvando, setSalvando] = useState(false)
   const [erro,    setErro]    = useState('')
 
@@ -674,8 +677,9 @@ function ModalConsumivel({ consumivel, testes, pcrs, onClose, onSaved }: {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         nome, unidade, categoria, codigo, estoque_minimo: Number(minimo), ativo,
+        extrator_pcr: categoria === 'pcr' && extrator,
         testes_ids: categoria === 'teste_rapido' ? vinculo : [],
-        pcrs_ids:   categoria === 'pcr' ? vinculoPcr : [],
+        pcrs_ids:   categoria === 'pcr' && !extrator ? vinculoPcr : [],
       }),
     })
     if (res.ok) onSaved()
@@ -696,6 +700,12 @@ function ModalConsumivel({ consumivel, testes, pcrs, onClose, onSaved }: {
           {ORDEM_CATEGORIAS.map(k => <option key={k} value={k}>{CATEGORIA_LABEL[k]}</option>)}
         </select>
       </Campo>
+      {categoria === 'pcr' && (
+        <label className="flex items-start gap-2 text-sm text-gray-700">
+          <input type="checkbox" checked={extrator} onChange={e => setExtrator(e.target.checked)} className="mt-0.5" />
+          <span>É o <strong>extrator de DNA/RNA</strong> <span className="text-xs text-gray-400">(sai 1 por laudo de PCR; só pode haver um)</span></span>
+        </label>
+      )}
       {categoria === 'pcr' && (
         <Campo label="Código do kit (o da nota fiscal)">
           <input type="text" value={codigo} onChange={e => setCodigo(e.target.value)} placeholder="ex.: PC05-0" className={`${INPUT} w-full`} />
@@ -727,7 +737,7 @@ function ModalConsumivel({ consumivel, testes, pcrs, onClose, onSaved }: {
         <p className="text-[11px] text-gray-400 mt-1">Um teste só gasta de um consumível; marcar aqui tira ele do anterior.</p>
       </div>
       )}
-      {categoria === 'pcr' && (
+      {categoria === 'pcr' && !extrator && (
       <div>
         <p className="text-xs text-gray-500 mb-1.5">PCRs que gastam 1 reação deste kit</p>
         <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-56 overflow-y-auto">

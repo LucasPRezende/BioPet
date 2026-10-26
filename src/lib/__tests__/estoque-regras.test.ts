@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { somarConsumo, montarReservas, juntarReservas, precisaRepor, type Vinculo, type ItemAgendado } from '@/lib/estoque-regras'
+import {
+  somarConsumo, montarReservas, juntarReservas, precisaRepor, consumoLaudoPcr, itensExtracao, ITEM_EXTRACAO,
+  type Vinculo, type ItemAgendado,
+} from '@/lib/estoque-regras'
 
 // Catálogo de exemplo: teste rápido 1 → kit 10; PCR 2 → kit 20; PCR 3 → kit 30;
 // painel de PCR (4) que roda os kits 20 e 30; PCR 5 sem kit.
@@ -80,5 +83,33 @@ describe('precisaRepor', () => {
   })
   it('sem mínimo definido e sem falta não alerta', () => {
     expect(precisaRepor({ disponivel: 0, estoque_minimo: 0 })).toBe(false)
+  })
+})
+
+describe('consumoLaudoPcr — kit de cada PCR + 1 extração por amostra', () => {
+  const EXTRATOR = 99
+
+  it('3 PCRs da mesma amostra = 3 kits + 1 extração', () => {
+    expect(consumoLaudoPcr([2, 3, 2], vinculos, EXTRATOR, true)).toEqual(new Map([[20, 2], [30, 1], [EXTRATOR, 1]]))
+  })
+
+  it('extraído guardado reaproveitado: só os kits, sem extração', () => {
+    expect(consumoLaudoPcr([2], vinculos, EXTRATOR, false)).toEqual(new Map([[20, 1]]))
+  })
+
+  it('sem extrator cadastrado: só os kits', () => {
+    expect(consumoLaudoPcr([2], vinculos, null, true)).toEqual(new Map([[20, 1]]))
+  })
+
+  it('laudo sem PCR marcado não gasta extração', () => {
+    expect(consumoLaudoPcr([], vinculos, EXTRATOR, true)).toEqual(new Map())
+  })
+})
+
+describe('itensExtracao — reserva do extrator', () => {
+  it('uma extração por agendamento, não importa quantos PCRs', () => {
+    const itens = [ag(100, 2, '2026-10-27T10:00:00'), ag(100, 3, '2026-10-27T10:00:00'), ag(101, 2, '2026-10-28T10:00:00')]
+    const r = montarReservas(itensExtracao(itens), [{ item_id: ITEM_EXTRACAO, consumivel_id: 99, quantidade: 1 }], new Set())
+    expect(r.get(99)?.map(x => [x.agendamento_id, x.quantidade])).toEqual([[100, 1], [101, 1]])
   })
 })

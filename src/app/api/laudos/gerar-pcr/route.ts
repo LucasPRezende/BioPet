@@ -30,6 +30,7 @@ export async function POST(request: NextRequest) {
     agendamento_id: number | null
     preco_exame:    number | null
     pcrs_ids?:      number[]        // PCRs do catálogo feitos neste laudo — dão baixa no estoque
+    nova_extracao?: boolean         // false = reaproveitou o extraído guardado (não gasta extrator)
   }
   try {
     body = await request.json()
@@ -103,7 +104,7 @@ export async function POST(request: NextRequest) {
     // Baixa de estoque + custo do laudo. Nunca derruba a emissão: o laudo já
     // está salvo, então uma falha aqui só fica registrada no log.
     try {
-      data.custo_exame = await baixarConsumoLaudo(data.id, await consumoPcrs(pcrsIds), session.userId)
+      data.custo_exame = await baixarConsumoLaudo(data.id, await consumoPcrs(pcrsIds, body.nova_extracao !== false), session.userId)
     } catch (err) {
       console.error(`[gerar-pcr] falha na baixa de estoque do laudo ${data.id}:`, err)
     }

@@ -89,6 +89,8 @@ function NovoPcrInner() {
   const [metodo,     setMetodo]     = useState(METODO_TEXTO)
   const [curva,      setCurva]      = useState<string | null>(null)
   const [comCurva,   setComCurva]   = useState(true)
+  // Extração de DNA/RNA: sai 1 do estoque por laudo, a não ser que reaproveitem o extraído guardado
+  const [novaExtracao, setNovaExtracao] = useState(true)
   const [observacoes, setObservacoes] = useState(OBS_PADRAO)
 
   const [form, setForm] = useState({
@@ -343,6 +345,7 @@ function NovoPcrInner() {
         agendamento_id:     agendamentoId ? Number(agendamentoId) : null,
         preco_exame:        totalPix,
         pcrs_ids:           incluidos,
+        nova_extracao:      novaExtracao,
       }),
     })
 
@@ -609,6 +612,14 @@ function NovoPcrInner() {
                 className={INPUT + ' resize-none'} />
             </div>
           </div>
+
+          <label className="flex items-start gap-2.5 bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-700 cursor-pointer">
+            <input type="checkbox" checked={novaExtracao} onChange={e => setNovaExtracao(e.target.checked)} className="mt-0.5" />
+            <span>
+              <strong>Usou extração nova de DNA/RNA</strong>
+              <span className="block text-xs text-gray-500">Desmarque se reaproveitou o extraído guardado na geladeira — aí o extrator não sai do estoque de novo.</span>
+            </span>
+          </label>
 
           {submitError && (
             <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">{submitError}</p>
