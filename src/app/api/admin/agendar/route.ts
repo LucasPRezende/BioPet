@@ -11,11 +11,13 @@ import {
   insertExames,
   insertBioquimica,
   insertTestesRapidos,
+  insertPcrs,
   precificarExames,
   resolverComissoes,
   type ExameInput,
   type BioquimicaInput,
   type TesteRapidoInput,
+  type PcrInput,
 } from '@/lib/agendamento-helpers'
 import { formaEfetiva } from '@/lib/pricing'
 
@@ -61,6 +63,7 @@ export async function POST(request: NextRequest) {
     pagamento_responsavel,
     bioquimica_selecionados,
     testes_rapidos_selecionados,
+    pcr_selecionados,
     encaixe,
     notificar,
     clinica_id,
@@ -150,15 +153,18 @@ export async function POST(request: NextRequest) {
   const statusPag       = pagarGratuito ? 'pago' : (pagarClinica || pagarPresencial ? 'a_receber' : 'pendente')
 
   // A comissão de cada item vem do catálogo no banco, nunca do corpo da requisição.
-  const { bio: bioPayload, testes: testePayload } = await resolverComissoes(
+  const { bio: bioPayload, testes: testePayload, pcrs: pcrPayload } = await resolverComissoes(
     Array.isArray(bioquimica_selecionados) ? bioquimica_selecionados as BioquimicaInput[] : [],
     Array.isArray(testes_rapidos_selecionados) ? testes_rapidos_selecionados as TesteRapidoInput[] : [],
+    { gratuito: pagarGratuito,
+      pcrs: Array.isArray(pcr_selecionados) ? pcr_selecionados as PcrInput[] : [] },
   )
   const examesPrecificados = await precificarExames(examesArr, {
     forma:           formaEfetiva(pagResp, forma_pagamento),
     gratuito:        pagarGratuito,
     bio:             bioPayload,
     testesRapidos:   testePayload,
+    pcrs:            pcrPayload,
     dataHora:        data_hora,
     encaixe:         encaixe ?? false,
     pagamentoClinica: pagResp === 'clinica',
@@ -201,6 +207,7 @@ export async function POST(request: NextRequest) {
   await insertExames(agendamento.id, examesPrecificados)
   await insertBioquimica(agendamento.id, bioPayload)
   await insertTestesRapidos(agendamento.id, testePayload)
+  await insertPcrs(agendamento.id, pcrPayload)
 
   // 6. Notificação WhatsApp para o tutor
   const isEncaixe  = encaixe ?? false

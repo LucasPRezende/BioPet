@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { supabase } from '@/lib/supabase'
+import { clinicaQueRecebeComissao } from '@/lib/comissao-exame'
+import { carregarComissoes } from '@/lib/comissao-exame-db'
 import { parseClinicaSession, CLINICA_COOKIE_NAME } from '@/lib/clinica-auth'
 import { sendWhatsAppText } from '@/lib/evolution'
 import {
@@ -10,11 +12,13 @@ import {
   insertExames,
   insertBioquimica,
   insertTestesRapidos,
+  insertPcrs,
   precificarExames,
   resolverComissoes,
   type ExameInput,
   type BioquimicaInput,
   type TesteRapidoInput,
+  type PcrInput,
 } from '@/lib/agendamento-helpers'
 import { formaEfetiva } from '@/lib/pricing'
 
@@ -77,6 +81,7 @@ export async function POST(request: NextRequest) {
     valor,
     bioquimica_selecionados,    // [{ bioquimica_exame_id, valor_pix, valor_cartao }]
     testes_rapidos_selecionados, // [{ teste_rapido_id, valor_pix, valor_cartao }]
+    pcr_selecionados,            // [{ pcr_id, valor_pix, valor_cartao }]
   } = body ?? {}
 
   // Suporte a multi-exame (exames[]) e single (tipo_exame)
@@ -157,15 +162,18 @@ export async function POST(request: NextRequest) {
 
   // 4. Recalcula os preços no backend (fonte de verdade) e cria o agendamento
   // A comissão de cada item vem do catálogo no banco, nunca do corpo da requisição.
-  const { bio: bioPayload, testes: testePayload } = await resolverComissoes(
+  const { bio: bioPayload, testes: testePayload, pcrs: pcrPayload } = await resolverComissoes(
     Array.isArray(bioquimica_selecionados) ? bioquimica_selecionados as BioquimicaInput[] : [],
     Array.isArray(testes_rapidos_selecionados) ? testes_rapidos_selecionados as TesteRapidoInput[] : [],
+    { gratuito: (forma_pagamento ?? '').toLowerCase() === 'gratuito',
+      pcrs: Array.isArray(pcr_selecionados) ? pcr_selecionados as PcrInput[] : [] },
   )
   const examesPrecificados = await precificarExames(examesArr, {
     forma:           formaEfetiva(pagamento_responsavel, forma_pagamento),
     gratuito:        (forma_pagamento ?? '').toLowerCase() === 'gratuito',
     bio:             bioPayload,
     testesRapidos:   testePayload,
+    pcrs:            pcrPayload,
     dataHora:        data_hora,
     encaixe:         false,
     pagamentoClinica: pagamento_responsavel === 'clinica',
@@ -173,11 +181,16 @@ export async function POST(request: NextRequest) {
   const tipoExameLabel = examesPrecificados.map(e => e.tipo_exame).join(', ')
   const valorTotal     = examesPrecificados.reduce((sum, e) => sum + (e.valor ?? 0), 0)
 
-  // Teste rápido feito pela própria clínica: se a BioPet recebe direto do
-  // tutor, a comissão do teste ainda é devida a esta clínica (automático,
-  // sem precisar escolher — é a mesma clínica que está logada).
-  const temTesteRapido = examesArr.some(e => e.tipo_exame === 'Teste Rápido')
-  const comissaoClinicaId = temTesteRapido && pagamento_responsavel !== 'clinica' ? session.clinicaId : null
+  // Exame que gera comissão para a clínica (Teste Rápido, Bioquímica,
+  // Hemograma...): se a BioPet recebe direto do tutor, a comissão ainda é
+  // devida a esta clínica (automático, sem precisar escolher — é a mesma
+  // clínica que está logada).
+  const comissaoClinicaId = clinicaQueRecebeComissao({
+    tipos:                examesArr.map(e => e.tipo_exame),
+    pagamentoResponsavel: pagamento_responsavel,
+    clinicaId:            session.clinicaId,
+    tabela:               await carregarComissoes(),
+  })
 
   const { data: agendamento, error: errAg } = await supabase
     .from('agendamentos')
@@ -210,6 +223,7 @@ export async function POST(request: NextRequest) {
   await insertExames(agendamento.id, examesPrecificados)
   await insertBioquimica(agendamento.id, bioPayload)
   await insertTestesRapidos(agendamento.id, testePayload)
+  await insertPcrs(agendamento.id, pcrPayload)
 
   // 6. Nome do vet
   let vetNome = 'Não informado'

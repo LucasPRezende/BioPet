@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { verifyAgentKey } from '@/lib/agent-auth'
-import { isHorarioEspecial } from '@/lib/feriados'
+import { isHorarioEspecial, infoDiaEspecial } from '@/lib/feriados'
 
 const DIAS_SEMANA = [
   'domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado',
@@ -41,11 +41,12 @@ export async function GET(request: NextRequest) {
       .gte('data_hora', `${data}T00:00:00`)
       .lte('data_hora', `${data}T23:59:59`)
       .neq('status', 'cancelado'),
-    supabase.from('feriados').select('data'),
+    supabase.from('feriados').select('data, nome'),
     supabase.from('system_config').select('key, value').in('key', ['horario_especial_inicio', 'horario_especial_fim']),
   ])
 
-  const feriados = (feriadosRows ?? []).map((f: { data: string }) => f.data)
+  const feriadosComNome = (feriadosRows ?? []) as { data: string; nome?: string | null }[]
+  const feriados = feriadosComNome.map((f) => f.data)
   const cfgMap = Object.fromEntries((horarioRows ?? []).map((r: { key: string; value: string }) => [r.key, r.value]))
   const horarioEspecialInicio = cfgMap['horario_especial_inicio'] ?? '08:00'
   const horarioEspecialFim    = cfgMap['horario_especial_fim']    ?? '17:00'
@@ -126,6 +127,9 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     data,
     dia_semana: diaDaSemana(data),
+    // Sinal no nível do DIA (feriado/fim de semana) — só o "especial" por slot
+    // não bastou: a IA tratou segunda de feriado como comercial duas vezes.
+    ...infoDiaEspecial(data, feriadosComNome),
     duracao_minutos: duracao,
     expediente: { inicio, fim },
     total_livres: horarios_livres.length,

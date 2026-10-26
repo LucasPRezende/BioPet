@@ -9,6 +9,7 @@ import {
 } from './pricing'
 import { gerarPreferenciaMp, expirarPreferenciaMp } from './mp-preference'
 import { gerarPixToken } from './pix-token'
+import { ehAgrupador } from './comissao-exame'
 
 export interface ExameInput {
   tipo_exame: string
@@ -17,6 +18,8 @@ export interface ExameInput {
   desconto?: number      // desconto em R$ aplicado a este exame (default 0)
   horario_especial?: boolean
   descricao?: string | null
+  /** Comissão da clínica parceira por este exame (snapshot de comissoes_exame). */
+  comissao_clinica?: number
 }
 
 export interface BioquimicaInput {
@@ -28,6 +31,13 @@ export interface BioquimicaInput {
 
 export interface TesteRapidoInput {
   teste_rapido_id: number
+  valor_pix: number
+  valor_cartao: number
+  comissao?: number
+}
+
+export interface PcrInput {
+  pcr_id: number
   valor_pix: number
   valor_cartao: number
   comissao?: number
@@ -146,6 +156,7 @@ export async function insertExames(agendamentoId: number, exames: ExameInput[]):
       desconto:         e.desconto ?? 0,
       horario_especial: e.horario_especial ?? false,
       descricao:        e.descricao ?? null,
+      comissao_clinica: e.comissao_clinica ?? 0,
     })),
   )
 }
@@ -176,9 +187,22 @@ export async function insertTestesRapidos(agendamentoId: number, testes: TesteRa
   )
 }
 
+export async function insertPcrs(agendamentoId: number, pcrs: PcrInput[]): Promise<void> {
+  if (pcrs.length === 0) return
+  await supabase.from('agendamento_pcr').insert(
+    pcrs.map(p => ({
+      agendamento_id: agendamentoId,
+      pcr_id:         p.pcr_id,
+      valor_pix:      p.valor_pix,
+      valor_cartao:   p.valor_cartao,
+      comissao:       p.comissao ?? 0,
+    })),
+  )
+}
+
 /**
- * Sobrescreve a `comissao` de cada sub-exame de bioquímica e de cada teste
- * rápido com o valor do catálogo no banco. O catálogo público não devolve mais
+ * Sobrescreve a `comissao` de cada sub-exame de bioquímica, teste rápido e
+ * PCR com o valor do catálogo no banco. O catálogo público não devolve mais
  * essa coluna (ver /api/comissoes/bioquimica), então o cliente não teria como
  * mandar o número — e, mesmo que mande, é ignorado: quem define o repasse à
  * clínica é o banco. Id fora do catálogo → comissão 0.
@@ -186,13 +210,25 @@ export async function insertTestesRapidos(agendamentoId: number, testes: TesteRa
 export async function resolverComissoes(
   bio: BioquimicaInput[],
   testes: TesteRapidoInput[],
-): Promise<{ bio: BioquimicaInput[]; testes: TesteRapidoInput[] }> {
-  const [bioRes, testeRes] = await Promise.all([
+  { gratuito = false, pcrs = [] }: { gratuito?: boolean; pcrs?: PcrInput[] } = {},
+): Promise<{ bio: BioquimicaInput[]; testes: TesteRapidoInput[]; pcrs: PcrInput[] }> {
+  // Exame gratuito não gera comissão de clínica.
+  if (gratuito) {
+    return {
+      bio:    bio.map(b => ({ ...b, comissao: 0 })),
+      testes: testes.map(t => ({ ...t, comissao: 0 })),
+      pcrs:   pcrs.map(p => ({ ...p, comissao: 0 })),
+    }
+  }
+  const [bioRes, testeRes, pcrRes] = await Promise.all([
     bio.length > 0
       ? supabase.from('bioquimica_exames').select('id, comissao').in('id', bio.map(b => Number(b.bioquimica_exame_id)))
       : null,
     testes.length > 0
       ? supabase.from('testes_rapidos').select('id, comissao').in('id', testes.map(t => Number(t.teste_rapido_id)))
+      : null,
+    pcrs.length > 0
+      ? supabase.from('exames_pcr').select('id, comissao').in('id', pcrs.map(p => Number(p.pcr_id)))
       : null,
   ])
 
@@ -201,10 +237,12 @@ export async function resolverComissoes(
 
   const mapaBio   = paraMapa(bioRes?.data as { id: number; comissao: number | null }[] | null)
   const mapaTeste = paraMapa(testeRes?.data as { id: number; comissao: number | null }[] | null)
+  const mapaPcr   = paraMapa(pcrRes?.data as { id: number; comissao: number | null }[] | null)
 
   return {
     bio:    bio.map(b => ({ ...b, comissao: mapaBio.get(Number(b.bioquimica_exame_id)) ?? 0 })),
     testes: testes.map(t => ({ ...t, comissao: mapaTeste.get(Number(t.teste_rapido_id)) ?? 0 })),
+    pcrs:   pcrs.map(p => ({ ...p, comissao: mapaPcr.get(Number(p.pcr_id)) ?? 0 })),
   }
 }
 
@@ -212,7 +250,7 @@ export async function resolverComissoes(
 
 const COMISSAO_COLS =
   'tipo_exame, varia_por_horario, preco_pix_comercial, preco_cartao_comercial, ' +
-  'preco_pix_fora_horario, preco_cartao_fora_horario'
+  'preco_pix_fora_horario, preco_cartao_fora_horario, comissao_clinica'
 
 interface ComissaoRowDb {
   tipo_exame:                string
@@ -221,6 +259,7 @@ interface ComissaoRowDb {
   preco_cartao_comercial:    number | null
   preco_pix_fora_horario:    number | null
   preco_cartao_fora_horario: number | null
+  comissao_clinica:          number | null
 }
 
 /**
@@ -267,7 +306,7 @@ export async function precificarExames(
   exames: ExameInput[],
   opts: {
     forma: FormaPagamento; gratuito: boolean; bio: BioquimicaInput[]
-    testesRapidos?: TesteRapidoInput[]; dataHora: string; encaixe: boolean
+    testesRapidos?: TesteRapidoInput[]; pcrs?: PcrInput[]; dataHora: string; encaixe: boolean
     /** Pagamento pela clínica: o repasse à BioPet é preço − comissão da clínica. */
     pagamentoClinica?: boolean
   },
@@ -275,9 +314,8 @@ export async function precificarExames(
   const totalDuracao = exames.reduce((s, e) => s + (e.duracao_minutos ?? 0), 0)
   const especial = await calcularEspecial(opts.dataHora, totalDuracao, opts.encaixe)
 
-  const AGRUPADORES = new Set(['Bioquímica', 'Teste Rápido'])
   const tiposTabela = Array.from(
-    new Set(exames.filter(e => !AGRUPADORES.has(e.tipo_exame)).map(e => e.tipo_exame)),
+    new Set(exames.filter(e => !ehAgrupador(e.tipo_exame)).map(e => e.tipo_exame)),
   )
 
   const comMap = new Map<string, ComissaoRowDb>()
@@ -292,6 +330,7 @@ export async function precificarExames(
   // Comissão da clínica coletora: só abate o repasse quando o pagamento é pela clínica.
   const comissaoBio   = opts.pagamentoClinica ? opts.bio.reduce((s, b) => s + Number(b.comissao ?? 0), 0) : 0
   const comissaoTeste = opts.pagamentoClinica ? (opts.testesRapidos ?? []).reduce((s, t) => s + Number(t.comissao ?? 0), 0) : 0
+  const comissaoPcr   = opts.pagamentoClinica ? (opts.pcrs ?? []).reduce((s, p) => s + Number(p.comissao ?? 0), 0) : 0
 
   const brutoBio = opts.gratuito
     ? 0
@@ -307,19 +346,33 @@ export async function precificarExames(
         opts.forma,
       ) - comissaoTeste)
 
+  const brutoPcr = opts.gratuito
+    ? 0
+    : Math.max(0, precoBioquimica(
+        (opts.pcrs ?? []).map(p => ({ valor_pix: Number(p.valor_pix), valor_cartao: Number(p.valor_cartao) })),
+        opts.forma,
+      ) - comissaoPcr)
+
   return exames.map(e => {
     const desconto = opts.gratuito ? 0 : Number(e.desconto ?? 0)
     let bruto = 0
+    let comissaoClinica = 0
     if (!opts.gratuito) {
       if (e.tipo_exame === 'Bioquímica') {
         bruto = brutoBio
       } else if (e.tipo_exame === 'Teste Rápido') {
         bruto = brutoTeste
+      } else if (e.tipo_exame === 'PCR') {
+        bruto = brutoPcr
       } else {
         const com = comMap.get(e.tipo_exame)
+        comissaoClinica = Number(com?.comissao_clinica ?? 0)
         bruto = com
           ? precoExame(fromComissao(com), { forma: opts.forma, especial })
           : Number(e.valor ?? 0)
+        // Mesma regra dos sub-exames: a comissão da clínica só abate o repasse
+        // quando é a clínica quem paga.
+        if (opts.pagamentoClinica) bruto = Math.max(0, bruto - comissaoClinica)
       }
     }
     return {
@@ -329,6 +382,7 @@ export async function precificarExames(
       desconto,
       horario_especial: especial,
       descricao:        e.descricao ?? null,
+      comissao_clinica: comissaoClinica,
     }
   })
 }

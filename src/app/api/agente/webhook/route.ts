@@ -10,7 +10,8 @@ import {
   type MensagemRecebida,
 } from '@/lib/agente/conversa'
 import { enfileirarMensagem } from '@/lib/agente/debounce'
-import { acionarHumanoPorErro } from '@/lib/agente/orquestrador'
+import { acionarHumanoPorErro, acionarHumanoPorLoopBot } from '@/lib/agente/orquestrador'
+import { detectarLoopBot } from '@/lib/agente/loop-bot'
 import { responder } from '@/lib/agente/responder-provedor'
 import { sendWhatsAppText, getBase64FromMedia } from '@/lib/evolution'
 import { transcreverAudio, lerImagemEncaminhamento } from '@/lib/agente/midia'
@@ -101,6 +102,15 @@ async function processar(
 
     console.log(`[agente/webhook] de ${pushName ?? '?'} (${telefone}): "${texto.slice(0, 80)}"`)
 
+    // Outro robô em loop (URA de banco/operadora, anúncio): não responde — cada
+    // resposta nossa só gera outra dele. Avisa as admins e silencia por dias.
+    const loop = detectarLoopBot(estado.historico, texto)
+    if (loop.loop) {
+      console.log(`[agente/webhook] loop de robô (${loop.motivo}): ${telefone}`)
+      await acionarHumanoPorLoopBot(telefone, loop.trecho)
+      return
+    }
+
     // Contexto de mensagens enviadas FORA da IA (sistema/humano) na mesma thread.
     // Na PRIMEIRA mensagem da conversa, injeta também quem é o cliente + revisões
     // gratuitas disponíveis (a IA oferece proativamente sem depender de tool).
@@ -118,6 +128,11 @@ async function processar(
       infoCliente,
     })
     await salvarConversa(telefone, historico, msgId)
+    // Resposta vazia = escalada silenciosa (assunto pessoal): equipe avisada, cliente sem resposta.
+    if (!resposta.trim()) {
+      console.log(`[agente/webhook] escalada silenciosa (assunto pessoal): ${telefone}`)
+      return
+    }
     await sendWhatsAppText(telefone, resposta, 'ia')
   } catch (err) {
     console.error('[agente/webhook] erro ao processar:', err)

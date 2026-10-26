@@ -160,10 +160,10 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  // Só agenda exames que existem na tabela de preços E não estão bloqueados.
+  // Só agenda exames que existem na tabela de preços, estão ativos E não estão bloqueados.
   // Pega sub-exames de bioquímica (TGP, TGO...), nomes inventados e desativados.
   const [{ data: comissoesRows }, { data: cfgRow }] = await Promise.all([
-    supabase.from('comissoes_exame').select('tipo_exame'),
+    supabase.from('comissoes_exame').select('tipo_exame').eq('ativo', true),
     supabase.from('configuracoes_agente').select('exames_nao_agendaveis').order('id').limit(1).maybeSingle(),
   ])
   const validos = (comissoesRows ?? []).map(r => r.tipo_exame as string)
@@ -174,6 +174,18 @@ export async function POST(request: NextRequest) {
       {
         error: 'precisa_atendente',
         mensagem: `O exame "${bloqueado}" não pode ser agendado automaticamente — deve ser feito por um atendente. Use transferir_humano.`,
+      },
+      { status: 422 },
+    )
+  }
+
+  // PCR: o preço depende de quais PCRs (sub-exames) o vet pediu, e a IA não
+  // escolhe sub-exames — sem isso o agendamento sairia por R$ 0. Vai pro atendente.
+  if (listaExames.some(e => e.tipo_exame === 'PCR')) {
+    return NextResponse.json(
+      {
+        error: 'precisa_atendente',
+        mensagem: 'PCR deve ser agendado por um atendente (o preço depende de quais PCRs foram pedidos). Use transferir_humano.',
       },
       { status: 422 },
     )

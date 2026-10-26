@@ -40,8 +40,11 @@ const NAV: NavGroup[] = [
     items: [
       { icon: '📋', label: 'Laudos',       href: '/admin/laudos'                   },
       { icon: '🧪', label: 'Bioquímica',  href: '/admin/novo-bioquimica'          },
+      { icon: '🩸', label: 'Hemograma',   href: '/admin/novo-hemograma'           },
       { icon: '💉', label: 'Teste Rápido', href: '/admin/novo-teste-rapido'       },
-      { icon: '📊', label: 'Referências', href: '/admin/bioquimica/referencias'   },
+      { icon: '🧬', label: 'PCR',          href: '/admin/novo-pcr'                 },
+      { icon: '📊', label: 'Ref. Bioquímica', href: '/admin/bioquimica/referencias' },
+      { icon: '📊', label: 'Ref. Hemograma',  href: '/admin/hemograma/referencias'  },
     ],
   },
   {
@@ -51,6 +54,7 @@ const NAV: NavGroup[] = [
       { icon: '💰', label: 'Preços',     href: '/admin/comissoes', adminOnly: true },
       { icon: '📦', label: 'Estoque',    href: '/admin/estoque',   adminOnly: true },
       { icon: '🩸', label: 'Extrações',  href: '/admin/extracoes'  },
+      { icon: '💸', label: 'Pagamentos', href: '/admin/pagamentos-comissao', adminOnly: true },
     ],
   },
   {

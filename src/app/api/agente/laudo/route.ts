@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
     // não faltou) e data_hora no passado.
     supabase
       .from('agendamentos')
-      .select('id, tipo_exame, data_hora, pets(nome)')
+      .select('id, tipo_exame, data_hora, is_revisao, pets(nome)')
       .eq('tutor_id', tutor.id)
       .in('status', ['agendado', 'em atendimento'])
       .lt('data_hora', agoraISO)
@@ -111,6 +111,10 @@ export async function GET(request: NextRequest) {
         data_exame:       new Date(ag.data_hora).toLocaleDateString('pt-BR'),
         horas_uteis_desde_exame: Math.round(horasUteis),
         dentro_prazo_48h: horasUteis < 48,
+        // Revisão gratuita NÃO gera laudo escrito por política — sem isso a
+        // IA tratava como "laudo atrasado" (achado 01/10/2026, caso
+        // Graziele/Izy) quando na verdade nunca ia existir um laudo ali.
+        is_revisao: !!ag.is_revisao,
       }
     })
 

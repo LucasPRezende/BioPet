@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
+import { registrarHistorico } from '@/lib/historico-precos'
 import { audienciaCatalogo } from '@/lib/session-helpers'
 
 // Colunas que qualquer um pode ler. `comissao` (o repasse da BioPet por teste)
@@ -58,7 +59,7 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json().catch(() => null)
   const { nome, descricao, material_padrao, metodo_padrao, observacao_padrao,
-          analitos, preco_pix, preco_cartao, comissao, ordem } = body ?? {}
+          analitos, preco_pix, preco_cartao, comissao, ordem, ativo } = body ?? {}
 
   if (!nome?.trim()) return NextResponse.json({ error: 'Nome é obrigatório.' }, { status: 400 })
 
@@ -75,15 +76,20 @@ export async function POST(request: NextRequest) {
       metodo_padrao:     metodo_padrao?.trim() || null,
       observacao_padrao: observacao_padrao?.trim() || null,
       analitos:          analitosNorm && analitosNorm.length > 0 ? analitosNorm : null,
-      preco_pix:         Number(preco_pix)    || 0,
-      preco_cartao:      Number(preco_cartao) || 0,
-      comissao:          Number(comissao)     || 0,
+      preco_pix:         Math.max(0, Number(preco_pix) || 0),
+      // Cartão vazio usa o Pix.
+      preco_cartao:      preco_cartao === null || preco_cartao === undefined || preco_cartao === ''
+                           ? Math.max(0, Number(preco_pix) || 0)
+                           : Math.max(0, Number(preco_cartao) || 0),
+      comissao:          Math.max(0, Number(comissao) || 0),
       ordem:             Number(ordem)        || 0,
-      ativo:             true,
+      // Nasce inativo: só entra no agendamento quando alguém liga "Ativo".
+      ativo:             ativo === true,
     })
     .select('*')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  await registrarHistorico([{ tabela: 'testes_rapidos', registro_id: data.id, campo: '*', antes: null, depois: data }], admin.userId)
   return NextResponse.json(data, { status: 201 })
 }

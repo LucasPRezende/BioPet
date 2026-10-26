@@ -1,15 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { comissaoExtracaoDe, tiposComExtracao } from '@/lib/comissao-exame'
+import { carregarComissoes } from '@/lib/comissao-exame-db'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
 
-async function verificarHemogasometria(agId: number): Promise<boolean> {
-  const [{ data: ae }, { data: ag }] = await Promise.all([
-    supabase.from('agendamento_exames').select('agendamento_id')
-      .eq('agendamento_id', agId).ilike('tipo_exame', '%hemogasometria%').limit(1),
-    supabase.from('agendamentos').select('id')
-      .eq('id', agId).ilike('tipo_exame', '%hemogasometria%').limit(1),
+/**
+ * Comissão de extração do agendamento = soma da comissao_extracao dos seus
+ * exames (tabela de Preços). null → o agendamento não tem exame com extração.
+ * Legado sem agendamento_exames: só existia para hemogasometria.
+ */
+async function comissaoDoAgendamento(agId: number): Promise<number | null> {
+  const [tabela, { data: ae }, { data: ag }] = await Promise.all([
+    carregarComissoes(),
+    supabase.from('agendamento_exames').select('tipo_exame').eq('agendamento_id', agId),
+    supabase.from('agendamentos').select('tipo_exame').eq('id', agId).maybeSingle(),
   ])
-  return (ae?.length ?? 0) > 0 || (ag?.length ?? 0) > 0
+  const linhas = (ae ?? []).map(r => r.tipo_exame as string)
+  const tipos  = new Set(tiposComExtracao(tabela))
+  if (linhas.some(t => tipos.has(t))) return comissaoExtracaoDe(linhas, tabela)
+  if (linhas.length === 0 && /hemogasometria/i.test(ag?.tipo_exame ?? '')) {
+    return comissaoExtracaoDe(['Hemogasometria'], tabela)
+  }
+  return null
 }
 
 export async function PATCH(
@@ -28,10 +40,10 @@ export async function PATCH(
   let body: Record<string, unknown>
   try { body = await request.json() } catch { return NextResponse.json({ error: 'Requisição inválida.' }, { status: 400 }) }
 
-  // Garante que o agendamento é de hemogasometria antes de qualquer operação
-  const ehHemo = await verificarHemogasometria(agId)
-  if (!ehHemo) {
-    return NextResponse.json({ error: 'Agendamento não é de hemogasometria.' }, { status: 403 })
+  // Garante que o agendamento tem exame com comissão de extração
+  const valorComissao = await comissaoDoAgendamento(agId)
+  if (valorComissao === null) {
+    return NextResponse.json({ error: 'Agendamento não tem exame com extração.' }, { status: 403 })
   }
 
   // Atribuir vet de extração
@@ -43,14 +55,6 @@ export async function PATCH(
     const { data: vet } = await supabase.from('veterinarios').select('id').eq('id', vetId).single()
     if (!vet) return NextResponse.json({ error: 'Veterinário não encontrado.' }, { status: 404 })
 
-    const { data: comissao } = await supabase
-      .from('comissoes_exame')
-      .select('valor_comissao')
-      .ilike('tipo_exame', '%hemogasometria%')
-      .single()
-
-    const valorComissao = comissao?.valor_comissao ?? 0
-
     const { error } = await supabase
       .from('agendamentos')
       .update({ vet_extracao_id: vetId, comissao_extracao: valorComissao })
@@ -60,23 +64,7 @@ export async function PATCH(
     return NextResponse.json({ sucesso: true, comissao_extracao: valorComissao })
   }
 
-  // Marcar comissão como paga
-  if (body.comissao_paga === true) {
-    // Valida que já tem vet atribuído antes de marcar como pago
-    const { data: ag } = await supabase
-      .from('agendamentos').select('vet_extracao_id').eq('id', agId).single()
-    if (!ag?.vet_extracao_id) {
-      return NextResponse.json({ error: 'Não é possível marcar como pago sem vet de extração atribuído.' }, { status: 400 })
-    }
-
-    const { error } = await supabase
-      .from('agendamentos')
-      .update({ comissao_paga: true, comissao_paga_em: new Date().toISOString() })
-      .eq('id', agId)
-
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ sucesso: true })
-  }
+  // Pagamento de comissão não é mais feito aqui: ver /admin/pagamentos-comissao.
 
   return NextResponse.json({ error: 'Nenhuma operação reconhecida.' }, { status: 400 })
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
+import { registrarHistorico } from '@/lib/historico-precos'
 
 async function requireAdmin(request: NextRequest) {
   const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value
@@ -23,7 +24,7 @@ export async function PATCH(
   if (!examId) return NextResponse.json({ error: 'ID inválido.' }, { status: 400 })
 
   const body = await request.json().catch(() => null)
-  const { nome, codigo, preco_pix, preco_cartao, comissao, ativo, ordem } = body ?? {}
+  const { nome, codigo, preco_pix, preco_cartao, comissao, custo, ativo, ordem } = body ?? {}
 
   const updates: Record<string, unknown> = {}
   if (nome        !== undefined) updates.nome        = nome?.trim()
@@ -31,6 +32,7 @@ export async function PATCH(
   if (preco_pix   !== undefined) updates.preco_pix   = Number(preco_pix)
   if (preco_cartao !== undefined) updates.preco_cartao = Number(preco_cartao)
   if (comissao    !== undefined) updates.comissao    = Number(comissao)
+  if (custo       !== undefined) updates.custo       = custo === null || custo === '' ? null : Number(custo)
   if (ativo       !== undefined) updates.ativo       = Boolean(ativo)
   if (ordem       !== undefined) updates.ordem       = Number(ordem)
 
@@ -63,5 +65,6 @@ export async function DELETE(
     .eq('id', examId)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  await registrarHistorico([{ tabela: 'bioquimica_exames', registro_id: examId, campo: 'ativo', antes: true, depois: false }], admin.userId)
   return NextResponse.json({ success: true })
 }

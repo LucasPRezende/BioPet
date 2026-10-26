@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest'
-import { novaConversa } from './harness'
+import { novaConversa, FERIADO_FAKE } from './harness'
 import { responder } from '@/lib/agente/orquestrador'
 
 // Contato de emergência usado pelo prompt — fixado para a asserção do teste.
@@ -182,7 +182,7 @@ run('comportamento do agente (IA real, tools fake)', () => {
   it('horário claramente dentro do comercial (15h): continua cotando o preço comercial normal', OPTS, async () => {
     const c = novaConversa()
     await c.enviar(
-      'oi, sou tutor do Rex, o veterinário pediu um ultrassom abdominal pra ele, dá pra marcar segunda às 15:00?',
+      'oi, sou tutor do Rex, o veterinário pediu um ultrassom abdominal NOVO pra ele (não é revisão), dá pra marcar segunda às 15:00?',
     )
     if (!c.nomes().includes('horarios_livres')) {
       await c.enviar('isso, segunda-feira às 15:00 mesmo')
@@ -274,6 +274,85 @@ run('comportamento do agente (IA real, tools fake)', () => {
   // que cadastrar_tutor ia devolver (368) — deu erro de FK. O fake agora
   // espelha esse erro pra tutor_id errado (harness.ts) — este teste garante
   // que cadastrar_pet usa o tutor_id real de cadastrar_tutor de primeira.
+  // Caso real 08/10/2026 (Ivanilza/Pretinho, Haiku 4.5): perguntou PIX/cartão numa
+  // revisão grátis, marcou sem consultar horarios_livres (a rota não checava
+  // conflito), esqueceu o aviso de "sem laudo escrito" e falou em link de pagamento.
+  it('revisão: confere horarios_livres antes, não pergunta pagamento e avisa que não inclui laudo', OPTS, async () => {
+    const c = novaConversa()
+    await c.enviar('Oi, quero agendar a revisão do Rex na quinta-feira às 10h')
+    for (let i = 0; i < 4 && !c.nomes().includes('agendar_revisao'); i++) {
+      await c.enviar('Isso mesmo, quinta às 10h. Pode confirmar.')
+    }
+
+    const nomes = c.nomes()
+    expect(nomes).toContain('agendar_revisao')
+    expect(nomes).toContain('horarios_livres')
+    expect(nomes.indexOf('horarios_livres')).toBeLessThan(nomes.indexOf('agendar_revisao'))
+    const ok = c.calls.filter((x) => x.nome === 'agendar_revisao' && !(x.resultado as any)?.erro)
+    expect(ok.length).toBeGreaterThan(0)
+    const t = c.textos()
+    expect(t).not.toMatch(/pix|cart[ãa]o/)
+    expect(t).not.toMatch(/link de pagamento/)
+    expect(t).toMatch(/laudo/)
+  })
+
+  it('revisão: número que o cliente cita (nº do exame) não vira agendamento_original_id', OPTS, async () => {
+    const c = novaConversa()
+    await c.enviar('Oi, o exame do Rex foi o número 28380309, quero marcar a revisão na quinta às 10h')
+    for (let i = 0; i < 4 && !c.nomes().includes('agendar_revisao'); i++) {
+      await c.enviar('Isso mesmo, quinta às 10h. Pode confirmar.')
+    }
+
+    const chamadas = c.calls.filter((x) => x.nome === 'agendar_revisao')
+    expect(chamadas.length).toBeGreaterThan(0)
+    for (const ch of chamadas) expect(Number(ch.input.agendamento_original_id)).not.toBe(28380309)
+    expect(chamadas.some((ch) => Number(ch.input.agendamento_original_id) === 900)).toBe(true)
+  })
+
+  it('revisão em horário já ocupado: não fecha nesse horário nem diz que registrou', OPTS, async () => {
+    const c = novaConversa()
+    await c.enviar('Oi, quero agendar a revisão do Rex na quinta-feira às 13h')
+    for (let i = 0; i < 3 && !c.nomes().includes('agendar_revisao'); i++) {
+      await c.enviar('Isso, quinta às 13h mesmo, pode confirmar.')
+    }
+
+    // 13h não está livre no fake (12h–14h30 ocupados): se chamou a tool, o backend barrou.
+    for (const ch of c.calls.filter((x) => x.nome === 'agendar_revisao' && String(x.input.data_hora).includes('T13:'))) {
+      expect((ch.resultado as any)?.erro).toBe(true)
+    }
+    expect(c.nomes()).toContain('horarios_livres')
+    expect(c.textos()).not.toMatch(/revis[ãa]o (registrada|marcada|confirmada).{0,40}13h/)
+  })
+
+  // Caso real 09/10/2026 (Bruna/Bella): "Dra Juliana" + "da Clive" — a lista tem 3
+  // Julianas e só a Goes tem clínica (Clive). A IA perguntou o sobrenome 3x.
+  // Agora listar_veterinarios traz a clínica: propõe a Goes pra CONFIRMAR.
+  it('veterinário repetido + clínica citada: propõe o único da clínica pra confirmar, sem listar todos', OPTS, async () => {
+    const c = novaConversa()
+    await c.enviar('Oi, quero agendar o ultrassom abdominal do Rex pra quinta às 10h, foi a Dra Juliana da Clive que pediu')
+    const primeira = c.textos()
+    expect(c.nomes()).toContain('listar_veterinarios')
+    expect(primeira).toMatch(/goes/)
+    expect(primeira).not.toMatch(/felonta|corr[êe]a/)
+
+    for (let i = 0; i < 5 && !c.nomes().includes('agendar'); i++) {
+      await c.enviar('Sim, é ela mesmo. Pagamento PIX, pode confirmar.')
+    }
+    const ag = c.calls.filter((x) => x.nome === 'agendar')
+    for (const a of ag) expect([undefined, 31]).toContain(a.input.veterinario_id)
+  })
+
+  it('veterinário repetido SEM clínica: pergunta qual, não escolhe sozinha', OPTS, async () => {
+    const c = novaConversa()
+    await c.enviar('Oi, quero agendar o ultrassom abdominal do Rex pra quinta às 10h, foi a Dra Juliana que pediu')
+    await c.enviar('Pode seguir')
+    expect(c.nomes()).toContain('listar_veterinarios')
+    expect(c.textos()).toMatch(/sobrenome|qual (delas|das)|goes|felonta|corr[êe]a/)
+    for (const a of c.calls.filter((x) => x.nome === 'agendar')) {
+      expect(a.input.veterinario_id ?? null).toBeNull()
+    }
+  })
+
   it('cadastrar_pet usa o tutor_id real de cadastrar_tutor, sem chutar', OPTS, async () => {
     const c = novaConversa(responder, { novoCliente: true })
     await c.enviar('Oi, meu nome é Bianca, quero marcar um ultrassom abdominal pro meu cachorro Bidu')
@@ -425,6 +504,31 @@ run('comportamento do agente (IA real, tools fake)', () => {
     expect(t).not.toMatch(/agendamento (solicitado|confirmado)/i)
   })
 
+  // Caso real 08/10/2026 (Ana Clara/Dipper): cliente pediu o feriado de 12/10
+  // (segunda). A IA disse "é segunda-feira, não é feriado", cotou R$180 (comercial)
+  // e ofereceu "9h às 16h30". Agora horarios_livres traz dia_especial/aviso do
+  // backend; o fake (harness) marca uma segunda futura como feriado.
+  it('feriado em dia de semana: não nega o feriado, cota fora_horario (R$240) e não agenda sozinha', OPTS, async () => {
+    const [, mm, dd] = FERIADO_FAKE.split('-')
+    const c = novaConversa()
+    await c.enviar(`Eu gostaria de agendar o Ultrassom pro Rex no dia ${Number(dd)}/${Number(mm)} no feriado, por favor.`)
+    const respostas = ['Abdominal.', 'Qual o valor? É no pix.', '10:30', 'Pode sim.', 'Isso mesmo, pode resolver']
+    for (let i = 0; i < respostas.length && !c.nomes().includes('transferir_humano'); i++) {
+      await c.enviar(respostas[i])
+    }
+
+    const t = c.textos()
+    // Conferiu o dia na tool (não respondeu de cabeça)...
+    expect(c.calls.some((x) => x.nome === 'horarios_livres' && x.input.data === FERIADO_FAKE)).toBe(true)
+    // ...nunca contradisse o cliente sobre o feriado...
+    expect(t).not.toMatch(/n[ãa]o [ée] (um )?feriado/)
+    // ...nunca cotou o preço comercial pra esse dia...
+    expect(t).not.toMatch(/r\$\s?180\b/)
+    // ...e não fechou o agendamento sozinha: foi pra atendente.
+    for (const ch of c.calls.filter((x) => x.nome === 'agendar')) expect((ch.resultado as any)?.erro).toBe(true)
+    expect(c.nomes()).toContain('transferir_humano')
+  })
+
   // Mesma regra, lado revisão: Fido (horario_restrito=false) antes podia
   // confirmar horário especial normalmente; agora, mesmo sem restrição de
   // elegibilidade, a MARCAÇÃO em horário especial também precisa de atendente.
@@ -442,5 +546,90 @@ run('comportamento do agente (IA real, tools fake)', () => {
     expect(c.nomes()).toContain('transferir_humano')
     const t = c.textos()
     expect(t).not.toMatch(/revis[ãa]o.*(confirmada|marcada|solicitada)|agendamento (solicitado|confirmado)/i)
+  })
+
+  // ---- Pacote 20/10/2026: assunto pessoal, reserva falsa, exame em curso ----
+
+  // Caso real 19/10: cliente pediu paciência por "o projeto" — a IA tratou como
+  // dúvida de exame e escalou como ia_travou DEPOIS de responder.
+  it('assunto pessoal com a Luciana: escala em silêncio, sem responder ao cliente', OPTS, async () => {
+    const c = novaConversa(responder, { novoCliente: true })
+    await c.enviar('Luciana peço desculpas pela demora com o projeto, estou passando por alguns problemas e estava até de atestado. Peço somente um pouco de paciência')
+
+    const transf = c.calls.filter((x) => x.nome === 'transferir_humano')
+    expect(transf.length).toBeGreaterThan(0)
+    expect(transf.some((x) => x.input.silencioso === true)).toBe(true)
+    const bot = c.dialogo().filter((d) => d.de === 'bot')
+    expect(bot[bot.length - 1].texto).toBe('')
+    expect(c.nomes()).not.toContain('agendar')
+  })
+
+  it('cumprimento e pergunta de laudo endereçados à Luciana NÃO são assunto pessoal', OPTS, async () => {
+    const c1 = novaConversa()
+    await c1.enviar('Bom dia Luciana, tudo bem?')
+    const bot1 = c1.dialogo().filter((d) => d.de === 'bot')
+    expect(bot1[bot1.length - 1].texto.length).toBeGreaterThan(0)
+    expect(c1.calls.some((x) => x.nome === 'transferir_humano' && x.input.silencioso === true)).toBe(false)
+
+    const c2 = novaConversa()
+    await c2.enviar('Luciana, o laudo do Rex já saiu?')
+    const bot2 = c2.dialogo().filter((d) => d.de === 'bot')
+    expect(bot2[bot2.length - 1].texto.length).toBeGreaterThan(0)
+    expect(c2.calls.some((x) => x.nome === 'transferir_humano' && x.input.silencioso === true)).toBe(false)
+  })
+
+  // Caso real 16/10 (Luciano): "pode ser" para o horário oferecido e a IA disse
+  // "14h30 de hoje está reservado para você" sem nenhum agendamento.
+  it('horário só oferecido nunca é dito "reservado/garantido" antes de agendar', OPTS, async () => {
+    const c = novaConversa()
+    await c.enviar('Vc tem horário pra eu levar minha cachorrinha hoje?')
+    await c.enviar('Pode ser')
+
+    expect(c.nomes()).not.toContain('agendar')
+    expect(c.textos()).not.toMatch(/reservad|garantid|est[áa] marcad/)
+  })
+
+  // Caso real 15/10 (Ivanilza): "estou a caminho" no horário do exame — o
+  // agendamento não pode "sumir".
+  it('cliente avisa atraso com o exame em curso: acha o agendamento e avisa a equipe', OPTS, async () => {
+    const c = novaConversa(responder, { agendamentoEmCurso: true })
+    await c.enviar('Oi, estou a caminho com o Rex, vou atrasar uns 15 minutinhos pro exame de hoje')
+
+    // Consultar meus_agendamentos é opcional (a IA pode ir direto avisar a equipe do atraso);
+    // o que não pode é dizer que não há agendamento nem cancelar.
+    expect(c.textos()).not.toMatch(/n[ãa]o (encontr|localiz)[a-z]* (nenhum )?agendamento/)
+    expect(c.nomes()).not.toContain('cancelar_agendamento')
+    expect(c.nomes()).toContain('transferir_humano')
+  })
+
+  // ---- Pagamento em dinheiro (política confirmada pelo Lucas em 21/10/2026) ----
+  // Caso real: Andréia/Lulu aceitou dinheiro e registrou como PIX; Devanil, no
+  // mesmo dia, ouviu "não consigo registrar pagamento em dinheiro".
+  it('aceita pagamento em dinheiro: agenda com preço PIX, marca nas observações e avisa do link', OPTS, async () => {
+    const c = novaConversa()
+    await c.enviar('Quero marcar um ultrassom abdominal NOVO (não é revisão) pro Rex, quinta-feira às 9h. Vou pagar em dinheiro na clínica')
+    for (let i = 0; i < 3 && !c.nomes().includes('agendar'); i++) {
+      await c.enviar('Sim, quinta às 9h mesmo, pagamento em dinheiro na clínica, pode confirmar')
+    }
+
+    const chamada = c.calls.find((x) => x.nome === 'agendar')
+    expect(chamada).toBeTruthy()
+    expect(String(chamada!.input.forma_pagamento).toLowerCase()).toBe('pix')
+    expect(String(chamada!.input.observacoes ?? '')).toMatch(/dinheiro/i)
+    const t = c.textos()
+    expect(t).not.toMatch(/n[ãa]o (aceit|trabalh)[a-z]* (pagamento )?(em )?dinheiro/)
+    expect(t).toMatch(/link/)
+  })
+
+  it('cliente diz que JÁ pagou em dinheiro: não nega nem confirma, escala pra equipe conferir', OPTS, async () => {
+    const c = novaConversa()
+    await c.enviar('Quero marcar um ultrassom abdominal NOVO (não é revisão) pro Rex, quinta-feira às 9h. Já deixei pago 180 em dinheiro com a clínica')
+    for (let i = 0; i < 3 && !c.nomes().includes('transferir_humano'); i++) {
+      await c.enviar('Sim, quinta às 9h, o pagamento já foi feito em dinheiro, pode seguir')
+    }
+
+    expect(c.nomes()).toContain('transferir_humano')
+    expect(c.textos()).not.toMatch(/n[ãa]o aceit[a-z]* (pagamento )?(em )?dinheiro/)
+    expect(c.textos()).not.toMatch(/pagamento (j[áa] )?(foi )?(confirmado|recebido)/)
   })
 })

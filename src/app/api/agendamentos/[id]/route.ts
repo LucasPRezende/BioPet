@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { ehAgrupador, num } from '@/lib/comissao-exame'
+import { carregarComissoes } from '@/lib/comissao-exame-db'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
 import { sendWhatsAppText } from '@/lib/evolution'
 import { recalcularTotal, reconciliarLinkPagamento, type EstadoPagamento } from '@/lib/agendamento-helpers'
@@ -30,7 +32,7 @@ export async function GET(
 
   const { data, error } = await supabase
     .from('agendamentos')
-    .select('*, tutores(id, nome, telefone), pets(id, nome, especie, raca, sexo, data_nascimento), laudos(id, token, tipo_exame), agendamento_exames(tipo_exame, valor, desconto, duracao_minutos, descricao), agendamento_testes_rapidos(id, teste_rapido_id, testes_rapidos(nome))')
+    .select('*, tutores(id, nome, telefone), pets(id, nome, especie, raca, sexo, data_nascimento), laudos(id, token, tipo_exame), agendamento_exames(tipo_exame, valor, desconto, duracao_minutos, descricao), agendamento_testes_rapidos(id, teste_rapido_id, testes_rapidos(nome)), agendamento_pcr(id, pcr_id, exames_pcr(nome))')
     .eq('id', Number(params.id))
     .single()
 
@@ -126,6 +128,9 @@ export async function PATCH(
 
   if (Array.isArray(exames_adicionar) && exames_adicionar.length > 0) {
     const novos = exames_adicionar as { tipo_exame: string; duracao_minutos: number; valor: number | null; desconto?: number }[]
+    // Comissão da clínica vem da tabela de Preços, nunca do cliente.
+    const tabela = await carregarComissoes()
+    const gratuito = String(forma_pagamento ?? antesPag?.forma_pagamento ?? '').toLowerCase() === 'gratuito'
     await supabase
       .from('agendamento_exames')
       .insert(novos.map(e => ({
@@ -135,6 +140,9 @@ export async function PATCH(
         valor:            e.valor,
         desconto:         Number(e.desconto ?? 0),
         horario_especial: false,
+        comissao_clinica: gratuito || ehAgrupador(e.tipo_exame)
+          ? 0
+          : num(tabela.find(c => c.tipo_exame === e.tipo_exame)?.comissao_clinica),
       })))
   }
 

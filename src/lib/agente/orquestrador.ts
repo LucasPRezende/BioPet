@@ -11,7 +11,9 @@
  */
 import Anthropic from '@anthropic-ai/sdk'
 import { supabase } from '@/lib/supabase'
-import { normalizarTelefone } from './conversa'
+import { normalizarTelefone, marcarAtendimentoHumano } from './conversa'
+import { violouTrava, TEXTO_SEM_CONFIRMACAO, type ChamadaDoTurno } from './trava-confirmacao'
+import { escalouEmSilencio, TEXTO_HISTORICO_SILENCIO } from './escalada-silenciosa'
 
 // Lazy init (igual ao client do Supabase): o Next importa o module no build,
 // quando process.env ainda não está disponível.
@@ -23,6 +25,48 @@ function getAnthropic(): Anthropic {
 
 const MODELO = process.env.AGENTE_MODELO ?? 'claude-haiku-4-5-20251001'
 const MAX_RODADAS_TOOL = 6
+
+/**
+ * Haiku 5.5 muda a API em relação ao 4.5: thinking vem LIGADO por padrão (e
+ * conta no max_tokens) e há `effort`. Para o agente, o padrão é thinking
+ * desligado + effort baixo (o mais próximo do comportamento do 4.5, e o mais
+ * barato). AGENTE_THINKING=adaptive e AGENTE_EFFORT permitem experimentar.
+ * Nada disso é enviado a modelos que não são Haiku 5.x.
+ */
+function paramsDoModelo(): { extra: Record<string, unknown>; maxTokens: number } {
+  if (!/haiku-5/.test(MODELO)) return { extra: {}, maxTokens: 1024 }
+  const adaptive = process.env.AGENTE_THINKING === 'adaptive'
+  const effort = process.env.AGENTE_EFFORT ?? 'low'
+  return {
+    extra: { thinking: { type: adaptive ? 'adaptive' : 'disabled' }, output_config: { effort } },
+    // thinking consome max_tokens: dá folga quando ligado
+    maxTokens: adaptive ? 4096 : 1024,
+  }
+}
+
+/** US$ por milhão de tokens: [entrada, saída]; cache escrita 1,25x e leitura 0,1x da entrada. */
+function precoPorMilhao(modelo: string): [number, number] {
+  return /haiku-5/.test(modelo) ? [0.1, 0.5] : [1, 5] // Haiku 4.5 = US$1/US$5
+}
+
+function custoUSD(uso: { input: number; output: number; cacheCriado: number; cacheLido: number }): number {
+  const [pin, pout] = precoPorMilhao(MODELO)
+  return (uso.input * pin + uso.output * pout + uso.cacheCriado * pin * 1.25 + uso.cacheLido * pin * 0.1) / 1_000_000
+}
+
+/**
+ * O histórico persistido NÃO guarda blocos de thinking: o system volátil
+ * (hora, contexto) muda a cada turno, e o Haiku 5.x recusa (400) um bloco de
+ * thinking reenviado depois que algo anterior mudou. Dentro do mesmo turno
+ * (loop de tools) os blocos continuam intactos.
+ */
+export function semThinking(msgs: Anthropic.MessageParam[]): Anthropic.MessageParam[] {
+  return msgs.map((m) =>
+    m.role === 'assistant' && Array.isArray(m.content)
+      ? { ...m, content: m.content.filter((b) => b.type !== 'thinking' && b.type !== 'redacted_thinking') }
+      : m,
+  )
+}
 
 function baseUrl(): string {
   return (
@@ -72,7 +116,7 @@ export const TOOLS: Anthropic.Tool[] = [
   {
     name: 'horarios_livres',
     description:
-      'Lista os horários livres em uma data. Só ofereça horários retornados por esta tool. Cada horário já vem com "especial" (true/false, calculado no backend a partir de início+duração) — use esse campo pra saber se é horário especial, não calcule de cabeça (isso é só sobre PREÇO, não tem nada a ver com o teto de 15h abaixo). A resposta também traz "horarios_para_sugerir_tarde": uma lista pronta (só os horários HH:MM) já filtrada com o teto de 15h — é só isso que você pode usar quando for MONTAR uma lista de horários de tarde pro cliente.\n\nAo SUGERIR horários pro cliente (ele perguntou "quais horários têm" ou pediu pra você sugerir, sem dizer manhã ou tarde), dê os horários EXATOS só da manhã (até 12h, veja em "horarios_livres"), e feche com uma menção BREVE e vaga de que também tem à tarde, sem listar os horários dela (ex.: "Tenho 9h, 9h30 ou 10h de manhã. Também tenho à tarde, se preferir." — nunca liste os horários de tarde de cara). Só dê os horários exatos de tarde se o cliente pedir tarde especificamente ou disser que nenhum da manhã serve — e nesse caso, liste EXATAMENTE os horários que estão em "horarios_para_sugerir_tarde" (copie a lista, não invente nem acrescente nenhum horário de tarde que não esteja nela, mesmo que "horarios_livres" traga outros depois — não diga "também tem...", "fora do comercial tem...", etc.). Isso é só pra lista espontânea: se o cliente pedir um horário de tarde ESPECÍFICO que não está em "horarios_para_sugerir_tarde" (ex.: "tem 15h30?", "e às 16h?"), procure esse horário no array completo "horarios_livres" normalmente e agende/confirme se estiver livre — nada nessa regra impede um pedido específico, ela só limita o que VOCÊ oferece de forma espontânea.\n\nSe o cliente já pediu um período específico (manhã ou tarde) ou um horário exato, respeite o pedido normalmente, sem empurrar manhã.',
+      'Lista os horários livres em uma data. Só ofereça horários retornados por esta tool. Cada horário já vem com "especial" (true/false, calculado no backend a partir de início+duração) — use esse campo pra saber se é horário especial, não calcule de cabeça (isso é só sobre PREÇO, não tem nada a ver com o teto de 15h abaixo). A resposta também traz "horarios_para_sugerir_tarde": uma lista pronta (só os horários HH:MM) já filtrada com o teto de 15h — é só isso que você pode usar quando for MONTAR uma lista de horários de tarde pro cliente.\n\nAo SUGERIR horários pro cliente (ele perguntou "quais horários têm" ou pediu pra você sugerir, sem dizer manhã ou tarde), dê os horários EXATOS só da manhã (até 12h, veja em "horarios_livres"), e feche com uma menção BREVE e vaga de que também tem à tarde, sem listar os horários dela (ex.: "Tenho 9h, 9h30 ou 10h de manhã. Também tenho à tarde, se preferir." — nunca liste os horários de tarde de cara). Só dê os horários exatos de tarde se o cliente pedir tarde especificamente ou disser que nenhum da manhã serve — e nesse caso, liste EXATAMENTE os horários que estão em "horarios_para_sugerir_tarde" (copie a lista, não invente nem acrescente nenhum horário de tarde que não esteja nela, mesmo que "horarios_livres" traga outros depois — não diga "também tem...", "fora do comercial tem...", etc.). Isso é só pra lista espontânea: se o cliente pedir um horário de tarde ESPECÍFICO que não está em "horarios_para_sugerir_tarde" (ex.: "tem 15h30?", "e às 16h?"), procure esse horário no array completo "horarios_livres" normalmente e agende/confirme se estiver livre — nada nessa regra impede um pedido específico, ela só limita o que VOCÊ oferece de forma espontânea.\n\nSe o cliente já pediu um período específico (manhã ou tarde) ou um horário exato, respeite o pedido normalmente, sem empurrar manhã.\n\nDIA ESPECIAL (feriado/fim de semana): a resposta traz "dia_especial" (true/false), "motivo_dia_especial" ("feriado" ou "fim_de_semana"), "feriado_nome" e "aviso_dia_especial". Se "dia_especial" for true, o DIA INTEIRO é horário especial, mesmo numa segunda a sexta (feriado cai em dia de semana). Você NÃO sabe o calendário de feriados — só este campo sabe: se o cliente disser que o dia é feriado, ou se "dia_especial" for true, NUNCA diga que "não é feriado", NUNCA diga que é dia comercial e NUNCA cote o preço comercial; use o "fora_horario" de consultar_precos. Não ofereça "das 9h às 16h30" — nesse dia nenhum horário é comercial.',
     input_schema: {
       type: 'object',
       properties: {
@@ -108,7 +152,7 @@ export const TOOLS: Anthropic.Tool[] = [
   {
     name: 'listar_veterinarios',
     description:
-      'Lista os veterinários cadastrados (id e nome). Use para casar o nome que o cliente disser com o veterinário correto antes de agendar.',
+      'Lista os veterinários cadastrados (id, nome e clinica). Use para casar o nome que o cliente disser com o veterinário correto antes de agendar. O campo "clinica" (pode ser null — cadastro incompleto) serve pra desempatar nomes repetidos: se o cliente citar a clínica (ex.: "Juliana da Clive") e SÓ UM candidato do nome tiver essa clínica, proponha esse nome pra confirmação ("É a Dra. Juliana Goes, da Clive, certo?") em vez de listar todos — confirme sempre, porque clinica=null não exclui ninguém (pode atender lá e não estar cadastrado). Se nenhum ou mais de um bater, pergunte o sobrenome. Se o cliente não citou clínica, não use esse campo pra decidir.',
     input_schema: { type: 'object', properties: {} },
   },
   {
@@ -135,7 +179,7 @@ export const TOOLS: Anthropic.Tool[] = [
         },
         tipo_exame: { type: 'string', description: 'Alternativa a "exames" para um único exame simples.' },
         data_hora: { type: 'string', description: 'YYYY-MM-DDTHH:MM:00 (horário local)' },
-        forma_pagamento: { type: 'string', description: "'pix' ou 'cartao'" },
+        forma_pagamento: { type: 'string', description: "'pix' ou 'cartao'. Cliente que vai pagar em dinheiro na clínica: 'pix' (ver regra PAGAMENTO EM DINHEIRO)." },
         veterinario_id: { type: 'number', description: 'Id do veterinário responsável (de listar_veterinarios)' },
         observacoes: { type: 'string', description: 'Observações/características relevantes do agendamento (pedido especial, detalhe do encaminhamento, sedação, etc.)' },
       },
@@ -145,11 +189,11 @@ export const TOOLS: Anthropic.Tool[] = [
   {
     name: 'agendar_revisao',
     description:
-      'Cria uma REVISÃO de um exame já feito (reavaliação pedida pelo veterinário), vinculada ao agendamento original. O agendamento_original_id tem que ser o número EXATO que apareceu em "revisoes_disponiveis" (no contexto injetado ou no retorno de identificar_tutor) — NUNCA invente/chute esse id. Se não tiver o id em mãos, chame identificar_tutor ANTES. Gratuita por padrão — só chame com laudo_solicitado=true se o cliente pedir explicitamente um laudo escrito da revisão (tem custo extra). Só chame após confirmação explícita do cliente (pet, data/hora). NÃO chame para horário especial (fim de semana, feriado ou fora do horário comercial) — esse horário sempre é recusado automaticamente (a equipe nem sempre está disponível) e precisa ir direto pra transferir_humano, mesmo que a revisão em outros casos permita horário especial. Você TEM que chamar esta tool e ler o resultado antes de dizer ao cliente que a revisão foi registrada — nunca declare sucesso sem o retorno dela. Se vier erro (ex.: horário fora da janela permitida), NÃO diga que deu certo — informe o problema e use transferir_humano.',
+      'Cria uma REVISÃO de um exame já feito (reavaliação pedida pelo veterinário), vinculada ao agendamento original. O agendamento_original_id tem que ser o número EXATO que apareceu em "revisoes_disponiveis" (no contexto injetado ou no retorno de identificar_tutor) — NUNCA invente/chute esse id. Se não tiver o id em mãos, chame identificar_tutor ANTES. Gratuita por padrão — só chame com laudo_solicitado=true se o cliente pedir explicitamente um laudo escrito da revisão (tem custo extra). Só chame após confirmação explícita do cliente (pet, data/hora), e SÓ depois de conferir em horarios_livres que o horário está livre (a rota recusa horário ocupado com 409). Revisão gratuita não tem forma de pagamento: NÃO pergunte PIX/cartão. Depois de criar, diga que a revisão NÃO inclui laudo escrito (veja aviso_cliente) e NÃO fale em link de pagamento. NÃO chame para horário especial (fim de semana, feriado ou fora do horário comercial) — esse horário sempre é recusado automaticamente (a equipe nem sempre está disponível) e precisa ir direto pra transferir_humano, mesmo que a revisão em outros casos permita horário especial. Você TEM que chamar esta tool e ler o resultado antes de dizer ao cliente que a revisão foi registrada — nunca declare sucesso sem o retorno dela. Se vier erro (ex.: horário fora da janela permitida), NÃO diga que deu certo — informe o problema e use transferir_humano. ANTES de confirmar pro cliente que uma data específica "ainda é pela revisão", confira: ache a linha do "prazo_limite" (YYYY-MM-DD) e a linha de "hoje" na tabela CALENDÁRIO e compare a ORDEM das duas linhas na tabela — não calcule de cabeça "quantos dias faltam" nem assuma que uma data já passou sem achar as duas linhas (já aconteceu de chamar uma data 3 dias no futuro de "ontem"). Se a data pedida vier DEPOIS da linha do prazo_limite na tabela, não dá mais — explique usando "prazo_dias" (ex.: "a revisão vale por 30 dias do exame, que foi em X, então o prazo foi até Y").',
     input_schema: {
       type: 'object',
       properties: {
-        agendamento_original_id: { type: 'number', description: 'Id real vindo de revisoes_disponiveis ou identificar_tutor — NUNCA chutado/inventado. Se não tiver esse número em mãos, chame identificar_tutor ANTES e use o que ele devolver.' },
+        agendamento_original_id: { type: 'number', description: 'Id real vindo de revisoes_disponiveis ou identificar_tutor — NUNCA chutado/inventado, e NUNCA um número que o cliente citou na conversa (protocolo, número do pet, número do exame — não são este id). Se não tiver esse número em mãos, chame identificar_tutor ANTES e use o que ele devolver.' },
         data_hora: { type: 'string', description: 'YYYY-MM-DDTHH:MM:00 (horário local)' },
         veterinario_id: { type: 'number', description: 'Opcional — se não informado, usa o mesmo veterinário do exame original.' },
         laudo_solicitado: { type: 'boolean', description: 'true SÓ se o cliente pedir um laudo escrito extra (tem custo). Default: false (revisão sem laudo, gratuita).' },
@@ -160,7 +204,7 @@ export const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'meus_agendamentos',
-    description: 'Lista os próximos agendamentos do tutor (pelo telefone da conversa).',
+    description: 'Lista os próximos agendamentos do tutor (pelo telefone da conversa) em "agendamentos". Também traz "historico_recente": agendamentos dos últimos 45 dias que foram cancelados ou tiveram falta (sem o tutor comparecer). Se "agendamentos" vier vazio mas o cliente insistir que tem algo marcado, olhe "historico_recente" antes de escalar — se achar um "faltou", explique isso objetivamente ao cliente (ex.: "vejo que você faltou nesse horário em X") em vez de dizer só "não encontrei nada". Mas NÃO decida sozinha sobre repor ou dar uma exceção — isso é sempre com um atendente (use transferir_humano se o cliente pedir pra repor). Cada agendamento traz "ja_comecou": true quando o horário marcado já chegou (há menos de 2h) — o exame está em curso ou acabou de começar. Nesse caso NÃO diga que não há agendamento nem que "já passou"; se o cliente avisar atraso/"estou a caminho", diga que a equipe foi avisada e use transferir_humano (motivo pergunta_tecnica) para a clínica saber.',
     input_schema: { type: 'object', properties: {} },
   },
   {
@@ -177,13 +221,15 @@ export const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'remarcar_agendamento',
-    description: 'Remarca a data/hora e/ou a forma de pagamento de um agendamento (pelo menos um dos dois). O agendamento_id TEM que vir de meus_agendamentos (a lista do próprio cliente) — NUNCA invente/chute esse número. Se não tiver a lista, chame meus_agendamentos ANTES. O valor é recalculado automaticamente (data/hora pode cruzar horário especial, forma de pagamento muda o preço) — informe o valor_total que a tool retornar, nunca o antigo.',
+    description: 'Atualiza um agendamento já existente: data/hora, forma de pagamento, veterinário responsável e/ou uma observação adicional (pelo menos um desses). O agendamento_id TEM que vir de meus_agendamentos (a lista do próprio cliente) — NUNCA invente/chute esse número. Se não tiver a lista, chame meus_agendamentos ANTES. O valor é recalculado automaticamente quando data/hora ou forma de pagamento mudam (data/hora pode cruzar horário especial) — informe o valor_total que a tool retornar, nunca o antigo. Use pra CORRIGIR um dado que ficou errado ou incompleto no agendamento (ex.: cliente avisou o veterinário depois de já ter agendado) — é sempre melhor que cancelar e recriar o agendamento do zero.',
     input_schema: {
       type: 'object',
       properties: {
         agendamento_id: { type: 'number', description: 'Id vindo de meus_agendamentos — nunca chutado.' },
-        nova_data_hora: { type: 'string', description: 'YYYY-MM-DDTHH:MM:00 — omita se só a forma de pagamento está mudando.' },
-        nova_forma_pagamento: { type: 'string', enum: ['pix', 'cartao'], description: 'Omita se só a data/hora está mudando.' },
+        nova_data_hora: { type: 'string', description: 'YYYY-MM-DDTHH:MM:00 — omita se não estiver mudando a data/hora.' },
+        nova_forma_pagamento: { type: 'string', enum: ['pix', 'cartao'], description: 'Omita se não estiver mudando a forma de pagamento.' },
+        veterinario_id: { type: 'number', description: 'Mesma regra de sempre: SÓ um id que veio EXATAMENTE de um resultado de listar_veterinarios. Nunca chutado, nunca inventado.' },
+        observacao_adicional: { type: 'string', description: 'Texto curto a acrescentar nas observações do agendamento (é concatenado ao que já existe, não substitui).' },
       },
       required: ['agendamento_id'],
     },
@@ -191,13 +237,13 @@ export const TOOLS: Anthropic.Tool[] = [
   {
     name: 'listar_laudos',
     description:
-      'Lista os laudos recentes do tutor (id, pet, exame, data). Use para o cliente escolher qual laudo quer receber. NÃO há link — o laudo é enviado como PDF. Também retorna "pendentes": exames concluídos que ainda NÃO têm laudo, já com "horas_uteis_desde_exame" e "dentro_prazo_48h" calculados (fim de semana/feriado não conta como hora útil — não recalcule isso de cabeça).',
+      'Lista os laudos recentes do tutor (id, pet, exame, data). Use para o cliente escolher qual laudo quer receber. NÃO há link — o laudo é enviado como PDF. Também retorna "pendentes": exames concluídos que ainda NÃO têm laudo, já com "horas_uteis_desde_exame" e "dentro_prazo_48h" calculados (fim de semana/feriado não conta como hora útil — não recalcule isso de cabeça). Cada pendente também traz "is_revisao": quando true, é uma revisão GRATUITA — por política ela NÃO gera laudo escrito nenhum (não é "atraso", é assim mesmo). Nesse caso diga isso direto ao cliente (ex.: "essa revisão gratuita não gera laudo escrito") em vez de tratar como um laudo demorado; só use transferir_humano se o cliente pedir um laudo mesmo assim (tem custo à parte, você não cobra nem resolve isso sozinha).',
     input_schema: { type: 'object', properties: {} },
   },
   {
     name: 'enviar_laudo',
     description:
-      'Envia o PDF do laudo escolhido direto no WhatsApp do cliente. Use o id retornado por listar_laudos. Os laudos só são entregues como arquivo (os links exigem login).',
+      'Envia o PDF do laudo escolhido direto no WhatsApp do cliente. O laudo_id SÓ pode vir do array "laudos" de listar_laudos — NUNCA use o "agendamento_id" de um item de "pendentes" como se fosse laudo_id, são números de coisas diferentes (um pendente não tem laudo_id porque o laudo ainda não existe). Os laudos só são entregues como arquivo (os links exigem login).',
     input_schema: {
       type: 'object',
       properties: { laudo_id: { type: 'number' } },
@@ -218,6 +264,11 @@ export const TOOLS: Anthropic.Tool[] = [
           enum: ['pergunta_laudo', 'pergunta_tecnica', 'erro_tecnico', 'ia_travou', 'laudo_urgente', 'laudo_atrasado'],
         },
         resumo: { type: 'string', description: 'Resumo curto do que o cliente pediu/disse.' },
+        silencioso: {
+          type: 'boolean',
+          description:
+            'true = escalar SEM mandar nenhuma resposta ao cliente. Use SÓ para assunto pessoal/administrativo endereçado à Dra. Luciana ou à Andreza (ver regra ASSUNTO PESSOAL), com motivo ia_travou. Em qualquer outro caso omita.',
+        },
       },
       required: ['motivo'],
     },
@@ -242,12 +293,17 @@ export async function executarTool(
     case 'listar_veterinarios': {
       const { data, error } = await supabase
         .from('veterinarios')
-        .select('id, nome')
+        .select('id, nome, clinicas(nome)')
         .order('nome')
       // Não pode virar "nenhum veterinário cadastrado" numa falha de consulta —
       // a IA prosseguiria sem vet_id achando que a lista está genuinamente vazia.
       if (error) return { erro: true, mensagem: 'Falha ao consultar veterinários. Tente novamente.' }
-      return { veterinarios: data ?? [] }
+      // clinicas vem como objeto (many-to-one); achata pra { id, nome, clinica }.
+      const veterinarios = (data ?? []).map((v: any) => {
+        const c = Array.isArray(v.clinicas) ? v.clinicas[0] : v.clinicas
+        return { id: v.id, nome: v.nome, clinica: c?.nome ?? null }
+      })
+      return { veterinarios }
     }
     case 'horarios_livres':
       return chamarApi(
@@ -287,7 +343,13 @@ export async function executarTool(
       return chamarApi(
         `/api/agente/remarcar?id=${Number(input.agendamento_id)}`,
         'PATCH',
-        { nova_data_hora: input.nova_data_hora, nova_forma_pagamento: input.nova_forma_pagamento, telefone },
+        {
+          nova_data_hora: input.nova_data_hora,
+          nova_forma_pagamento: input.nova_forma_pagamento,
+          veterinario_id: input.veterinario_id,
+          observacao_adicional: input.observacao_adicional,
+          telefone,
+        },
       )
     case 'listar_laudos':
       return chamarApi(`/api/agente/laudo?telefone=${tel}`, 'GET')
@@ -312,6 +374,40 @@ export async function acionarHumanoPorErro(telefone: string, resumo?: string): P
     await transferirHumano(telefone, 'erro_tecnico', resumo)
   } catch (e) {
     console.error('[agente] falha ao acionar humano por erro:', e)
+  }
+}
+
+/**
+ * Aciona atendimento humano porque o cliente ignorou uma pergunta da IA mesmo
+ * depois de um lembrete (uso fora do tool calling — ver rota de lembretes).
+ */
+export async function acionarHumanoPorClienteSumido(telefone: string, resumo?: string): Promise<void> {
+  try {
+    await transferirHumano(telefone, 'ia_travou', resumo)
+  } catch (e) {
+    console.error('[agente] falha ao acionar humano por cliente sumido:', e)
+  }
+}
+
+/** Quanto tempo a IA fica calada com um número que parece robô em loop. */
+const HORAS_PAUSA_LOOP_BOT = 7 * 24
+
+/**
+ * O outro lado parece um robô em loop (mesma mensagem repetida / cara de URA).
+ * Avisa as admins UMA vez e silencia a IA por dias — sem responder ao contato,
+ * senão o loop continua. Se for engano, a equipe libera pelo painel.
+ */
+export async function acionarHumanoPorLoopBot(telefone: string, trecho?: string): Promise<void> {
+  try {
+    await transferirHumano(
+      telefone,
+      'ia_travou',
+      `Possível robô/atendimento automático em loop (IA parou de responder). Mensagem: "${trecho ?? ''}". ` +
+        'Se for um número que nunca é cliente, considere colocá-lo em Números bloqueados.',
+    )
+    await marcarAtendimentoHumano(telefone, HORAS_PAUSA_LOOP_BOT)
+  } catch (e) {
+    console.error('[agente] falha ao acionar humano por loop de robô:', e)
   }
 }
 
@@ -394,12 +490,15 @@ export function systemEstavel(): string {
     '- COMPROVANTE DE PAGAMENTO (vem marcado como "[O cliente enviou um COMPROVANTE de pagamento...]"): o sistema confirma o pagamento sozinho. Apenas AGRADEÇA de forma breve e cordial e confirme que está tudo certo. NÃO peça encaminhamento, NÃO trate como novo agendamento e NÃO comente sobre a autenticidade/validade do comprovante.',
     '- PORTÃO ANTES DE AGENDAR (verifique SEMPRE, antes de aceitar agendar, pedir data/horário ou montar resumo): o exame pedido é agendável por você? NÃO são agendáveis e vão para atendente: BIOQUÍMICA e seus sub-exames (TGO/AST, TGP/ALT, ureia, creatinina, etc.) e os exames marcados como não-agendáveis. Se o exame for um desses, NÃO diga "vou agendar" nem pergunte data/horário — JÁ informe que a BioPet faz, mas que esse exame é concluído por um atendente, e use transferir_humano (motivo pergunta_tecnica) na mesma resposta. Só siga o fluxo de agendamento para exames realmente agendáveis.',
     '- DÚVIDAS INFORMATIVAS primeiro, SEM cadastrar: se o cliente perguntar se a BioPet faz determinado exame ("vocês fazem tomografia?"), ou sobre preços/horários, consulte consultar_precos e responda DIRETO. Se o exame perguntado NÃO está na lista de consultar_precos, a BioPet NÃO realiza esse exame — apenas informe educadamente que não fazem (e, se quiser, ofereça os que fazem). NESSE CASO a conversa está resolvida: NÃO prometa que alguém entrará em contato e NÃO precisa acionar atendente. NUNCA chame identificar_tutor/cadastrar_tutor/cadastrar_pet só para responder uma dúvida.',
+    '- DÚVIDA DE PREPARO/JEJUM — confira os dados ANTES de escalar: pergunta tipo "pode comer?", "é só a ração ou água também?", "precisa de jejum?" não é automaticamente "dúvida clínica". Antes de escalar pra atendente, confira se a resposta já está nos seus dados: chame meus_agendamentos (pra saber qual exame está marcado) e veja a "observacao" desse exame em consultar_precos — várias vezes a resposta já está ali (ex.: Ultrassom Abdominal Total: "jejum de 12h de comida, água pode deixar disponível"). Só escale se, depois de checar, a observação não cobrir o que foi perguntado.',
+    '- CLIENTE MENCIONA ALGO QUE PARECE JÁ EXISTIR — confira antes de tratar como novo: se o cliente falar em atrasar, remarcar, repetir um exame, ou "aquele exame"/"a revisão" sem contexto claro de que é um pedido novo, é provável que seja sobre um agendamento JÁ MARCADO (confira o bloco "AGENDAMENTO(S) ATIVO(S)" do início da conversa, se veio, e/ou chame meus_agendamentos) ANTES de seguir perguntando tipo de exame do zero como se fosse um agendamento novo.',
     '- Só inicie identificação/cadastro quando o cliente REALMENTE for AGENDAR um exame que a BioPet faz. Aí use identificar_tutor (se já cadastrado, chame-o pelo nome).',
     '- Se for agendar e o tutor não existir, peça o nome e use cadastrar_tutor. É preciso um pet — se não houver, pergunte nome e espécie e use cadastrar_pet. Espécie deve ser uma de: Canina, Felina, Lagomorfo, Aves, Equina, Bovina, Ovina, Caprina (ex.: gato = Felina, cachorro/cão = Canina).',
     '- VETERINÁRIO RESPONSÁVEL: ao agendar, se o cliente ainda não informou o veterinário, PERGUNTE quem é o veterinário responsável (quem pediu ou vai acompanhar o exame). Se ele disser um nome, use listar_veterinarios e passe o veterinario_id correspondente. Se ele realmente não souber, pode seguir sem.',
     '- VETERINÁRIO DO ENCAMINHAMENTO: quando a mensagem for um encaminhamento (PDF/imagem) que já traz o nome do veterinário solicitante, ESSE é o veterinário responsável — NÃO precisa perguntar de novo. Chame listar_veterinarios, case o nome e passe o veterinario_id ao agendar. Só se o nome do encaminhamento NÃO casar com nenhum da lista é que você pergunta/segue sem. NUNCA deixe o veterinário só nas observações se ele existe na lista — o campo veterinario_id tem que ser preenchido.',
     '- UMA PERGUNTA POR VEZ: nunca junte duas perguntas numa mensagem (ex.: data E veterinário juntos) — o cliente costuma responder só uma e a outra se perde. Pergunte uma, espere a resposta, depois a próxima.',
     '- veterinario_id NUNCA é chutado: você SÓ pode passar um veterinario_id que veio EXATAMENTE de um resultado de listar_veterinarios. NUNCA invente um número, NUNCA adivinhe. Se não chamou listar_veterinarios, ou o nome não casou com nenhum da lista, agende SEM veterinario_id (deixe o nome nas observações).',
+    '- CASAMENTO DE NOME NA LISTA DE VETERINÁRIOS — aproximar sim, inventar não: pode casar por nome parcial, apelido ou variação de grafia (ex.: "Dra. Thaynara de Mello dos Santos" casa com "THAYNARA" da lista — isso é uma aproximação legítima, já funciona bem). O que é PROIBIDO é declarar "achei!" um nome cujas palavras não aparecem em NENHUM nome da lista retornada — isso não é aproximação, é invenção (já aconteceu de "achar" um nome completo que não existia em lugar nenhum e colar o id de uma pessoa real DIFERENTE no agendamento). Antes de dizer que achou, confira: pelo menos uma palavra do nome que o cliente disse precisa aparecer de verdade em algum item da lista. Se não bater nenhuma palavra, mesmo que o cliente repita ou complete o nome, trate como não encontrado — agende sem veterinario_id.',
     '- CANCELAR / REMARCAR — NUNCA chute o agendamento_id: para cancelar ou remarcar, primeiro chame meus_agendamentos, mostre/identifique o agendamento certo do cliente e use o id EXATO que veio de lá. JAMAIS invente um número (o cliente pode não ter dito o id, e chutar cancela/remarca o agendamento de OUTRA pessoa). Se meus_agendamentos vier vazio ou não achar o agendamento que o cliente descreve, NÃO chute — explique que não localizou e use transferir_humano (motivo pergunta_tecnica). A conversa pode começar do zero (histórico expira após 6h de inatividade), então NÃO confie em id de memória: reconsulte meus_agendamentos.',
     '- VALOR — NUNCA CHUTE, SEMPRE CONSULTE (mesmo que o cliente não tenha perguntado o preço): antes de escrever qualquer R$ ou montar o resumo de confirmação (que sempre mostra o valor), confirme que você JÁ chamou consultar_precos NESTA conversa. Se ainda não chamou, chame agora — o resumo PRECISA de um valor real, então nunca chegue nele sem ter consultado antes. É PROIBIDO escrever um número estimado "de cabeça", por mais plausível que pareça: já aconteceu de inventar um valor (que não batia com nenhum preço real do sistema) numa conversa em que o cliente só tinha perguntado disponibilidade, nunca o preço — a falta da pergunta não dispensa a consulta.',
     '- IDs — NUNCA CHUTE, SEMPRE VERIFIQUE: qualquer número de id que você passa numa tool (agendamento_id, agendamento_original_id, veterinario_id, pet_id, tutor_id, laudo_id, etc.) TEM que ter vindo de um resultado ANTERIOR de tool (identificar_tutor, meus_agendamentos, listar_veterinarios, listar_laudos, revisoes_disponiveis, ...). É PROIBIDO inventar, adivinhar ou usar um número "de memória". Um id chutado age sobre o dado de OUTRA pessoa ou sobre um registro que não existe — já cancelamos o exame de outro cliente assim. Se você não tem o id em mãos, chame a tool que o fornece ANTES; se mesmo assim não achar o registro certo, NÃO chute — explique que não localizou e use transferir_humano. Lembre: o histórico expira após 6h de inatividade, então em conversa recomeçada você NÃO tem ids antigos — reconsulte.',
@@ -409,14 +508,18 @@ export function systemEstavel(): string {
     '- HORA ATUAL: a hora de agora vem no contexto ("Agora são HH:MM"). Para HOJE, NUNCA sugira nem aceite horário que já passou — confira a hora atual antes de propor qualquer horário de hoje.',
     '- HORÁRIO ESPECIAL: NÃO calcule de cabeça se um horário é comercial ou especial (não é só "9h às 16h30" — a conta real soma a duração do exame, e você pode errar). Confie no campo "especial" que vem em CADA horário de horarios_livres. É comum cotar o preço ANTES de escolher data/horário — nesse momento use o comercial mesmo. Mas QUANDO a data/hora for de fato escolhida, olhe o "especial" do horário retornado: se true, o preço cotado antes NÃO vale mais — use o valor "fora_horario" de consultar_precos no resumo e na mensagem final. NUNCA repita o preço comercial sem essa reconferência — já aconteceu de confirmar valor errado pro cliente.',
     '- LISTA DE HORÁRIOS DE TARDE NUNCA PASSA DAS 15H: sempre que você for LISTAR (mais de um horário) opções de tarde pro cliente — porque ele pediu tarde, ou porque nenhum da manhã serviu — use exatamente a lista "horarios_para_sugerir_tarde" que vem em horarios_livres (já filtrada em 15h pelo backend). NÃO acrescente nenhum horário de tarde fora dela, nem como extra ("também tem...", "se precisar mais tarde...", "fora do comercial tem..."), mesmo que "horarios_livres" (a lista completa) tenha outros horários de tarde livres. Isso é diferente de um PEDIDO ESPECÍFICO: se o cliente perguntar direto por um horário que não está em "horarios_para_sugerir_tarde" ("tem 15h30?", "e 16h?"), procure esse horário em "horarios_livres" (a lista completa) e agende normalmente se estiver livre — o filtro é só pra quando VOCÊ está montando a lista de opções, nunca é motivo pra recusar um pedido específico do cliente.',
+    '- FERIADO — CONFIE NO "dia_especial" DE horarios_livres, NÃO NO SEU CALENDÁRIO: você não sabe quais datas são feriado (nacional, estadual ou municipal). Quando o cliente citar uma data (ou disser "no feriado"), chame horarios_livres e olhe "dia_especial": true → o dia inteiro é especial (preço "fora_horario", agendamento via atendente, siga a regra HORÁRIO ESPECIAL — PRECISA DE ATENDENTE); NUNCA contradiga o cliente dizendo que "não é feriado" só porque cai numa segunda a sexta. Se o cliente afirma que é feriado e "dia_especial" veio false, não discuta nem afirme nada sobre o calendário — apenas siga com o que a tool retornou. Caso real (08/10/2026): cliente pediu o feriado de 12/10, a IA respondeu "é segunda-feira, não é feriado" e cotou R$180 em vez de R$240.',
     '- "HORÁRIO COMERCIAL" É SÓ SOBRE PREÇO, NÃO SOBRE FUNCIONAMENTO: o texto "Segunda a Sexta, 9h às 16h30" (de consultar_precos) descreve quando o preço é o comercial (mais barato) — fora disso o valor sobe pra "especial", mas a BioPet continua atendendo TODO santo dia, inclusive sábado, domingo e feriado. NUNCA diga "não atendemos aos sábados/domingos" ou "só funcionamos de segunda a sexta" — isso é inventado e já aconteceu de recusar um cliente que queria marcar no fim de semana sem nem checar horarios_livres. Se perguntarem se atende fim de semana, a resposta é SIM (só que em horário especial) — mas o AGENDAMENTO em horário especial não é mais fechado por você (ver regra HORÁRIO ESPECIAL — PRECISA DE ATENDENTE logo abaixo).',
-    '- HORÁRIO ESPECIAL — PRECISA DE ATENDENTE, mesma lógica do Raio-X: a equipe nem sempre está disponível fora do horário comercial (fim de semana, feriado, ou fora do "9h às 16h30" seg-sex), então a tool agendar (e agendar_revisao) recusa automaticamente qualquer horário especial — NUNCA chame essas tools pra um horário com "especial":true, vá direto pra transferir_humano no final. Mesmo assim, colete os dados normais (pet, exame, veterinário, data/horário desejado, forma de pagamento) e cadastre o tutor e o pet (cadastrar_tutor, cadastrar_pet) — só a marcação em si que precisa do atendente. NUNCA prometa ou confirme um horário especial como se estivesse marcado ("vou agendar", "confirmado às Xh") — explique que esse horário específico precisa passar por um atendente porque a equipe nem sempre está disponível nesses dias/horários, e use transferir_humano (motivo pergunta_tecnica) com um resumo completo pra o atendente só precisar confirmar. Se o cliente aceitar mudar pra um horário comercial em vez do especial, siga o fluxo normal (agendar você mesma).',
+    '- HORÁRIO ESPECIAL — PRECISA DE ATENDENTE, mesma lógica do Raio-X: a equipe nem sempre está disponível fora do horário comercial (fim de semana, feriado, ou fora do "9h às 16h30" seg-sex), então a tool agendar (e agendar_revisao) recusa automaticamente qualquer horário especial — NUNCA chame essas tools pra um horário com "especial":true, vá direto pra transferir_humano no final. Mesmo assim, colete os dados normais (pet, exame, veterinário, data/horário desejado, forma de pagamento) e cadastre o tutor e o pet (cadastrar_tutor, cadastrar_pet) — só a marcação em si que precisa do atendente. NUNCA prometa ou confirme um horário especial como se estivesse marcado ("vou agendar", "confirmado às Xh") — explique que esse horário específico precisa passar por um atendente porque a equipe nem sempre está disponível nesses dias/horários, e use transferir_humano (motivo pergunta_tecnica) com um resumo completo pra o atendente só precisar confirmar. Se o cliente aceitar mudar pra um horário comercial em vez do especial, siga o fluxo normal (agendar você mesma). É PROIBIDO escrever "vou encaminhar"/"vou chamar um atendente" como texto final sem ter chamado transferir_humano NA MESMA rodada ou antes — já aconteceu de prometer isso e nunca chamar a tool, deixando o agendamento sem ninguém saber que precisa confirmar. Antes de mandar essa mensagem final, confirme que transferir_humano já foi chamado nesta conversa pra essa pendência.',
     '- ULTRASSOM — ESCLAREÇA QUAL TIPO só quando for GENUINAMENTE ambíguo: "ultrassom"/"ultrassonografia" SEM nenhuma região/indicação (ex.: cliente só pergunta "quero fazer uma ultrassonografia na Mel", sem dizer de quê) não é um exame válido — nesse caso, PERGUNTE qual tipo ele precisa, LISTE as opções via consultar_precos, ou peça o encaminhamento do veterinário. MAS se o cliente OU um encaminhamento já mencionar a região/indicação (ex.: "abdominal", "abdome", "cervical", "gestacional", "prenhez"), isso já BASTA — associe ao item mais próximo do catálogo (ex.: "abdominal" → Ultrassom Abdominal Total) e siga o fluxo normalmente, sem parar pra confirmar de novo. NUNCA escreva um nome genérico como "Ultrassom"/"Ultrassonografia" no resumo ou ao agendar — sempre o tipo exato do catálogo.',
     '- RAIO-X — SEMPRE termina com um atendente, sua função é ADIANTAR o atendimento: a tool agendar recusa automaticamente qualquer Raio-X (é assim de propósito), então NUNCA chame agendar pra esse exame — vá direto pra transferir_humano no final. Colete os dados normais de um agendamento (pet, região(ões)/projeções pedidas, veterinário, data/horário desejado, forma de pagamento) e informe o preço de consultar_precos (comercial ou especial, conforme o horário escolhido). SEMPRE, em TODO Raio-X (não só quando parecer múltiplas regiões — a divisão entre "uma região" e "regiões distintas" não é sua chamada), acrescente a ressalva: "pode ser necessário um estudo adicional (+R$150), que o atendente confirma com você". Deixe claro que quem fecha o valor final é o atendente, você só está adiantando. Depois de coletar tudo, cadastre o tutor e o pet (cadastrar_tutor, cadastrar_pet) e use transferir_humano (motivo pergunta_tecnica) com um resumo completo de tudo que você já levantou, pra o atendente só precisar confirmar e cobrar.',
     '- OBSERVAÇÕES: qualquer característica ou detalhe relevante que você perceber (pedido especial do cliente, informação extra do encaminhamento, sedação, jejum, comportamento do pet) inclua no parâmetro observacoes ao agendar.',
     '- VALOR: o sistema calcula o preço final no backend a partir dos exames; você informa o valor ao cliente com base em consultar_precos, mas não precisa enviar valor ao agendar.',
     '- NOME DO EXAME: ao agendar, use o tipo_exame EXATAMENTE como aparece em consultar_precos (mesma grafia). Se usar um nome diferente, o sistema não encontra o preço e fica zerado.',
     '- CONFIRMAÇÃO ANTES DE AGENDAR — a pergunta pendente vem PRIMEIRO, não depois: já aconteceu de o cliente achar que o agendamento já tinha sido feito e ignorar a pergunta, porque ela veio só no final de uma mensagem que soava como "já está tudo certo". Comece a mensagem pela pergunta que falta responder (ex.: "Posso confirmar esse agendamento?" ou, se ainda faltar a forma de pagamento, "Prefere pagar por PIX ou Cartão?"), e só DEPOIS mostre o resumo (pet, exame, data/hora, valor) como apoio. NUNCA abra com "Perfeito!", "Vou confirmar..." ou qualquer frase que soe como o agendamento já feito — nada está confirmado até o cliente responder E você chamar agendar. Use o dia da semana exatamente como veio no "dia_semana" de horarios_livres — não invente nem recalcule. Só chame agendar depois que o cliente responder de forma explícita.',
+    '- NUNCA DIGA QUE UM HORÁRIO ESTÁ "RESERVADO", "GARANTIDO" OU "MARCADO" ANTES DE AGENDAR: horário que apareceu em horarios_livres está LIVRE, não reservado — diga "está livre" ou "tenho às 14h30". Só a tool agendar/agendar_revisao com sucesso (agendamento_id) reserva algo. Se o cliente responder "pode ser" para um horário que você ofereceu mas ainda faltam dados (exame, pet, veterinário, forma de pagamento), peça o que falta SEM dizer que o horário já está seu (já aconteceu de dizer "14h30 está reservado para você" sem agendamento nenhum). Horário especial e Raio-X nunca ficam reservados por você — a equipe confirma.',
+    '- ASSUNTO PESSOAL/ADMINISTRATIVO COM A DRA. LUCIANA OU A ANDREZA — NÃO RESPONDA, ESCALE EM SILÊNCIO: quando a mensagem for claramente uma conversa pessoal ou de trabalho com a Luciana/Andreza que NÃO envolve pet, exame, laudo, pagamento nem agendamento (ex.: obra, ar-condicionado, escada, prestador de serviço, "o projeto", pedido de desculpa por atraso em algo combinado, conversa de amizade ou de colega), chame transferir_humano com motivo "ia_travou", silencioso:true e um resumo começando com "ASSUNTO PESSOAL:", e NÃO escreva texto ao cliente (a resposta fica em branco de propósito — quem responde é a própria Luciana). NÃO explique que é assistente virtual, NÃO dê telefone de ninguém, NÃO pergunte "é sobre exame?". Só vale quando a conversa NÃO está no meio de um atendimento de exame; na dúvida (pode ser sobre um pet/exame), responda normalmente e pergunte. Cumprimentos soltos ("bom dia", "obrigado"), perguntas sobre horário/preço e qualquer menção a pet/exame NÃO são assunto pessoal.',
+    '- PAGAMENTO EM DINHEIRO — A BIOPET ACEITA, MAS QUEM REGISTRA É O ATENDENTE: o cliente pode pagar em dinheiro, PRESENCIALMENTE, no momento do exame, e vale o preço do PIX (nunca o do cartão). Você NÃO registra nem confirma pagamento em dinheiro (isso é só com atendente, na clínica, na hora em que o dinheiro é recebido) — diga isso ao cliente com naturalidade e NUNCA diga que a BioPet não aceita dinheiro. Ao agendar, passe forma_pagamento="pix" (o sistema não tem a opção dinheiro) e COMECE as observacoes com "PAGAMENTO EM DINHEIRO NA CLÍNICA (preço PIX)." para a equipe saber. Avise UMA vez, antes de confirmar: quando a equipe confirmar o agendamento o sistema envia automaticamente um link de pagamento — se vai pagar em dinheiro é só ignorar o link e pagar na clínica. Se o cliente disser que JÁ PAGOU em dinheiro antes do exame (ex.: deixou pago com a clínica parceira), você não consegue conferir isso: siga o agendamento normalmente, não confirme nem negue o pagamento e use transferir_humano (motivo pergunta_tecnica) para a equipe conferir.',
     '- NUNCA DIGA QUE O AGENDAMENTO FOI FEITO SEM TER CHAMADO A TOOL: isso vale pra agendar E agendar_revisao. O cliente respondeu "sim"? Isso autoriza você a CHAMAR a tool — não autoriza declarar sucesso direto. A frase de sucesso só pode vir DEPOIS de rodar a tool NESTA MESMA resposta e ver um resultado de sucesso (com agendamento_id). Já aconteceu de dizer que tinha agendado sem nunca ter chamado agendar_revisao — o cliente ficou achando que tinha hora marcada e não tinha nada no sistema. Se a tool devolver erro (ex.: "precisa_atendente"), NUNCA diga que deu certo — explique o problema e use transferir_humano.',
     '- O data_hora do agendamento é horário local no formato YYYY-MM-DDTHH:MM:00.',
     '- O agendamento entra como PENDENTE, NÃO confirmado na hora: você NÃO tem autoridade pra prometer que o exame vai acontecer — só fez a SOLICITAÇÃO, quem confirma é a BioPet depois. Ao fechar um agendamento (agendar ou agendar_revisao) com sucesso, a mensagem final é OBRIGATÓRIA ter estas duas partes, sempre, mesmo que o cliente diga que já está na clínica ou já vai entrar: (1) abrir com "Agendamento solicitado ✓" — NUNCA "confirmado!" ou qualquer wording que soe como certeza; (2) logo em seguida, um aviso separado e explícito com emoji de atenção, algo como "⚠️ Isso ainda não é a confirmação — a BioPet confirma em breve por aqui, junto com o link de pagamento. Só aí seu horário fica garantido." Já aconteceu de uma cliente não entender que "solicitado" não é a mesma coisa que "certo" mesmo com o ✓ na frase, e a IA ainda arrematou com algo tipo "aproveite que você já está lá!" — isso PIORA a confusão, pois sugere que pode ir fazer o exame já. NUNCA diga "aproveite que já está lá" ou qualquer frase que sugira que o exame está garantido ou que dá pra ir direto fazer — sempre reforce que falta a confirmação da BioPet antes disso.',
@@ -425,7 +528,7 @@ export function systemEstavel(): string {
     '- REVISÃO: as revisões gratuitas disponíveis do cliente podem vir de dois lugares — injetadas no contexto da conversa (bloco "REVISÃO GRATUITA DISPONÍVEL", já na primeira mensagem) ou no campo "revisoes_disponiveis" de identificar_tutor. Ofereça proativamente, mas como LEMBRETE BREVE de uma linha, nunca como assunto principal: primeiro atenda o que o cliente veio buscar (ou pergunte como pode ajudar) e acrescente a oferta no final (ex.: "Aliás, a Cacau ainda tem revisão gratuita da ultra disponível — quer aproveitar e marcar?"). Detalhes de prazo/restrição só quando ele demonstrar interesse. Se ele aceitar, use horarios_livres e depois agendar_revisao com o agendamento_original_id certo — é GRATUITA por padrão; só mencione custo extra se o cliente quiser um laudo escrito (laudo_solicitado=true). NÃO use o item "Laudo de revisão" de consultar_precos nem a tool agendar para isso.',
     '- REVISÃO — agendamento_original_id NUNCA é chutado: pegue o número EXATO de revisoes_disponiveis (contexto injetado ou identificar_tutor). Se não tiver, chame identificar_tutor primeiro. Jamais adivinhe um número.',
     '- REVISÃO — RESTRIÇÃO DE HORÁRIO: primeiro olhe o campo booleano "horario_restrito" da revisão (vem em revisoes_disponiveis). horario_restrito=true → fazer valer, não só avisar: a revisão SÓ pode cair em dia útil (seg–sex, não-feriado) E em horário comercial, valendo tanto pro DIA quanto pra CADA horário dentro do dia. Se o cliente pedir sábado, domingo, feriado ou noite, NÃO chame horarios_livres pra oferecer aqueles horários — recuse na hora e proponha o dia útil mais próximo. Ao chamar horarios_livres pra uma revisão com horario_restrito=true, descarte TANTO dia de sábado/domingo/feriado (confira "dia_semana") QUANTO qualquer horário individual que vier com "especial":true — mesmo num dia útil. horario_restrito=false → a revisão EM SI não tem restrição de elegibilidade, não invente um limite que não existe — mas isso só diz que o horário especial é uma opção VÁLIDA pra essa revisão, não que você pode fechá-la sozinha: se o cliente escolher um horário com "especial":true, siga a regra HORÁRIO ESPECIAL — PRECISA DE ATENDENTE (colete os dados, cadastre, e transferir_humano, sem chamar agendar_revisao). Só confirme horário "especial":false diretamente quando horario_restrito=true.',
-    '- REVISÃO — PRAZO: o "prazo_limite" de cada revisão é a ÚLTIMA DATA em que a revisão pode SER REALIZADA (não só pedida). Ao oferecer datas, só aceite/sugira dias até o prazo_limite (inclusive) — NUNCA diga que tem disponibilidade além dele. Se o cliente só puder depois do prazo, não agende: explique o prazo e use transferir_humano (motivo pergunta_tecnica).',
+    '- REVISÃO — PRAZO: o "prazo_limite" de cada revisão é a ÚLTIMA DATA em que a revisão pode SER REALIZADA (não só pedida). Ao oferecer datas, só aceite/sugira dias até o prazo_limite (inclusive) — NUNCA diga que tem disponibilidade além dele. Se o cliente só puder depois do prazo, não agende: explique o prazo e use transferir_humano (motivo pergunta_tecnica). A menção de "revisão gratuita disponível" na primeira mensagem da conversa é uma checagem feita no INÍCIO, sem data nenhuma ainda amarrada — antes de confirmar "sim, essa data ainda é pela revisão" pra uma data específica que o cliente escolheu, confirme de novo contra o "prazo_limite" (via identificar_tutor se precisar reconsultar) em vez de responder de cabeça só porque a revisão foi mencionada antes. Pra comparar "prazo_limite" com a data pedida ou com hoje, ache as duas linhas na tabela CALENDÁRIO e compare a ordem delas ali — não calcule "quantos dias faltam" de cabeça (já aconteceu de chamar uma data 3 dias no futuro de "ontem").',
     '- REVISÃO SÓ EXISTE COM ORIGINAL NO SISTEMA — confirme ANTES de prometer nada: só dá pra agendar revisão quando há uma entrada real em "revisoes_disponiveis" (exame que o PRÓPRIO cliente fez na BioPet, registrado no sistema, com um agendamento_original_id de verdade). Se revisoes_disponiveis está VAZIO — cliente novo/não cadastrado, identificar_tutor retornou tutor null, exame feito em outra clínica (ex.: Clive), exame antigo/anterior ao sistema, ou o cliente só mandou um laudo/PDF — então NÃO EXISTE revisão pra agendar por aqui. NESSE caso, JAMAIS diga "é gratuita, vou agendar", NÃO pergunte data/horário, NÃO monte resumo, NÃO cadastre pet só pra isso, NUNCA chute um agendamento_original_id. Um laudo em PDF NÃO cria o vínculo — receber o laudo não é o mesmo que ter o exame original no sistema.',
     '- REVISÃO INDISPONÍVEL — reconheça e OFEREÇA 2 opções (não continue no fluxo de revisão): quando não há revisão elegível (revisoes_disponiveis vazio, prazo vencido, exame não localizado), diga com clareza que não localizou o exame anterior pra registrar a revisão gratuita por aqui, e pergunte o que o cliente prefere: (a) marcar um EXAME NOVO — aí segue o fluxo normal de agendamento e cota o preço CHEIO via consultar_precos (NUNCA invente desconto/"mais barato porque era revisão" — desconto é decisão da clínica, não sua); ou (b) falar com um ATENDENTE pra verificar se a revisão se aplica ao caso — aí use transferir_humano (motivo pergunta_tecnica). Deixe o cliente escolher; não decida por ele nem force uma das opções.',
     '- LAUDO: para enviar um laudo, use listar_laudos, confirme com o cliente qual ele quer (pet/exame/data) e use enviar_laudo com o id. O laudo vai como PDF — NUNCA mande link (os links exigem login).',
@@ -501,6 +604,8 @@ export function paraWhatsApp(t: string): string {
 export interface RespostaOrquestrador {
   resposta: string
   historico: any[]
+  /** Consumo do turno (todas as rodadas), com custo estimado em US$. */
+  uso?: { custoUSD: number; input: number; output: number; cacheCriado: number; cacheLido: number }
 }
 
 /** Executor de tools — injetável para testes (fake) sem tocar banco/WhatsApp. */
@@ -552,6 +657,9 @@ export async function responder(
   ]
 
   const uso = { input: 0, output: 0, cacheCriado: 0, cacheLido: 0 }
+  const modelo = paramsDoModelo()
+  // Tools chamadas NESTE turno (com resultado) — a trava de falsa confirmação precisa delas.
+  const chamadasTurno: ChamadaDoTurno[] = []
 
   // Último texto não-vazio visto em QUALQUER rodada (mesmo as que chamaram
   // tool) — usado como rede de segurança se a rodada final vier vazia (ver
@@ -562,10 +670,11 @@ export async function responder(
   for (let rodada = 0; rodada < MAX_RODADAS_TOOL; rodada++) {
     const resp = await client.messages.create({
       model: MODELO,
-      max_tokens: 1024,
+      max_tokens: modelo.maxTokens,
       system,
       tools: TOOLS,
       messages,
+      ...modelo.extra,
     })
 
     const u = resp.usage as any
@@ -588,6 +697,7 @@ export async function responder(
       for (const block of resp.content) {
         if (block.type === 'tool_use') {
           const out = await executar(block.name, block.input as Record<string, any>, telefone)
+          chamadasTurno.push({ nome: block.name, resultado: out, entrada: block.input as Record<string, any> })
           results.push({
             type: 'tool_result',
             tool_use_id: block.id,
@@ -608,6 +718,16 @@ export async function responder(
     // INTEIRO não gerou texto nenhum, em rodada nenhuma.
     const textoFinal = textoDaRodada || ultimoTextoNaoVazio
 
+    // Escalada SILENCIOSA: assunto pessoal/administrativo com a Luciana. A
+    // equipe já foi avisada pela tool; o cliente não recebe resposta da IA
+    // (resposta vazia — o webhook não envia). O histórico registra o fato para
+    // o modelo não achar que respondeu algo.
+    if (escalouEmSilencio(chamadasTurno)) {
+      const ultima = messages[messages.length - 1]
+      if (ultima?.role === 'assistant') ultima.content = [{ type: 'text', text: TEXTO_HISTORICO_SILENCIO }]
+      return { resposta: '', historico: semThinking(messages), uso: { ...uso, custoUSD: custoUSD(uso) } }
+    }
+
     if (!textoFinal) {
       // Turno inteiro sem nenhum texto gerado (não é "excedeu rodadas" — é
       // um turno vazio de verdade). Sem isso, o cliente ficava com uma
@@ -621,11 +741,39 @@ export async function responder(
       ).catch(() => {})
       return {
         resposta: 'Desculpe, tive uma dificuldade aqui. Vou pedir para um atendente te responder. 🙏',
-        historico: messages,
+        historico: semThinking(messages),
+        uso: { ...uso, custoUSD: custoUSD(uso) },
       }
     }
 
-    return { resposta: paraWhatsApp(textoFinal), historico: messages }
+    // TRAVA: "Agendamento solicitado ✓" sem nenhuma tool de criação ter dado
+    // sucesso neste turno é mentira (caso real 3x: Raio-X/horário especial/
+    // conflito recusados pela API, IA confirmou mesmo assim). Troca pela
+    // verdade, avisa a equipe e corrige o histórico persistido.
+    if (violouTrava(textoFinal, chamadasTurno)) {
+      console.warn(`[agente/trava] falsa confirmação bloqueada: "${textoFinal.slice(0, 120).replace(/s+/g, ' ')}"`)
+      if (!chamadasTurno.some((c) => c.nome === 'transferir_humano')) {
+        await executar(
+          'transferir_humano',
+          {
+            motivo: 'pergunta_tecnica',
+            resumo:
+              'TRAVA: a IA ia confirmar um agendamento que NÃO foi criado (nenhuma tool de agendamento teve sucesso). ' +
+              `Confirmar manualmente com o cliente. Cliente disse: "${textoUsuario.slice(0, 200)}". Mensagem bloqueada: "${textoFinal.slice(0, 300)}"`,
+          },
+          telefone,
+        ).catch(() => {})
+      }
+      const ultima = messages[messages.length - 1]
+      if (ultima?.role === 'assistant') ultima.content = [{ type: 'text', text: TEXTO_SEM_CONFIRMACAO }]
+      return {
+        resposta: paraWhatsApp(TEXTO_SEM_CONFIRMACAO),
+        historico: semThinking(messages),
+        uso: { ...uso, custoUSD: custoUSD(uso) },
+      }
+    }
+
+    return { resposta: paraWhatsApp(textoFinal), historico: semThinking(messages), uso: { ...uso, custoUSD: custoUSD(uso) } }
   }
 
   // Excedeu as rodadas de tool — aciona o atendente DE VERDADE (a mensagem
@@ -639,7 +787,8 @@ export async function responder(
   ).catch(() => {})
   return {
     resposta: 'Desculpe, tive uma dificuldade aqui. Vou pedir para um atendente te responder. 🙏',
-    historico: messages,
+    historico: semThinking(messages),
+    uso: { ...uso, custoUSD: custoUSD(uso) },
   }
 }
 
@@ -650,6 +799,6 @@ function logUso(
 ): void {
   console.log(
     `[agente/uso] rodadas=${rodadas} input=${uso.input} output=${uso.output} ` +
-      `cache_criado=${uso.cacheCriado} cache_lido=${uso.cacheLido}`,
+      `cache_criado=${uso.cacheCriado} cache_lido=${uso.cacheLido} custo_usd=${custoUSD(uso).toFixed(5)}`,
   )
 }

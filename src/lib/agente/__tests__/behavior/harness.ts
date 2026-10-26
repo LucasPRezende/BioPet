@@ -7,6 +7,8 @@
  * podermos afirmar QUAL ação o modelo tomou.
  */
 import { responder, type ToolExecutor } from '@/lib/agente/orquestrador'
+import { infoDiaEspecial } from '@/lib/feriados'
+import { appendFileSync } from 'node:fs'
 
 const TELEFONE = '5524999999999'
 
@@ -85,6 +87,20 @@ function isoOffset(dias: number): string {
   return d.toISOString().slice(0, 10)
 }
 
+/**
+ * Feriado FICTÍCIO numa segunda-feira futura (≥3 dias à frente), pra reproduzir
+ * o caso real de 12/10/2026 (Nossa Senhora Aparecida, segunda) sem depender de
+ * data fixa. O fake trata essa data como feriado em horarios_livres e agendar.
+ */
+function proximaQuartaFutura(): string {
+  const d = new Date()
+  d.setDate(d.getDate() + 3)
+  while (d.getDay() !== 3) d.setDate(d.getDate() + 1)
+  return d.toISOString().slice(0, 10)
+}
+export const FERIADO_FAKE = proximaQuartaFutura()
+const FERIADOS_FAKE = [{ data: FERIADO_FAKE, nome: 'Nossa Senhora Aparecida' }]
+
 const DIAS_SEMANA = [
   'domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado',
 ]
@@ -107,6 +123,7 @@ function horarioEhEspecial(dataHoraISO: string): boolean {
   const [y, m, d] = data.split('-').map(Number)
   const dow = new Date(y, m - 1, d).getDay()
   if (dow === 0 || dow === 6) return true
+  if (data === FERIADO_FAKE) return true
   const hora = (horaCompleta ?? '').slice(0, 5)
   const doFixture = HORARIOS_LIVRES.find((h) => h.hora === hora)
   if (doFixture) return doFixture.especial
@@ -155,22 +172,42 @@ const LAUDOS = {
   ],
 }
 
-function fakeResultado(nome: string, input: Record<string, any>, opts: { novoCliente?: boolean } = {}): unknown {
+function fakeResultado(
+  nome: string,
+  input: Record<string, any>,
+  opts: { novoCliente?: boolean; agendamentoEmCurso?: boolean } = {},
+): unknown {
   switch (nome) {
     case 'identificar_tutor':
       return opts.novoCliente ? { tutor: null, pets: [], atendimento_humano: false } : CONTEXTO
     case 'consultar_precos':    return PRECOS
-    case 'listar_veterinarios': return { veterinarios: [{ id: 3, nome: 'Dra. Ana' }] }
-    case 'horarios_livres':
+    case 'listar_veterinarios':
+      // Três Julianas como em PRD: só a Goes tem clínica cadastrada (Clive).
+      return {
+        veterinarios: [
+          { id: 3, nome: 'Dra. Ana', clinica: null },
+          { id: 14, nome: 'JULIANA FELONTA', clinica: null },
+          { id: 28, nome: 'Juliana A. Corrêa', clinica: null },
+          { id: 31, nome: 'JULIANA GOES', clinica: 'CLIVE VETERINÁRIA' },
+        ],
+      }
+    case 'horarios_livres': {
+      // Dia de feriado: todos os slots são especiais (espelha isHorarioEspecial).
+      const slots = input.data === FERIADO_FAKE
+        ? HORARIOS_LIVRES.map((h) => ({ hora: h.hora, especial: true }))
+        : HORARIOS_LIVRES
       return {
         data: input.data,
         dia_semana: diaDaSemana(input.data),
+        // Mesmo sinal de DIA que a API real devolve (infoDiaEspecial).
+        ...infoDiaEspecial(input.data, FERIADOS_FAKE),
         duracao_minutos: input.duracao ?? 30,
         expediente: { inicio: '08:00', fim: '18:00' },
-        total_livres: HORARIOS_LIVRES.length,
-        horarios_livres: HORARIOS_LIVRES,
+        total_livres: slots.length,
+        horarios_livres: slots,
         horarios_para_sugerir_tarde: HORARIOS_PARA_SUGERIR_TARDE,
       }
+    }
     case 'cadastrar_tutor':     return { id: 1, nome: input.nome, telefone: TELEFONE }
     case 'cadastrar_pet': {
       // Espelha o backend real: FK falha se o tutor_id não é o que cadastrar_tutor
@@ -230,6 +267,12 @@ function fakeResultado(nome: string, input: Record<string, any>, opts: { novoCli
           mensagem: 'Horário especial (fim de semana, feriado ou fora do horário comercial) precisa ser confirmado por um atendente — a equipe nem sempre está disponível nesses horários. Use transferir_humano.',
         }
       }
+      // Espelha o backend real: horário ocupado → 409 (a rota agora checa conflito).
+      // O fixture HORARIOS_LIVRES só tem slots livres; no comercial, o que não está lá está ocupado.
+      const horaReq = String(input.data_hora ?? '').split('T')[1]?.slice(0, 5) ?? ''
+      if (horaReq >= '09:00' && horaReq < '16:30' && !HORARIOS_LIVRES.some((h) => h.hora === horaReq)) {
+        return { erro: true, status: 409, error: 'Já existe um agendamento neste horário.', conflito_id: 77 }
+      }
       const hora = String(input.data_hora ?? '').split('T')[1]?.slice(0, 5) ?? ''
       const restrito = Number(input.agendamento_original_id) === 900
       const dentroComercial = hora >= '09:00' && hora <= '16:30'
@@ -243,7 +286,20 @@ function fakeResultado(nome: string, input: Record<string, any>, opts: { novoCli
       }
       return { agendamento_id: 999, valor_total: 0, gratuito: true, laudo_incluido: false }
     }
-    case 'meus_agendamentos':   return { agendamentos: [] }
+    case 'meus_agendamentos':
+      // Exame que começou há ~20 min (a API real mantém até 2h depois do início).
+      return opts.agendamentoEmCurso
+        ? {
+            agendamentos: [
+              {
+                id: 901, pet_nome: 'Rex', tipo_exame: 'Ultrassom Abdominal Total',
+                data_hora: '2026-10-20T14:00:00', data_formatada: 'terça-feira, 20/10 às 14h',
+                status: 'agendado', valor: 200, forma_pagamento: 'cartao', ja_comecou: true,
+              },
+            ],
+            historico_recente: [],
+          }
+        : { agendamentos: [] }
     case 'cancelar_agendamento':return { sucesso: true }
     case 'remarcar_agendamento':return { sucesso: true }
     case 'listar_laudos':       return LAUDOS
@@ -283,7 +339,7 @@ export type ResponderFn = (
 /** Cria uma conversa stateful com tools fake que registram as chamadas. */
 export function novaConversa(
   responderFn: ResponderFn = responder,
-  opts: { novoCliente?: boolean } = {},
+  opts: { novoCliente?: boolean; agendamentoEmCurso?: boolean } = {},
 ): Conversa {
   const calls: ToolCall[] = []
   const respostas: string[] = []
@@ -310,6 +366,9 @@ export function novaConversa(
       historico = r.historico
       respostas.push(r.resposta)
       custo += r.uso?.custoUSD ?? 0
+      // Medição de custo entre modelos: AGENTE_CUSTO_FILE=arquivo soma 1 linha por turno.
+      if (process.env.AGENTE_CUSTO_FILE) appendFileSync(process.env.AGENTE_CUSTO_FILE, `${r.uso?.custoUSD ?? 0}
+`)
       dialogo.push({ de: 'bot', texto: r.resposta, tools: calls.slice(antes).map((c) => c.nome) })
       if (process.env.DEBUG_AGENTE) {
         console.log(`\n>>> USER: ${texto}\n<<< BOT: ${r.resposta}\n--- tools: ${calls.map((c) => c.nome).join(', ')}`)
