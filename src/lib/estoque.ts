@@ -1,8 +1,12 @@
 import 'server-only'
 import { supabase } from './supabase'
 import { agoraLocalISO } from './agendamento-helpers'
+import {
+  somarConsumo, montarReservas, juntarReservas, precisaRepor,
+  type Vinculo, type Reserva, type ItemAgendado,
+} from './estoque-regras'
 
-// Estoque de consumíveis (migration_v44). Cada compra é um lote com saldo
+// Estoque de consumíveis (migrations v44, v45 e v52). Cada compra é um lote com saldo
 // próprio; as saídas consomem os lotes em PEPS pelas funções SQL
 // consumir_estoque / registrar_compra_consumivel, que rodam numa transação com
 // lock no consumível.
@@ -10,105 +14,117 @@ import { agoraLocalISO } from './agendamento-helpers'
 export const DIAS_ALERTA_VALIDADE = 30
 
 // Agrupamento na tela de Estoque. Texto livre no banco; esta é a lista oferecida.
-export const CATEGORIAS = ['teste_rapido', 'tubo', 'caixa', 'reagente', 'outro'] as const
+export const CATEGORIAS = ['teste_rapido', 'pcr', 'tubo', 'caixa', 'reagente', 'outro'] as const
 
 // Agendamentos que ainda vão gastar kit: não cancelados/concluídos/faltou.
 const STATUS_EM_ABERTO = ['pendente', 'agendado', 'em atendimento']
 
-export interface Reserva {
-  agendamento_id: number
-  data_hora:      string
-  pet_nome:       string
-}
+export { precisaRepor }
+export type { Reserva }
 
 export interface ConsumivelResumo {
   id:              number
   nome:            string
   unidade:         string
   categoria:       string
+  codigo:          string | null // código do kit do fornecedor (o da nota fiscal)
   estoque_minimo:  number
   ativo:           boolean
   estoque:         number        // saldo dos lotes − saídas pendentes (pode ser negativo)
   pendente:        number        // saídas sem estoque, aguardando a próxima compra
-  reservado:       number        // kits comprometidos com agendamentos de hoje em diante
+  reservado:       number        // comprometido com agendamentos de hoje em diante
   disponivel:      number        // estoque − reservado (negativo = vai faltar)
   reservas:        Reserva[]     // os agendamentos que compõem o reservado, por data
   valor_estoque:   number        // saldo × custo de cada lote
   custo_atual:     number | null // custo unitário do lote em uso (o mais antigo com saldo)
   proxima_validade: string | null // validade mais próxima entre os lotes com saldo
-  testes:          { id: number; nome: string }[]
+  testes:          { id: number; nome: string }[]                     // testes rápidos que gastam este item
+  pcrs:            { id: number; nome: string; quantidade: number }[] // PCRs que gastam este item
 }
 
-// Precisa repor: vai faltar para os agendados, ou o que sobra fica no/abaixo do mínimo.
-export function precisaRepor(c: Pick<ConsumivelResumo, 'disponivel' | 'estoque_minimo'>): boolean {
-  return c.disponivel < 0 || (c.estoque_minimo > 0 && c.disponivel <= c.estoque_minimo)
+// Teste rápido: 1 unidade do consumível ligado em testes_rapidos.consumivel_id.
+// Inclui testes inativos: agendamento antigo de um teste desativado ainda gasta kit.
+async function vinculosTestesRapidos(): Promise<(Vinculo & { nome: string; ativo: boolean })[]> {
+  const { data, error } = await supabase
+    .from('testes_rapidos').select('id, nome, ativo, consumivel_id').not('consumivel_id', 'is', null)
+  if (error) throw new Error(error.message)
+  return (data ?? []).map(t => ({ item_id: t.id, consumivel_id: t.consumivel_id, quantidade: 1, nome: t.nome, ativo: t.ativo }))
 }
 
-// Kits reservados: testes rápidos de agendamentos em aberto, de hoje em diante,
-// que ainda não têm laudo de Teste Rápido (o laudo é o que dá baixa). Atrasados
-// sem laudo ficam de fora — já aparecem no alerta "exames sem laudo" e muitos
-// são faltas.
-async function reservasPorConsumivel(testeConsumivel: Map<number, number>): Promise<Map<number, Reserva[]>> {
+// PCR: N kits por exame (exame_pcr_consumiveis, migration v52).
+async function vinculosPcr(): Promise<(Vinculo & { nome: string })[]> {
+  const { data, error } = await supabase
+    .from('exame_pcr_consumiveis').select('pcr_id, consumivel_id, quantidade, exames_pcr(nome)')
+  if (error) throw new Error(error.message)
+  return (data ?? []).map(v => {
+    const pcr = (Array.isArray(v.exames_pcr) ? v.exames_pcr[0] : v.exames_pcr) as { nome: string } | null
+    return { item_id: v.pcr_id, consumivel_id: v.consumivel_id, quantidade: v.quantidade, nome: pcr?.nome ?? `PCR #${v.pcr_id}` }
+  })
+}
+
+// Itens de agendamentos em aberto, de hoje em diante, que ainda não têm laudo
+// daquele exame (o laudo é o que dá baixa). Atrasados sem laudo ficam de fora —
+// já aparecem no alerta "exames sem laudo" e muitos são faltas.
+async function reservasDe(
+  tabela: 'agendamento_testes_rapidos' | 'agendamento_pcr',
+  colunaItem: 'teste_rapido_id' | 'pcr_id',
+  tipoExame: 'Teste Rápido' | 'PCR',
+  vinculos: Vinculo[],
+): Promise<Map<number, Reserva[]>> {
   const inicioHoje = `${agoraLocalISO().slice(0, 10)}T00:00:00`
   const { data, error } = await supabase
-    .from('agendamento_testes_rapidos')
-    .select('teste_rapido_id, agendamentos!inner(id, status, data_hora, pets(nome))')
+    .from(tabela)
+    .select(`${colunaItem}, agendamentos!inner(id, status, data_hora, pets(nome))`)
     .in('agendamentos.status', STATUS_EM_ABERTO)
     .gte('agendamentos.data_hora', inicioHoje)
   if (error) throw new Error(error.message)
 
   type Ag = { id: number; data_hora: string; pets: { nome: string } | { nome: string }[] | null }
-  const itens = (data ?? []).map(r => ({
-    teste_rapido_id: r.teste_rapido_id as number,
-    ag: (Array.isArray(r.agendamentos) ? r.agendamentos[0] : r.agendamentos) as Ag,
-  })).filter(r => r.ag)
+  const itens: ItemAgendado[] = []
+  for (const r of (data ?? []) as unknown as Record<string, unknown>[]) {
+    const ag = (Array.isArray(r.agendamentos) ? r.agendamentos[0] : r.agendamentos) as Ag | null
+    if (!ag) continue
+    const pet = Array.isArray(ag.pets) ? ag.pets[0] : ag.pets
+    itens.push({ item_id: Number(r[colunaItem]), agendamento_id: ag.id, data_hora: ag.data_hora, pet_nome: pet?.nome ?? '—' })
+  }
 
-  const agIds = Array.from(new Set(itens.map(r => r.ag.id)))
+  const agIds = Array.from(new Set(itens.map(i => i.agendamento_id)))
   const comLaudo = new Set<number>()
   if (agIds.length > 0) {
     const { data: laudos, error: lErr } = await supabase
-      .from('laudos').select('agendamento_id').eq('tipo_exame', 'Teste Rápido').in('agendamento_id', agIds)
+      .from('laudos').select('agendamento_id').eq('tipo_exame', tipoExame).in('agendamento_id', agIds)
     if (lErr) throw new Error(lErr.message)
     for (const l of laudos ?? []) comLaudo.add(l.agendamento_id)
   }
-
-  const out = new Map<number, Reserva[]>()
-  for (const { teste_rapido_id, ag } of itens) {
-    const consumivelId = testeConsumivel.get(teste_rapido_id)
-    if (!consumivelId || comLaudo.has(ag.id)) continue
-    const pet = Array.isArray(ag.pets) ? ag.pets[0] : ag.pets
-    const lista = out.get(consumivelId) ?? []
-    lista.push({ agendamento_id: ag.id, data_hora: ag.data_hora, pet_nome: pet?.nome ?? '—' })
-    out.set(consumivelId, lista)
-  }
-  for (const lista of Array.from(out.values())) lista.sort((a, b) => a.data_hora.localeCompare(b.data_hora))
-  return out
+  return montarReservas(itens, vinculos, comLaudo)
 }
 
 // Situação atual de todos os consumíveis (ativos e inativos).
 export async function resumoEstoque(): Promise<ConsumivelResumo[]> {
-  const [cons, lotes, pend, testes] = await Promise.all([
-    supabase.from('consumiveis').select('id, nome, unidade, categoria, estoque_minimo, ativo').order('nome'),
+  const [cons, lotes, pend, vTestes, vPcr] = await Promise.all([
+    supabase.from('consumiveis').select('id, nome, unidade, categoria, codigo, estoque_minimo, ativo').order('nome'),
     supabase.from('consumivel_compras')
       .select('consumivel_id, saldo, custo_unitario, validade, data_compra, id')
       .gt('saldo', 0)
       .order('data_compra').order('id'),
     supabase.from('consumivel_movimentos').select('consumivel_id, quantidade').is('compra_id', null),
-    supabase.from('testes_rapidos').select('id, nome, ativo, consumivel_id').not('consumivel_id', 'is', null),
+    vinculosTestesRapidos(),
+    vinculosPcr(),
   ])
-  for (const r of [cons, lotes, pend, testes]) {
+  for (const r of [cons, lotes, pend]) {
     if (r.error) throw new Error(r.error.message)
   }
 
-  // Inclui testes inativos: agendamento antigo de um teste desativado ainda gasta kit.
-  const testeConsumivel = new Map((testes.data ?? []).map(t => [t.id as number, t.consumivel_id as number]))
-  const reservas = await reservasPorConsumivel(testeConsumivel)
+  const reservas = juntarReservas(
+    await reservasDe('agendamento_testes_rapidos', 'teste_rapido_id', 'Teste Rápido', vTestes),
+    await reservasDe('agendamento_pcr', 'pcr_id', 'PCR', vPcr),
+  )
 
   const out = new Map<number, ConsumivelResumo>()
   for (const c of cons.data ?? []) {
     out.set(c.id, {
       ...c, estoque: 0, pendente: 0, reservado: 0, disponivel: 0, reservas: [],
-      valor_estoque: 0, custo_atual: null, proxima_validade: null, testes: [],
+      valor_estoque: 0, custo_atual: null, proxima_validade: null, testes: [], pcrs: [],
     })
   }
   // Lotes já vêm em ordem PEPS: o primeiro de cada consumível é o "em uso".
@@ -126,14 +142,17 @@ export async function resumoEstoque(): Promise<ConsumivelResumo[]> {
     c.pendente += p.quantidade
     c.estoque  -= p.quantidade
   }
-  for (const t of testes.data ?? []) {
-    if (t.ativo) out.get(t.consumivel_id)?.testes.push({ id: t.id, nome: t.nome })
+  for (const t of vTestes) {
+    if (t.ativo) out.get(t.consumivel_id)?.testes.push({ id: t.item_id, nome: t.nome })
+  }
+  for (const v of vPcr) {
+    out.get(v.consumivel_id)?.pcrs.push({ id: v.item_id, nome: v.nome, quantidade: v.quantidade })
   }
   for (const [consumivelId, lista] of Array.from(reservas)) {
     const c = out.get(consumivelId)
     if (!c) continue
     c.reservas  = lista
-    c.reservado = lista.length
+    c.reservado = lista.reduce((s, r) => s + r.quantidade, 0)
   }
   return Array.from(out.values()).map(c => ({
     ...c,
@@ -142,27 +161,26 @@ export async function resumoEstoque(): Promise<ConsumivelResumo[]> {
   }))
 }
 
-// Dá baixa dos consumíveis usados num laudo de teste rápido e grava o custo
-// no laudo (laudos.custo_exame, que o Dashboard soma). Cada teste gasta 1
-// unidade do consumível vinculado; testes sem consumível não custam nada.
-// Devolve o custo total ou lança erro — quem chama decide se isso bloqueia.
-export async function baixarConsumoLaudo(laudoId: number, testeIds: number[], userId: number | null): Promise<number> {
-  if (testeIds.length === 0) return 0
+/** Consumo dos testes rápidos de um laudo (1 do consumível de cada teste). */
+export async function consumoTestesRapidos(testeIds: number[]): Promise<Map<number, number>> {
+  if (testeIds.length === 0) return new Map()
+  return somarConsumo(testeIds, await vinculosTestesRapidos())
+}
 
-  const { data: testes, error } = await supabase
-    .from('testes_rapidos')
-    .select('id, consumivel_id')
-    .in('id', testeIds)
-  if (error) throw new Error(error.message)
+/** Consumo dos PCRs de um laudo (os kits ligados a cada PCR, com a quantidade). */
+export async function consumoPcrs(pcrIds: number[]): Promise<Map<number, number>> {
+  if (pcrIds.length === 0) return new Map()
+  return somarConsumo(pcrIds, await vinculosPcr())
+}
 
-  const porConsumivel = new Map<number, number>()
-  for (const id of testeIds) {
-    const consumivelId = testes?.find(t => t.id === id)?.consumivel_id
-    if (consumivelId) porConsumivel.set(consumivelId, (porConsumivel.get(consumivelId) ?? 0) + 1)
-  }
+// Dá baixa do consumo de um laudo e grava o custo nele (laudos.custo_exame, que
+// o Dashboard soma). Devolve o custo total ou lança erro — quem chama decide se
+// isso bloqueia (a emissão do laudo não bloqueia).
+export async function baixarConsumoLaudo(laudoId: number, consumo: Map<number, number>, userId: number | null): Promise<number> {
+  if (consumo.size === 0) return 0
 
   let custo = 0
-  for (const [consumivelId, quantidade] of Array.from(porConsumivel)) {
+  for (const [consumivelId, quantidade] of Array.from(consumo)) {
     custo += await consumir(consumivelId, quantidade, { laudoId, userId })
   }
 

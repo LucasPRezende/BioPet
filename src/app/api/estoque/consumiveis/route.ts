@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
-import { vincularTestes } from './vincular'
+import { vincularTestes, vincularPcrs } from './vincular'
 
 async function requireAdmin(request: NextRequest) {
   const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value
@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
   if (!admin) return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 })
 
   const body = await request.json().catch(() => null)
-  const { nome, unidade, categoria, estoque_minimo, testes_ids } = body ?? {}
+  const { nome, unidade, categoria, codigo, estoque_minimo, testes_ids, pcrs_ids } = body ?? {}
   if (!nome?.trim()) return NextResponse.json({ error: 'Nome é obrigatório.' }, { status: 400 })
 
   const { data, error } = await supabase
@@ -26,6 +26,7 @@ export async function POST(request: NextRequest) {
       nome:           nome.trim(),
       unidade:        unidade?.trim() || 'un',
       categoria:      categoria?.trim() || 'outro',
+      codigo:         codigo?.trim() || null,
       estoque_minimo: Math.max(0, Math.floor(Number(estoque_minimo) || 0)),
     })
     .select('*')
@@ -34,6 +35,10 @@ export async function POST(request: NextRequest) {
 
   if (Array.isArray(testes_ids)) {
     const err = await vincularTestes(data.id, testes_ids)
+    if (err) return NextResponse.json({ error: err }, { status: 500 })
+  }
+  if (Array.isArray(pcrs_ids)) {
+    const err = await vincularPcrs(data.id, pcrs_ids)
     if (err) return NextResponse.json({ error: err }, { status: 500 })
   }
   return NextResponse.json(data, { status: 201 })

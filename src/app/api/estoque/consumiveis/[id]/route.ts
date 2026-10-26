@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
-import { vincularTestes } from '../vincular'
+import { vincularTestes, vincularPcrs } from '../vincular'
 
 async function requireAdmin(request: NextRequest) {
   const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value
@@ -24,7 +24,7 @@ export async function PATCH(
   if (!consumivelId) return NextResponse.json({ error: 'ID inválido.' }, { status: 400 })
 
   const body = await request.json().catch(() => null)
-  const { nome, unidade, categoria, estoque_minimo, ativo, testes_ids } = body ?? {}
+  const { nome, unidade, categoria, codigo, estoque_minimo, ativo, testes_ids, pcrs_ids } = body ?? {}
 
   const updates: Record<string, unknown> = {}
   if (nome !== undefined) {
@@ -33,6 +33,7 @@ export async function PATCH(
   }
   if (unidade        !== undefined) updates.unidade        = String(unidade).trim() || 'un'
   if (categoria      !== undefined) updates.categoria      = String(categoria).trim() || 'outro'
+  if (codigo         !== undefined) updates.codigo         = String(codigo ?? '').trim() || null
   if (estoque_minimo !== undefined) updates.estoque_minimo = Math.max(0, Math.floor(Number(estoque_minimo) || 0))
   if (ativo          !== undefined) updates.ativo          = Boolean(ativo)
 
@@ -41,10 +42,15 @@ export async function PATCH(
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // Consumível desativado não pode continuar dando baixa pelos testes
-  const vinculo = ativo === false ? [] : testes_ids
-  if (Array.isArray(vinculo)) {
-    const err = await vincularTestes(consumivelId, vinculo)
+  // Consumível desativado não pode continuar dando baixa pelos exames
+  const vinculoTestes = ativo === false ? [] : testes_ids
+  if (Array.isArray(vinculoTestes)) {
+    const err = await vincularTestes(consumivelId, vinculoTestes)
+    if (err) return NextResponse.json({ error: err }, { status: 500 })
+  }
+  const vinculoPcrs = ativo === false ? [] : pcrs_ids
+  if (Array.isArray(vinculoPcrs)) {
+    const err = await vincularPcrs(consumivelId, vinculoPcrs)
     if (err) return NextResponse.json({ error: err }, { status: 500 })
   }
   return NextResponse.json({ success: true })

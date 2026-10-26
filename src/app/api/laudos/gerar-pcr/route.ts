@@ -7,6 +7,7 @@ import { classificarCt } from '@/lib/pcr-resultado'
 import { savePdf, deletePdf } from '@/lib/pdf-storage'
 import { jaTemLaudo } from '@/lib/laudo-duplicado'
 import { comissaoLaudo } from '@/lib/comissao-exame-db'
+import { baixarConsumoLaudo, consumoPcrs } from '@/lib/estoque'
 
 export async function POST(request: NextRequest) {
   const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value
@@ -28,6 +29,7 @@ export async function POST(request: NextRequest) {
     pet_id:         number | null
     agendamento_id: number | null
     preco_exame:    number | null
+    pcrs_ids?:      number[]        // PCRs do catálogo feitos neste laudo — dão baixa no estoque
   }
   try {
     body = await request.json()
@@ -37,6 +39,9 @@ export async function POST(request: NextRequest) {
 
   const { pdfData, tutor, telefone, sexo, raca, medico_responsavel, data_laudo,
           veterinario_id, tutor_id, pet_id, agendamento_id, preco_exame } = body
+  const pcrsIds = Array.isArray(body.pcrs_ids)
+    ? body.pcrs_ids.map(Number).filter(n => Number.isInteger(n) && n > 0)
+    : []
 
   if (!pdfData?.nome_pet || !pdfData?.especie || !tutor || !telefone) {
     return NextResponse.json({ error: 'Campos obrigatórios ausentes.' }, { status: 400 })
@@ -93,6 +98,14 @@ export async function POST(request: NextRequest) {
     if (error) {
       await deletePdf(filename)
       throw new Error(error.message)
+    }
+
+    // Baixa de estoque + custo do laudo. Nunca derruba a emissão: o laudo já
+    // está salvo, então uma falha aqui só fica registrada no log.
+    try {
+      data.custo_exame = await baixarConsumoLaudo(data.id, await consumoPcrs(pcrsIds), session.userId)
+    } catch (err) {
+      console.error(`[gerar-pcr] falha na baixa de estoque do laudo ${data.id}:`, err)
     }
 
     // Conclui o agendamento quando todos os laudos foram emitidos

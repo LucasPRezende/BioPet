@@ -6,7 +6,7 @@ import { generateTesteRapidoPDF, type TesteRapidoPDFData } from '@/lib/generate-
 import { savePdf, deletePdf } from '@/lib/pdf-storage'
 import { jaTemLaudo } from '@/lib/laudo-duplicado'
 import { comissaoLaudo } from '@/lib/comissao-exame-db'
-import { baixarConsumoLaudo } from '@/lib/estoque'
+import { baixarConsumoLaudo, consumoTestesRapidos } from '@/lib/estoque'
 
 export async function POST(request: NextRequest) {
   const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
     // Baixa de estoque + custo do laudo. Nunca derruba a emissão: o laudo já
     // está salvo, então uma falha aqui só fica registrada no log.
     try {
-      data.custo_exame = await baixarConsumoLaudo(data.id, testesIds, session.userId)
+      data.custo_exame = await baixarConsumoLaudo(data.id, await consumoTestesRapidos(testesIds), session.userId)
     } catch (err) {
       console.error(`[gerar-teste-rapido] falha na baixa de estoque do laudo ${data.id}:`, err)
     }

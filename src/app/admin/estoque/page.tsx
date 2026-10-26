@@ -13,14 +13,17 @@ interface Consumivel {
   pendente:         number
   reservado:        number
   disponivel:       number
-  reservas:         { agendamento_id: number; data_hora: string; pet_nome: string }[]
+  reservas:         { agendamento_id: number; data_hora: string; pet_nome: string; quantidade: number }[]
   valor_estoque:    number
   custo_atual:      number | null
   proxima_validade: string | null
   testes:           { id: number; nome: string }[]
+  pcrs:             { id: number; nome: string; quantidade: number }[]
+  codigo:           string | null
 }
 
 interface TesteRapido { id: number; nome: string; consumivel_id: number | null }
+interface PcrCat      { id: number; nome: string; codigo: string | null; ativo: boolean }
 
 interface Compra {
   id:             number
@@ -60,6 +63,7 @@ type Aba = 'estoque' | 'compras' | 'saidas'
 // Mesma lista de CATEGORIAS em lib/estoque (texto livre no banco)
 const CATEGORIA_LABEL: Record<string, string> = {
   teste_rapido: 'Testes rápidos',
+  pcr:          'Kits de PCR',
   tubo:         'Tubos de coleta',
   caixa:        'Caixas e envio',
   reagente:     'Reagentes',
@@ -95,6 +99,14 @@ function fmtDataHora(iso: string) {
 }
 
 // Mesma regra do alerta do dashboard (precisaRepor em lib/estoque)
+function usadoEm(c: Consumivel): string | null {
+  const nomes = [
+    ...c.testes.map(t => t.nome),
+    ...c.pcrs.map(p => (p.quantidade > 1 ? `${p.nome} (${p.quantidade}×)` : p.nome)),
+  ]
+  return nomes.length > 0 ? `Usado em: ${nomes.join(', ')}` : null
+}
+
 function precisaRepor(c: Consumivel) {
   return c.disponivel < 0 || (c.estoque_minimo > 0 && c.disponivel <= c.estoque_minimo)
 }
@@ -111,6 +123,7 @@ export default function EstoquePage() {
   const [aba,         setAba]         = useState<Aba>('estoque')
   const [consumiveis, setConsumiveis] = useState<Consumivel[]>([])
   const [testes,      setTestes]      = useState<TesteRapido[]>([])
+  const [pcrs,        setPcrs]        = useState<PcrCat[]>([])
   const [compras,     setCompras]     = useState<Compra[]>([])
   const [movimentos,  setMovimentos]  = useState<Movimento[]>([])
   const [loading,     setLoading]     = useState(true)
@@ -144,6 +157,7 @@ export default function EstoquePage() {
       const d = await rE.json()
       setConsumiveis(d.consumiveis ?? [])
       setTestes(d.testes ?? [])
+      setPcrs(d.pcrs ?? [])
     } else {
       const d = await rE.json().catch(() => ({}))
       setErro(d.error ?? 'Erro ao carregar o estoque.')
@@ -214,6 +228,8 @@ export default function EstoquePage() {
   const custo30  = saidas30.reduce((s, m) => s + m.quantidade * Number(m.custo_unitario), 0)
   const perdas30 = saidas30.filter(m => m.tipo === 'perda').reduce((s, m) => s + m.quantidade * Number(m.custo_unitario), 0)
 
+  const pcrsSemKit = pcrs.filter(p => p.ativo && !consumiveis.some(c => c.ativo && c.pcrs.some(x => x.id === p.id)))
+
   const custoUnitPreview = Number(fQtd) > 0 && fValor ? parseValor(fValor) / Number(fQtd) : null
 
   const comprasFiltradas    = filtro ? compras.filter(c => c.consumivel_id === filtro) : compras
@@ -254,6 +270,13 @@ export default function EstoquePage() {
         <Resumo label="Custo das saídas (30d)"  valor={brl(custo30)} sub={`${saidas30.length} saída${saidas30.length === 1 ? '' : 's'}`} />
         <Resumo label="Perdas / baixas (30d)"   valor={brl(perdas30)} />
       </div>
+
+      {pcrsSemKit.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
+          <strong>PCR sem kit vinculado</strong> (o laudo sai sem custo e não baixa estoque):{' '}
+          {pcrsSemKit.map(p => p.nome).join(', ')}. Vincule em ✏️ no kit que ele usa.
+        </div>
+      )}
 
       {/* Abas */}
       <div className="flex gap-1 border-b border-gray-200">
@@ -316,9 +339,10 @@ export default function EstoquePage() {
                         <td className="px-5 py-3">
                           <p className="font-semibold text-[#19202d]">{c.nome}{!c.ativo && ' (inativo)'}</p>
                           <p className="text-[11px] text-gray-400">
-                            {c.testes.length > 0
-                              ? `Usado em: ${c.testes.map(t => t.nome).join(', ')}`
-                              : c.categoria === 'teste_rapido' ? 'Sem teste vinculado — não dá baixa automática' : c.unidade}
+                            {c.codigo && <span className="font-mono text-gray-500 mr-1.5">{c.codigo}</span>}
+                            {usadoEm(c) ?? (['teste_rapido', 'pcr'].includes(c.categoria)
+                              ? 'Sem exame vinculado — não dá baixa automática'
+                              : c.unidade)}
                           </p>
                           {c.pendente > 0 && (
                             <p className="text-[11px] text-red-600 mt-0.5">
@@ -374,7 +398,7 @@ export default function EstoquePage() {
                               {c.reservas.map(r => (
                                 <a key={r.agendamento_id} href={`/admin/agenda?data=${r.data_hora.slice(0, 10)}&abrir=${r.agendamento_id}`}
                                   className="text-[11px] bg-white border border-gray-200 rounded-full px-2.5 py-0.5 text-gray-700 hover:border-[#8a6e36]">
-                                  {fmtDataHora(r.data_hora)} · {r.pet_nome}
+                                  {fmtDataHora(r.data_hora)} · {r.pet_nome}{r.quantidade > 1 ? ` (${r.quantidade})` : ''}
                                 </a>
                               ))}
                             </div>
@@ -557,6 +581,7 @@ export default function EstoquePage() {
         <ModalConsumivel
           consumivel={editando === 'novo' ? null : editando}
           testes={testes}
+          pcrs={pcrs}
           onClose={() => setEditando(null)}
           onSaved={async () => { setEditando(null); await carregar() }}
         />
@@ -616,9 +641,10 @@ function Modal({ titulo, onClose, children }: { titulo: string; onClose: () => v
   )
 }
 
-function ModalConsumivel({ consumivel, testes, onClose, onSaved }: {
+function ModalConsumivel({ consumivel, testes, pcrs, onClose, onSaved }: {
   consumivel: Consumivel | null
   testes:     TesteRapido[]
+  pcrs:       PcrCat[]
   onClose:    () => void
   onSaved:    () => void
 }) {
@@ -628,11 +654,16 @@ function ModalConsumivel({ consumivel, testes, onClose, onSaved }: {
   const [minimo,  setMinimo]  = useState(String(consumivel?.estoque_minimo ?? 0))
   const [ativo,   setAtivo]   = useState(consumivel?.ativo ?? true)
   const [vinculo, setVinculo] = useState<number[]>(consumivel?.testes.map(t => t.id) ?? [])
+  const [vinculoPcr, setVinculoPcr] = useState<number[]>(consumivel?.pcrs.map(p => p.id) ?? [])
+  const [codigo,  setCodigo]  = useState(consumivel?.codigo ?? '')
   const [salvando, setSalvando] = useState(false)
   const [erro,    setErro]    = useState('')
 
   function toggle(id: number) {
     setVinculo(v => v.includes(id) ? v.filter(x => x !== id) : [...v, id])
+  }
+  function togglePcr(id: number) {
+    setVinculoPcr(v => v.includes(id) ? v.filter(x => x !== id) : [...v, id])
   }
 
   async function salvar() {
@@ -642,8 +673,9 @@ function ModalConsumivel({ consumivel, testes, onClose, onSaved }: {
       method:  consumivel ? 'PATCH' : 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        nome, unidade, categoria, estoque_minimo: Number(minimo), ativo,
+        nome, unidade, categoria, codigo, estoque_minimo: Number(minimo), ativo,
         testes_ids: categoria === 'teste_rapido' ? vinculo : [],
+        pcrs_ids:   categoria === 'pcr' ? vinculoPcr : [],
       }),
     })
     if (res.ok) onSaved()
@@ -664,6 +696,11 @@ function ModalConsumivel({ consumivel, testes, onClose, onSaved }: {
           {ORDEM_CATEGORIAS.map(k => <option key={k} value={k}>{CATEGORIA_LABEL[k]}</option>)}
         </select>
       </Campo>
+      {categoria === 'pcr' && (
+        <Campo label="Código do kit (o da nota fiscal)">
+          <input type="text" value={codigo} onChange={e => setCodigo(e.target.value)} placeholder="ex.: PC05-0" className={`${INPUT} w-full`} />
+        </Campo>
+      )}
       <div className="grid grid-cols-2 gap-3">
         <Campo label="Unidade">
           <input type="text" value={unidade} onChange={e => setUnidade(e.target.value)} placeholder="teste, un, caixa…" className={`${INPUT} w-full`} />
@@ -690,10 +727,25 @@ function ModalConsumivel({ consumivel, testes, onClose, onSaved }: {
         <p className="text-[11px] text-gray-400 mt-1">Um teste só gasta de um consumível; marcar aqui tira ele do anterior.</p>
       </div>
       )}
+      {categoria === 'pcr' && (
+      <div>
+        <p className="text-xs text-gray-500 mb-1.5">PCRs que gastam 1 reação deste kit</p>
+        <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-56 overflow-y-auto">
+          {pcrs.filter(p => p.ativo || vinculoPcr.includes(p.id)).map(p => (
+            <label key={p.id} className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-gray-50">
+              <input type="checkbox" checked={vinculoPcr.includes(p.id)} onChange={() => togglePcr(p.id)} />
+              <span className="flex-1">{p.nome}</span>
+              {p.codigo && <span className="text-[10px] font-mono text-gray-400">{p.codigo}</span>}
+            </label>
+          ))}
+        </div>
+        <p className="text-[11px] text-gray-400 mt-1">Um PCR pode gastar mais de um kit (ex.: &quot;FIV e FeLV&quot; usa o de FIV e o de FeLV) — marque-o em cada kit.</p>
+      </div>
+      )}
       {consumivel && (
         <label className="flex items-center gap-2 text-sm text-gray-600">
           <input type="checkbox" checked={ativo} onChange={e => setAtivo(e.target.checked)} />
-          Ativo {!ativo && <span className="text-xs text-gray-400">(inativar desvincula os testes)</span>}
+          Ativo {!ativo && <span className="text-xs text-gray-400">(inativar desvincula os exames)</span>}
         </label>
       )}
       {erro && <p className="text-sm text-red-600">{erro}</p>}

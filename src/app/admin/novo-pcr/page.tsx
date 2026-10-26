@@ -342,6 +342,7 @@ function NovoPcrInner() {
         pet_id:             petId,
         agendamento_id:     agendamentoId ? Number(agendamentoId) : null,
         preco_exame:        totalPix,
+        pcrs_ids:           incluidos,
       }),
     })
 
