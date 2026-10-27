@@ -20,11 +20,22 @@ interface NavItem {
   adminOnly?: boolean
 }
 
+/** Item que abre e fecha uma lista de subitens (ex.: Referências). */
+interface NavSubmenu {
+  icon:     string
+  label:    string
+  /** Chave do estado aberto/fechado guardado no navegador. */
+  chave:    string
+  children: NavItem[]
+}
+
 interface NavGroup {
   title:      string
   adminOnly?: boolean
-  items:      NavItem[]
+  items:      (NavItem | NavSubmenu)[]
 }
+
+const ehSubmenu = (i: NavItem | NavSubmenu): i is NavSubmenu => 'children' in i
 
 const NAV: NavGroup[] = [
   {
@@ -44,9 +55,14 @@ const NAV: NavGroup[] = [
       { icon: '💉', label: 'Teste Rápido', href: '/admin/novo-teste-rapido'       },
       { icon: '🧬', label: 'PCR',          href: '/admin/novo-pcr'                 },
       { icon: '🧫', label: 'Urinálise',    href: '/admin/novo-urinalise'           },
-      { icon: '📊', label: 'Ref. Bioquímica', href: '/admin/bioquimica/referencias' },
-      { icon: '📊', label: 'Ref. Hemograma',  href: '/admin/hemograma/referencias'  },
-      { icon: '📊', label: 'Ref. Urinálise',  href: '/admin/urinalise/referencias'  },
+      {
+        icon: '📊', label: 'Referências', chave: 'referencias',
+        children: [
+          { icon: '🧪', label: 'Bioquímica', href: '/admin/bioquimica/referencias' },
+          { icon: '🩸', label: 'Hemograma',  href: '/admin/hemograma/referencias'  },
+          { icon: '🧫', label: 'Urinálise',  href: '/admin/urinalise/referencias'  },
+        ],
+      },
     ],
   },
   {
@@ -78,6 +94,20 @@ export default function Sidebar({ isOpen, onClose }: Props) {
   const router   = useRouter()
   const [user,   setUser]   = useState<User | null>(null)
   const [unread, setUnread] = useState(0)
+  const [abertos, setAbertos] = useState<Record<string, boolean>>({})
+
+  // Submenus abertos ficam lembrados neste navegador
+  useEffect(() => {
+    try { setAbertos(JSON.parse(localStorage.getItem('sidebar_submenus') ?? '{}')) } catch {}
+  }, [])
+
+  function alternar(chave: string, aberto: boolean) {
+    setAbertos(prev => {
+      const next = { ...prev, [chave]: !aberto }
+      try { localStorage.setItem('sidebar_submenus', JSON.stringify(next)) } catch {}
+      return next
+    })
+  }
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -109,6 +139,32 @@ export default function Sidebar({ isOpen, onClose }: Props) {
   }
 
   const isAdmin = user?.role === 'admin'
+
+  const link = (item: NavItem) => {
+    const active = isActive(item.href)
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        onClick={onClose}
+        className={[
+          'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150',
+          active
+            ? 'bg-white/15 text-white border-l-2 border-[#c4a35a] pl-[10px]'
+            : 'text-white/65 hover:bg-white/10 hover:text-white',
+        ].join(' ')}
+      >
+        <span className="text-[15px] w-5 text-center shrink-0">{item.icon}</span>
+        <span className="flex-1 truncate">{item.label}</span>
+        {item.badge && unread > 0 && (
+          <span className="bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 shrink-0">
+            {unread > 99 ? '99+' : unread}
+          </span>
+        )}
+      </Link>
+    )
+  }
+
 
   return (
     <>
@@ -165,7 +221,7 @@ export default function Sidebar({ isOpen, onClose }: Props) {
         <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-0.5 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20 hover:[&::-webkit-scrollbar-thumb]:bg-[#c4a35a]/60 [scrollbar-width:thin] [scrollbar-color:rgba(196,163,90,0.3)_transparent]">
           {NAV.map(group => {
             if (group.adminOnly && !isAdmin) return null
-            const items = group.items.filter(i => !i.adminOnly || isAdmin)
+            const items = group.items.filter(i => ehSubmenu(i) || !i.adminOnly || isAdmin)
             if (!items.length) return null
 
             return (
@@ -174,28 +230,35 @@ export default function Sidebar({ isOpen, onClose }: Props) {
                   {group.title}
                 </p>
                 {items.map(item => {
-                  const active = isActive(item.href)
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={onClose}
-                      className={[
-                        'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150',
-                        active
-                          ? 'bg-white/15 text-white border-l-2 border-[#c4a35a] pl-[10px]'
-                          : 'text-white/65 hover:bg-white/10 hover:text-white',
-                      ].join(' ')}
-                    >
-                      <span className="text-[15px] w-5 text-center shrink-0">{item.icon}</span>
-                      <span className="flex-1 truncate">{item.label}</span>
-                      {item.badge && unread > 0 && (
-                        <span className="bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 shrink-0">
-                          {unread > 99 ? '99+' : unread}
-                        </span>
-                      )}
-                    </Link>
-                  )
+                  if (ehSubmenu(item)) {
+                    const filhos = item.children.filter(c => !c.adminOnly || isAdmin)
+                    const dentro = filhos.some(c => isActive(c.href))
+                    // Aberto se a pessoa abriu, ou se está numa das telas dele
+                    const aberto = abertos[item.chave] ?? dentro
+                    return (
+                      <div key={item.chave}>
+                        <button
+                          type="button"
+                          onClick={() => alternar(item.chave, aberto)}
+                          aria-expanded={aberto}
+                          className={[
+                            'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 text-left',
+                            dentro && !aberto ? 'bg-white/15 text-white' : 'text-white/65 hover:bg-white/10 hover:text-white',
+                          ].join(' ')}
+                        >
+                          <span className="text-[15px] w-5 text-center shrink-0">{item.icon}</span>
+                          <span className="flex-1 truncate">{item.label}</span>
+                          <span className={`text-[10px] text-white/40 transition-transform duration-150 ${aberto ? 'rotate-90' : ''}`}>▶</span>
+                        </button>
+                        {aberto && (
+                          <div className="ml-5 pl-2 border-l border-white/10 space-y-0.5 mt-0.5">
+                            {filhos.map(link)}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  }
+                  return link(item)
                 })}
               </div>
             )
