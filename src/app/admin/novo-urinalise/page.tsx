@@ -37,6 +37,36 @@ function calcIdadeDeNascimento(dataNasc: string): string {
   return `${anos} ${anos === 1 ? 'ano' : 'anos'}`
 }
 
+const OUTRO = '__outro__'
+const SELECT_SM = 'w-full border border-gray-200 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#3BA7B0] bg-white'
+
+/**
+ * Lista fechada de opções + "Outro…", que abre um campo livre. Valor que não
+ * está na lista (digitado antes) abre já no modo livre.
+ */
+function SelectOuOutro({ value, opcoes, onChange, className, vazio = '—' }: {
+  value: string; opcoes: string[]; onChange: (v: string) => void; className: string; vazio?: string
+}) {
+  const [livre, setLivre] = useState(false)
+  const modoLivre = livre || (value !== '' && !opcoes.includes(value))
+  return (
+    <div className="flex gap-1">
+      <select value={modoLivre ? OUTRO : value} className={className}
+        onChange={e => {
+          if (e.target.value === OUTRO) { setLivre(true); onChange('') }
+          else { setLivre(false); onChange(e.target.value) }
+        }}>
+        <option value="">{vazio}</option>
+        {opcoes.map(o => <option key={o} value={o}>{o}</option>)}
+        <option value={OUTRO}>Outro…</option>
+      </select>
+      {modoLivre && (
+        <input autoFocus value={value} placeholder="Digite" onChange={e => onChange(e.target.value)} className={className} />
+      )}
+    </div>
+  )
+}
+
 function NovoUrinaliseContent() {
   const router        = useRouter()
   const searchParams  = useSearchParams()
@@ -47,7 +77,8 @@ function NovoUrinaliseContent() {
 
   const [loadingAg, setLoadingAg] = useState(false)
   const [agInfo,    setAgInfo]    = useState<AgendamentoInfo | null>(null)
-  const [vets,      setVets]      = useState<{ id: number; nome: string }[]>([])
+  const [vets,      setVets]      = useState<{ id: number; nome: string; clinicas?: { nome: string } | { nome: string }[] | null }[]>([])
+  const [clinicas,  setClinicas]  = useState<string[]>([])
   const [vetId,     setVetId]     = useState<number | null>(null)
 
   const [fita,        setFita]        = useState<TipoFita>(fitaDoAgendamento ?? 11)
@@ -86,7 +117,25 @@ function NovoUrinaliseContent() {
 
   useEffect(() => {
     fetch('/api/veterinarios').then(r => r.ok ? r.json() : []).then(setVets).catch(() => {})
+    // Lista de clínicas é só para admin; sem acesso, sobra a dos veterinários (abaixo)
+    fetch('/api/admin/clinicas').then(r => r.ok ? r.json() : [])
+      .then((d: { nome: string; ativo: boolean }[]) => setClinicas((d ?? []).filter(c => c.ativo).map(c => c.nome)))
+      .catch(() => {})
   }, [])
+
+  const clinicaDoVet = (id: number | null) => {
+    const c = vets.find(v => v.id === id)?.clinicas
+    return (Array.isArray(c) ? c[0]?.nome : c?.nome) ?? ''
+  }
+  const opcoesClinica = Array.from(new Set([...clinicas, ...vets.map(v => clinicaDoVet(v.id)).filter(Boolean)]))
+    .sort((a, b) => a.localeCompare(b, 'pt-BR'))
+
+  // Clínica sai do veterinário do agendamento/escolhido, se ninguém escolheu outra
+  useEffect(() => {
+    const c = clinicaDoVet(vetId)
+    if (c) setForm(p => p.clinica ? p : { ...p, clinica: c })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vetId, vets])
 
   useEffect(() => {
     if (!agendamentoId) return
@@ -288,15 +337,19 @@ function NovoUrinaliseContent() {
       <p className="text-[11px] font-bold text-[#2a8f98] uppercase tracking-wider mb-1.5">{titulo}</p>
       <div className="space-y-1">
         {campos.map(c => (
-          <div key={c.codigo} className="grid grid-cols-[1fr_170px] gap-2 items-center text-sm">
+          <div key={c.codigo} className="grid grid-cols-[1fr_190px] gap-2 items-center text-sm">
             <span className="text-[#19202d]">
               {c.nome}
               {c.referencia && <span className="text-[10px] text-gray-400 ml-1">({c.referencia})</span>}
             </span>
-            <input value={vals[c.codigo] ?? ''} list={c.opcoes ? `op-${c.codigo}` : undefined}
-              onChange={e => { const v = e.target.value; set(p => ({ ...p, [c.codigo]: v })); setDesatualizada(true) }}
-              className="w-full border border-gray-200 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#3BA7B0] bg-white" />
-            {c.opcoes && <datalist id={`op-${c.codigo}`}>{c.opcoes.map(o => <option key={o} value={o} />)}</datalist>}
+            {c.opcoes ? (
+              <SelectOuOutro value={vals[c.codigo] ?? ''} opcoes={c.opcoes} className={SELECT_SM}
+                onChange={v => { set(p => ({ ...p, [c.codigo]: v })); setDesatualizada(true) }} />
+            ) : (
+              <input value={vals[c.codigo] ?? ''}
+                onChange={e => { const v = e.target.value; set(p => ({ ...p, [c.codigo]: v })); setDesatualizada(true) }}
+                className={SELECT_SM} />
+            )}
           </div>
         ))}
       </div>
@@ -305,6 +358,22 @@ function NovoUrinaliseContent() {
 
   const faltando = parametrosFaltando(fita, valores)
   const lidoDaFoto = leitura !== null
+  const so14NaFita11 = fita === 11 ? parametrosDaFita(14).filter(p => p.so14 && (valores[p.codigo] ?? '').trim()) : []
+
+  // Avisos do resultado da foto: vão num quadro no topo da revisão
+  const avisos: React.ReactNode[] = []
+  if (so14NaFita11.length > 0) {
+    avisos.push(<>O exame é de <b>11 parâmetros</b>, mas a foto tem <b>{so14NaFita11.map(p => p.codigo).join(', ')}</b>, que só a fita 14 tem. Pode ser a foto de outra amostra ou o exame errado.</>)
+  }
+  if (lidoDaFoto && faltando.length > 0) {
+    avisos.push(<>A foto não trouxe <b>{faltando.map(p => p.codigo).join(', ')}</b>.{fita === 14 ? ' Na fita 14, fotografe também a segunda tela (ou a impressão).' : ''} Preencha à mão ou volte e adicione a outra foto.</>)
+  }
+  if (lidoDaFoto && leitura.data && leitura.data !== new Date().toLocaleDateString('en-CA')) {
+    avisos.push(<>O resultado da foto é de <b>{leitura.data.split('-').reverse().join('/')}</b>, não de hoje. Confira se é a amostra certa.</>)
+  }
+  if (lidoDaFoto && leitura.desconhecidos.length > 0) {
+    avisos.push(<>Itens da foto que não são da fita foram ignorados: {leitura.desconhecidos.join(', ')}.</>)
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -353,6 +422,13 @@ function NovoUrinaliseContent() {
                 <p className="text-sm text-gray-400">Agendamento não encontrado.</p>
               )}
             </div>
+          </div>
+        )}
+
+        {step === 'revisao' && avisos.length > 0 && (
+          <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-4 space-y-1.5">
+            <p className="font-bold text-amber-800 text-sm">⚠️ Confira a foto antes de emitir</p>
+            {avisos.map((a, i) => <p key={i} className="text-sm text-amber-800">{a}</p>)}
           </div>
         )}
 
@@ -483,7 +559,10 @@ function NovoUrinaliseContent() {
                         {vets.map(v => <option key={v.id} value={v.id}>{v.nome}</option>)}
                       </select>
                     ))}
-                    {campo('Clínica', <input value={form.clinica} onChange={e => setF('clinica', e.target.value)} className={INPUT} />)}
+                    {campo('Clínica', (
+                      <SelectOuOutro value={form.clinica} opcoes={opcoesClinica} vazio="— Não informada"
+                        onChange={v => setF('clinica', v)} className={INPUT} />
+                    ))}
                     {campo('Data do laudo', <input type="date" value={form.data_laudo} onChange={e => setF('data_laudo', e.target.value)} className={INPUT} />)}
                   </div>
                 </div>
@@ -518,14 +597,6 @@ function NovoUrinaliseContent() {
                           </a>
                         ))}
                       </div>
-                    )}
-                    {lidoDaFoto && faltando.length > 0 && (
-                      <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1 mb-2">
-                        A foto não trouxe: <b>{faltando.map(p => p.codigo).join(', ')}</b>. Preencha à mão ou volte e adicione a outra tela.
-                      </p>
-                    )}
-                    {lidoDaFoto && leitura.desconhecidos.length > 0 && (
-                      <p className="text-[11px] text-gray-500 mb-2">Ignorado da foto: {leitura.desconhecidos.join(', ')}</p>
                     )}
                     <div className="space-y-1">
                       {parametrosDaFita(fita).map(p => {
