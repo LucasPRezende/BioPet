@@ -75,6 +75,51 @@ export function comissaoClinicaDevida(ag: {
   return ag.status_pagamento === 'pago'
 }
 
+export interface AgendamentoComissaoClinica {
+  pagamento_responsavel:       string | null | undefined
+  comissao_clinica_id:         number | null | undefined
+  status_pagamento:            string | null | undefined
+  forma_pagamento:             string | null | undefined
+  agendamento_exames?:         { tipo_exame: string; comissao_clinica: number | null }[] | null
+  agendamento_bioquimica?:     { comissao: number | null }[] | null
+  agendamento_testes_rapidos?: { comissao: number | null }[] | null
+  agendamento_pcr?:            { comissao: number | null }[] | null
+}
+
+/**
+ * Comissão de clínica de UM laudo deste tipo, para o Dashboard › Por tipo de
+ * exame. Dois casos, que aparecem em lugares diferentes:
+ *  - 'repasse': a clínica cobrou do tutor, ficou com a comissão e repassou o
+ *    líquido. Não é custo: a BioPet simplesmente recebeu menos → sai da RECEITA
+ *    (o laudo grava o preço cheio). Exame gratuito não tem repasse.
+ *  - 'devida': a BioPet recebeu direto e deve a comissão à clínica
+ *    ({@link comissaoClinicaDevida}) → é custo, coluna "Com. clínica".
+ * Agrupadores (Bioquímica, Teste Rápido, PCR) têm um laudo por agendamento:
+ * soma os sub-exames. Os demais: valor de uma linha do tipo (exame múltiplo,
+ * ex.: 2 Raio-X, gera um laudo por linha).
+ */
+export function comissaoClinicaDoLaudo(
+  tipo: string,
+  ag: AgendamentoComissaoClinica | null | undefined,
+): { valor: number; caso: 'repasse' | 'devida' } | null {
+  if (!ag) return null
+  const gratuito = (ag.forma_pagamento ?? '').toLowerCase() === 'gratuito'
+  const caso = ag.pagamento_responsavel === 'clinica'
+    ? (gratuito ? null : 'repasse')
+    : (comissaoClinicaDevida(ag) ? 'devida' : null)
+  if (!caso) return null
+  const soma = (rows: { comissao: number | null }[] | null | undefined) => (rows ?? []).reduce((s, r) => s + num(r.comissao), 0)
+  let valor: number
+  if (tipo === 'Bioquímica')        valor = soma(ag.agendamento_bioquimica)
+  else if (tipo === 'Teste Rápido') valor = soma(ag.agendamento_testes_rapidos)
+  else if (tipo === 'PCR')          valor = soma(ag.agendamento_pcr)
+  else {
+    const linhas = (ag.agendamento_exames ?? []).filter(e => e.tipo_exame === tipo)
+    valor = linhas.length === 0 ? 0 : linhas.reduce((s, e) => s + num(e.comissao_clinica), 0) / linhas.length
+  }
+  return valor > 0 ? { valor, caso } : null
+}
+
 /** Tipos de exame que pagam comissão ao vet da extração. */
 export function tiposComExtracao(tabela: ComissoesDoExame[]): string[] {
   return tabela.filter(c => num(c.comissao_extracao) > 0).map(c => c.tipo_exame)

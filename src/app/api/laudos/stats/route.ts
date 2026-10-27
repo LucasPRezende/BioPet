@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
+import { comissaoClinicaDoLaudo, type AgendamentoComissaoClinica } from '@/lib/comissao-exame'
 
 export async function GET(request: NextRequest) {
   const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value
@@ -32,6 +33,20 @@ export async function GET(request: NextRequest) {
     .from('system_users')
     .select('id, nome, recebe_comissao')
 
+  // Agendamentos dos laudos: de onde sai a comissão de clínica (por tipo).
+  const agIds = Array.from(new Set((laudos ?? []).map(l => l.agendamento_id).filter((id): id is number => id != null)))
+  const agMap = new Map<number, AgendamentoComissaoClinica>()
+  if (agIds.length > 0) {
+    const { data: ags, error: agsError } = await supabase
+      .from('agendamentos')
+      .select('id, pagamento_responsavel, comissao_clinica_id, status_pagamento, forma_pagamento, ' +
+              'agendamento_exames(tipo_exame, comissao_clinica), agendamento_bioquimica(comissao), ' +
+              'agendamento_testes_rapidos(comissao), agendamento_pcr(comissao)')
+      .in('id', agIds)
+    if (agsError) return NextResponse.json({ error: agsError.message }, { status: 500 })
+    for (const a of (ags ?? []) as unknown as (AgendamentoComissaoClinica & { id: number })[]) agMap.set(a.id, a)
+  }
+
   const userMap: Record<number, { nome: string; recebe_comissao: boolean }> = {}
   for (const u of systemUsers ?? []) {
     userMap[u.id] = { nome: u.nome, recebe_comissao: u.recebe_comissao ?? true }
@@ -55,26 +70,33 @@ export async function GET(request: NextRequest) {
 
   const lucro = receita - custo - comissao
 
-  // Por tipo de exame
-  const porTipoMap: Record<string, { quantidade: number; receita: number; custo: number; comissao: number }> = {}
+  // Por tipo de exame, com a comissão de clínica (comissaoClinicaDoLaudo):
+  // repasse → a BioPet recebeu o líquido, sai da receita; devida → custo, na
+  // coluna comissao_clinica. Os totais acima não mudam: o lucro geral do
+  // Dashboard já desconta a comissão de clínica pelo bloco das clínicas.
+  const porTipoMap: Record<string, { quantidade: number; receita: number; custo: number; comissao: number; comissao_clinica: number }> = {}
   for (const l of laudos ?? []) {
     const tipo = l.tipo_exame ?? 'Não informado'
-    if (!porTipoMap[tipo]) porTipoMap[tipo] = { quantidade: 0, receita: 0, custo: 0, comissao: 0 }
+    if (!porTipoMap[tipo]) porTipoMap[tipo] = { quantidade: 0, receita: 0, custo: 0, comissao: 0, comissao_clinica: 0 }
     porTipoMap[tipo].quantidade++
     porTipoMap[tipo].receita   += Number(l.preco_exame    ?? 0)
     porTipoMap[tipo].custo     += Number(l.custo_exame    ?? 0)
     // Mesma regra do total: comissão só conta para quem recebe comissão.
     const recebe = l.system_user_id ? (userMap[l.system_user_id]?.recebe_comissao ?? true) : true
     porTipoMap[tipo].comissao  += recebe ? Number(l.valor_comissao ?? 0) : 0
+    const cc = comissaoClinicaDoLaudo(tipo, l.agendamento_id ? agMap.get(l.agendamento_id) : null)
+    if (cc?.caso === 'repasse') porTipoMap[tipo].receita          -= cc.valor
+    if (cc?.caso === 'devida')  porTipoMap[tipo].comissao_clinica += cc.valor
   }
   const porTipo = Object.entries(porTipoMap)
     .map(([tipo_exame, v]) => ({
       tipo_exame,
       quantidade: v.quantidade,
-      receita:    v.receita,
+      receita:    Math.round(v.receita * 100) / 100,
       custo:      v.custo,
       comissao:   v.comissao,
-      lucro:      v.receita - v.custo - v.comissao,
+      comissao_clinica: Math.round(v.comissao_clinica * 100) / 100,
+      lucro:      Math.round((v.receita - v.custo - v.comissao - v.comissao_clinica) * 100) / 100,
       percentual: total > 0 ? Math.round((v.quantidade / total) * 100) : 0,
     }))
     .sort((a, b) => b.quantidade - a.quantidade)

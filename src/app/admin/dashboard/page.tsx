@@ -63,7 +63,7 @@ interface LaudoStats {
   lucro:    number
   porTipo: {
     tipo_exame: string; quantidade: number; receita: number
-    custo: number; comissao: number; lucro: number; percentual: number
+    custo: number; comissao: number; comissao_clinica: number; lucro: number; percentual: number
   }[]
   porDia:  { data: string; quantidade: number }[]
   porVet:  VetEntry[]
@@ -1161,7 +1161,7 @@ export default function DashboardPage() {
                             <table className="w-full">
                               <thead>
                                 <tr className="border-b">
-                                  {['Tipo', 'Qtd', '%', 'Receita', 'Custo', 'Comissão', 'Lucro'].map(h => (
+                                  {['Tipo', 'Qtd', '%', 'Receita', 'Custo', 'Comissão', 'Com. clínica', 'Lucro'].map(h => (
                                     <th key={h} className="text-left py-2 px-3 text-xs font-bold text-gray-400 uppercase tracking-wide">{h}</th>
                                   ))}
                                 </tr>
@@ -1182,6 +1182,7 @@ export default function DashboardPage() {
                                 <td className="py-3 px-3 text-gray-700 text-sm font-medium">{formatBRL(row.receita)}</td>
                                 <td className="py-3 px-3 text-red-500 text-sm">{formatBRL(row.custo)}</td>
                                 <td className="py-3 px-3 text-amber-600 text-sm">{formatBRL(row.comissao)}</td>
+                                <td className="py-3 px-3 text-emerald-700 text-sm">{formatBRL(row.comissao_clinica ?? 0)}</td>
                                 <td className={`py-3 px-3 text-sm font-semibold ${row.lucro >= 0 ? 'text-green-600' : 'text-red-500'}`}>
                                   {formatBRL(row.lucro)}
                                 </td>
@@ -1190,6 +1191,10 @@ export default function DashboardPage() {
                           </tbody>
                         </table>
                       </div>
+                      <p className="text-[11px] text-gray-400 mt-3">
+                        Exame cobrado pela clínica (repasse): a receita já é o valor que a BioPet recebeu, sem a comissão que a clínica reteve.
+                        <strong> Com. clínica</strong> é a comissão que a BioPet deve quando recebeu direto do tutor.
+                      </p>
                     </div>
                   </div>
                 )}
