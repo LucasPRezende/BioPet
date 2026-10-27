@@ -43,8 +43,10 @@ const NAV: NavGroup[] = [
       { icon: '🩸', label: 'Hemograma',   href: '/admin/novo-hemograma'           },
       { icon: '💉', label: 'Teste Rápido', href: '/admin/novo-teste-rapido'       },
       { icon: '🧬', label: 'PCR',          href: '/admin/novo-pcr'                 },
+      { icon: '🧫', label: 'Urinálise',    href: '/admin/novo-urinalise'           },
       { icon: '📊', label: 'Ref. Bioquímica', href: '/admin/bioquimica/referencias' },
       { icon: '📊', label: 'Ref. Hemograma',  href: '/admin/hemograma/referencias'  },
+      { icon: '📊', label: 'Ref. Urinálise',  href: '/admin/urinalise/referencias'  },
     ],
   },
   {

@@ -8,6 +8,7 @@ import { isHorarioEspecial as isHorarioEspecialLib } from '@/lib/feriados'
 import { precoExame, precoBioquimica, fromComissao, valorLiquido, type FormaPagamento } from '@/lib/pricing'
 import { algumGeraComissaoClinica } from '@/lib/comissao-exame'
 import { exameHemogramaDe } from '@/lib/hemograma'
+import { fitaDoExame } from '@/lib/urinalise'
 
 interface Tutor { id: number; nome: string | null; telefone: string }
 interface Pet   { id: number; nome: string; especie: string | null; raca: string | null }
@@ -1448,6 +1449,7 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
                     const isHemo = !isHemograma && tipo.toLowerCase().includes('hemo')
                     const isTeste = tipo.toLowerCase().includes('teste rápido') || tipo.toLowerCase().includes('teste rapido')
                     const isPcr   = tipo === 'PCR'
+                    const isUrina = fitaDoExame(tipo) !== null
                     const params = new URLSearchParams({ agendamento_id: String(ag.id), tipo_exame: tipo })
                     if (desc) params.set('descricao', desc)
                     const href   = isBio   ? `/admin/novo-bioquimica?agendamento_id=${ag.id}`
@@ -1455,6 +1457,7 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
                                  : isHemograma ? `/admin/novo-hemograma?agendamento_id=${ag.id}&tipo_exame=${encodeURIComponent(tipo)}`
                                  : isTeste ? `/admin/novo-teste-rapido?agendamento_id=${ag.id}`
                                  : isPcr   ? `/admin/novo-pcr?agendamento_id=${ag.id}`
+                                 : isUrina ? `/admin/novo-urinalise?agendamento_id=${ag.id}&tipo_exame=${encodeURIComponent(tipo)}`
                                  : `/admin/novo?${params.toString()}`
                     return (
                       <Link key={i} href={href}
@@ -1464,10 +1467,11 @@ function DetalhesAgendamentoModal({ ag, onClose, onEditar, onUpdated, laudosPerm
                         : isHemograma ? 'bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700'
                         : isTeste ? 'bg-teal-50 hover:bg-teal-100 border border-teal-200 text-teal-700'
                         : isPcr   ? 'bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700'
+                        : isUrina ? 'bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700'
                                   : 'bg-[#c4a35a]/10 hover:bg-[#c4a35a]/20 border border-[#c4a35a]/40 text-[#8a6e36]'
                         }`}
                         onClick={onClose}>
-                        <span>{isBio ? '🧪' : isHemo ? '🫁' : isHemograma ? '🩸' : isTeste ? '💉' : isPcr ? '🧬' : '📋'} Emitir laudo — {tipo}{desc ? ` — ${desc}` : ''}</span>
+                        <span>{isBio ? '🧪' : isHemo ? '🫁' : isHemograma ? '🩸' : isTeste ? '💉' : isPcr ? '🧬' : isUrina ? '🧫' : '📋'} Emitir laudo — {tipo}{desc ? ` — ${desc}` : ''}</span>
                         <span>→</span>
                       </Link>
                     )

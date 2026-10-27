@@ -41,6 +41,7 @@ export interface ConsumivelResumo {
   proxima_validade: string | null // validade mais próxima entre os lotes com saldo
   testes:          { id: number; nome: string }[]                     // testes rápidos que gastam este item
   pcrs:            { id: number; nome: string; quantidade: number }[] // PCRs que gastam este item
+  exames:          { nome: string; quantidade: number }[]             // exames que gastam este item (ex.: urinálise → fita)
 }
 
 // Teste rápido: 1 unidade do consumível ligado em testes_rapidos.consumivel_id.
@@ -61,6 +62,16 @@ async function vinculosPcr(): Promise<(Vinculo & { nome: string })[]> {
     const pcr = (Array.isArray(v.exames_pcr) ? v.exames_pcr[0] : v.exames_pcr) as { nome: string } | null
     return { item_id: v.pcr_id, consumivel_id: v.consumivel_id, quantidade: v.quantidade, nome: pcr?.nome ?? `PCR #${v.pcr_id}` }
   })
+}
+
+// Exame inteiro → consumível (exame_consumiveis, migration v53). Ex.: cada
+// urinálise gasta 1 fita do seu tipo. Ligado pelo nome do exame em comissoes_exame.
+interface VinculoExame { tipo_exame: string; consumivel_id: number; quantidade: number }
+
+async function vinculosExames(): Promise<VinculoExame[]> {
+  const { data, error } = await supabase.from('exame_consumiveis').select('tipo_exame, consumivel_id, quantidade')
+  if (error) throw new Error(error.message)
+  return data ?? []
 }
 
 // O extrator de DNA/RNA (sai 1 por laudo de PCR). null se não houver um ativo.
@@ -116,9 +127,47 @@ async function reservasDe(
   ))
 }
 
+// Reservas dos exames com consumível próprio (exame_consumiveis): uma por linha
+// de agendamento_exames em aberto, de hoje em diante, sem laudo daquele exame.
+async function reservasExames(vinculos: VinculoExame[]): Promise<Map<number, Reserva[]>> {
+  const tipos = Array.from(new Set(vinculos.map(v => v.tipo_exame)))
+  if (tipos.length === 0) return new Map()
+  const inicioHoje = `${agoraLocalISO().slice(0, 10)}T00:00:00`
+  const { data, error } = await supabase
+    .from('agendamento_exames')
+    .select('tipo_exame, agendamentos!inner(id, status, data_hora, pets(nome))')
+    .in('tipo_exame', tipos)
+    .in('agendamentos.status', STATUS_EM_ABERTO)
+    .gte('agendamentos.data_hora', inicioHoje)
+  if (error) throw new Error(error.message)
+
+  type Ag = { id: number; data_hora: string; pets: { nome: string } | { nome: string }[] | null }
+  const porTipo = new Map<string, ItemAgendado[]>()
+  for (const r of (data ?? []) as unknown as { tipo_exame: string; agendamentos: Ag | Ag[] | null }[]) {
+    const ag = Array.isArray(r.agendamentos) ? r.agendamentos[0] : r.agendamentos
+    if (!ag) continue
+    const pet = Array.isArray(ag.pets) ? ag.pets[0] : ag.pets
+    const lista = porTipo.get(r.tipo_exame) ?? []
+    lista.push({ item_id: 0, agendamento_id: ag.id, data_hora: ag.data_hora, pet_nome: pet?.nome ?? '—' })
+    porTipo.set(r.tipo_exame, lista)
+  }
+
+  const mapas: Map<number, Reserva[]>[] = []
+  for (const [tipo, itens] of Array.from(porTipo)) {
+    const { data: laudos, error: lErr } = await supabase
+      .from('laudos').select('agendamento_id').eq('tipo_exame', tipo)
+      .in('agendamento_id', Array.from(new Set(itens.map(i => i.agendamento_id))))
+    if (lErr) throw new Error(lErr.message)
+    const comLaudo = new Set((laudos ?? []).map(l => l.agendamento_id as number))
+    const vinc = vinculos.filter(v => v.tipo_exame === tipo).map(v => ({ item_id: 0, consumivel_id: v.consumivel_id, quantidade: v.quantidade }))
+    mapas.push(montarReservas(itens, vinc, comLaudo))
+  }
+  return juntarReservas(...mapas)
+}
+
 // Situação atual de todos os consumíveis (ativos e inativos).
 export async function resumoEstoque(): Promise<ConsumivelResumo[]> {
-  const [cons, lotes, pend, vTestes, vPcr] = await Promise.all([
+  const [cons, lotes, pend, vTestes, vPcr, vExames] = await Promise.all([
     supabase.from('consumiveis').select('id, nome, unidade, categoria, codigo, extrator_pcr, estoque_minimo, ativo').order('nome'),
     supabase.from('consumivel_compras')
       .select('consumivel_id, saldo, custo_unitario, validade, data_compra, id')
@@ -127,6 +176,7 @@ export async function resumoEstoque(): Promise<ConsumivelResumo[]> {
     supabase.from('consumivel_movimentos').select('consumivel_id, quantidade').is('compra_id', null),
     vinculosTestesRapidos(),
     vinculosPcr(),
+    vinculosExames(),
   ])
   for (const r of [cons, lotes, pend]) {
     if (r.error) throw new Error(r.error.message)
@@ -136,13 +186,14 @@ export async function resumoEstoque(): Promise<ConsumivelResumo[]> {
   const reservas = juntarReservas(
     await reservasDe('agendamento_testes_rapidos', 'teste_rapido_id', 'Teste Rápido', vTestes),
     await reservasDe('agendamento_pcr', 'pcr_id', 'PCR', vPcr, extratorId),
+    await reservasExames(vExames),
   )
 
   const out = new Map<number, ConsumivelResumo>()
   for (const c of cons.data ?? []) {
     out.set(c.id, {
       ...c, estoque: 0, pendente: 0, reservado: 0, disponivel: 0, reservas: [],
-      valor_estoque: 0, custo_atual: null, proxima_validade: null, testes: [], pcrs: [],
+      valor_estoque: 0, custo_atual: null, proxima_validade: null, testes: [], pcrs: [], exames: [],
     })
   }
   // Lotes já vêm em ordem PEPS: o primeiro de cada consumível é o "em uso".
@@ -165,6 +216,9 @@ export async function resumoEstoque(): Promise<ConsumivelResumo[]> {
   }
   for (const v of vPcr) {
     out.get(v.consumivel_id)?.pcrs.push({ id: v.item_id, nome: v.nome, quantidade: v.quantidade })
+  }
+  for (const v of vExames) {
+    out.get(v.consumivel_id)?.exames.push({ nome: v.tipo_exame, quantidade: v.quantidade })
   }
   for (const [consumivelId, lista] of Array.from(reservas)) {
     const c = out.get(consumivelId)
@@ -193,6 +247,15 @@ export async function consumoPcrs(pcrIds: number[], novaExtracao = true): Promis
   if (pcrIds.length === 0) return new Map()
   const [vinculos, extratorId] = await Promise.all([vinculosPcr(), novaExtracao ? extratorPcrId() : null])
   return consumoLaudoPcr(pcrIds, vinculos, extratorId, novaExtracao)
+}
+
+/** Consumo de um laudo de exame com consumível próprio (ex.: urinálise → 1 fita). */
+export async function consumoExame(tipoExame: string): Promise<Map<number, number>> {
+  const total = new Map<number, number>()
+  for (const v of await vinculosExames()) {
+    if (v.tipo_exame === tipoExame) total.set(v.consumivel_id, (total.get(v.consumivel_id) ?? 0) + v.quantidade)
+  }
+  return total
 }
 
 // Dá baixa do consumo de um laudo e grava o custo nele (laudos.custo_exame, que

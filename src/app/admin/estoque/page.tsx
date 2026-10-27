@@ -19,6 +19,7 @@ interface Consumivel {
   proxima_validade: string | null
   testes:           { id: number; nome: string }[]
   pcrs:             { id: number; nome: string; quantidade: number }[]
+  exames?:          { nome: string; quantidade: number }[]
   codigo:           string | null
   extrator_pcr:     boolean
 }
@@ -105,6 +106,7 @@ function usadoEm(c: Consumivel): string | null {
   const nomes = [
     ...c.testes.map(t => t.nome),
     ...c.pcrs.map(p => (p.quantidade > 1 ? `${p.nome} (${p.quantidade}×)` : p.nome)),
+    ...(c.exames ?? []).map(e => (e.quantidade > 1 ? `${e.nome} (${e.quantidade}×)` : e.nome)),
   ]
   return nomes.length > 0 ? `Usado em: ${nomes.join(', ')}` : null
 }
