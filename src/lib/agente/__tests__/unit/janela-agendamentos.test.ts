@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { limiteInferiorMeusAgendamentos, jaComecou } from '@/lib/agente/janela-agendamentos'
+import { limiteInferiorMeusAgendamentos, jaComecou, STATUS_MEUS_AGENDAMENTOS } from '@/lib/agente/janela-agendamentos'
 
 describe('limiteInferiorMeusAgendamentos', () => {
   it('volta 2h do "agora" de Brasília (string naive)', () => {
@@ -23,5 +23,14 @@ describe('jaComecou', () => {
   it('compara o horário marcado com o agora', () => {
     expect(jaComecou('2026-10-15T14:00:00', '2026-10-15T14:20:00')).toBe(true)
     expect(jaComecou('2026-10-15T15:00:00', '2026-10-15T14:20:00')).toBe(false)
+  })
+})
+
+describe('STATUS_MEUS_AGENDAMENTOS', () => {
+  it("inclui 'concluído': a equipe marca como concluído ao cair o pagamento, antes do exame (Rihanna, 26/10)", () => {
+    expect(STATUS_MEUS_AGENDAMENTOS).toContain('concluído')
+    expect(STATUS_MEUS_AGENDAMENTOS).toContain('agendado')
+    expect(STATUS_MEUS_AGENDAMENTOS).not.toContain('cancelado')
+    expect(STATUS_MEUS_AGENDAMENTOS).not.toContain('faltou')
   })
 })

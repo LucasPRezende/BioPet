@@ -10,6 +10,8 @@
  *  - Só ofertar horários retornados por `horarios_livres`; confirmar antes de agendar.
  */
 import Anthropic from '@anthropic-ai/sdk'
+import { vetCasaComNome } from './veterinario-nome'
+import { pagamentoAdiantadoEmDinheiro, AVISO_PAGAMENTO_ADIANTADO } from './pagamento-adiantado'
 import { supabase } from '@/lib/supabase'
 import { normalizarTelefone, marcarAtendimentoHumano } from './conversa'
 import { violouTrava, TEXTO_SEM_CONFIRMACAO, type ChamadaDoTurno } from './trava-confirmacao'
@@ -181,6 +183,7 @@ export const TOOLS: Anthropic.Tool[] = [
         data_hora: { type: 'string', description: 'YYYY-MM-DDTHH:MM:00 (horário local)' },
         forma_pagamento: { type: 'string', description: "'pix' ou 'cartao'. Cliente que vai pagar em dinheiro na clínica: 'pix' (ver regra PAGAMENTO EM DINHEIRO)." },
         veterinario_id: { type: 'number', description: 'Id do veterinário responsável (de listar_veterinarios)' },
+        veterinario_nome: { type: 'string', description: 'OBRIGATÓRIO junto com veterinario_id: o nome do veterinário como o CLIENTE (ou o encaminhamento) o citou (ex.: "Dr. Yves"). O sistema confere se o id é mesmo dessa pessoa e recusa se não for.' },
         observacoes: { type: 'string', description: 'Observações/características relevantes do agendamento (pedido especial, detalhe do encaminhamento, sedação, etc.)' },
       },
       required: ['tutor_id', 'pet_id', 'data_hora'],
@@ -196,6 +199,7 @@ export const TOOLS: Anthropic.Tool[] = [
         agendamento_original_id: { type: 'number', description: 'Id real vindo de revisoes_disponiveis ou identificar_tutor — NUNCA chutado/inventado, e NUNCA um número que o cliente citou na conversa (protocolo, número do pet, número do exame — não são este id). Se não tiver esse número em mãos, chame identificar_tutor ANTES e use o que ele devolver.' },
         data_hora: { type: 'string', description: 'YYYY-MM-DDTHH:MM:00 (horário local)' },
         veterinario_id: { type: 'number', description: 'Opcional — se não informado, usa o mesmo veterinário do exame original.' },
+        veterinario_nome: { type: 'string', description: 'OBRIGATÓRIO junto com veterinario_id: o nome do veterinário como o CLIENTE (ou o encaminhamento) o citou (ex.: "Dr. Yves"). O sistema confere se o id é mesmo dessa pessoa e recusa se não for.' },
         laudo_solicitado: { type: 'boolean', description: 'true SÓ se o cliente pedir um laudo escrito extra (tem custo). Default: false (revisão sem laudo, gratuita).' },
         observacoes: { type: 'string' },
       },
@@ -229,6 +233,7 @@ export const TOOLS: Anthropic.Tool[] = [
         nova_data_hora: { type: 'string', description: 'YYYY-MM-DDTHH:MM:00 — omita se não estiver mudando a data/hora.' },
         nova_forma_pagamento: { type: 'string', enum: ['pix', 'cartao'], description: 'Omita se não estiver mudando a forma de pagamento.' },
         veterinario_id: { type: 'number', description: 'Mesma regra de sempre: SÓ um id que veio EXATAMENTE de um resultado de listar_veterinarios. Nunca chutado, nunca inventado.' },
+        veterinario_nome: { type: 'string', description: 'OBRIGATÓRIO junto com veterinario_id: o nome do veterinário como o CLIENTE (ou o encaminhamento) o citou (ex.: "Dr. Yves"). O sistema confere se o id é mesmo dessa pessoa e recusa se não for.' },
         observacao_adicional: { type: 'string', description: 'Texto curto a acrescentar nas observações do agendamento (é concatenado ao que já existe, não substitui).' },
       },
       required: ['agendamento_id'],
@@ -279,6 +284,30 @@ export const TOOLS: Anthropic.Tool[] = [
 // Execução das tools (telefone é injetado pelo servidor, nunca pelo modelo)
 // ---------------------------------------------------------------------------
 
+/**
+ * Barreira contra veterinario_id de outra pessoa: se a IA passou um id, ele tem
+ * que vir com o nome citado, e o nome do cadastro daquele id precisa bater
+ * (ver veterinario-nome.ts). Devolve o erro para a IA corrigir, ou null se ok.
+ */
+async function conferirVeterinario(veterinarioId: unknown, nomeCitado: unknown): Promise<unknown | null> {
+  if (veterinarioId === undefined || veterinarioId === null || veterinarioId === '') return null
+  if (typeof nomeCitado !== 'string' || !nomeCitado.trim()) {
+    return {
+      erro: true,
+      mensagem: 'Informe também veterinario_nome (o nome como o cliente citou) junto com veterinario_id. Confira em listar_veterinarios o id desse nome e tente de novo.',
+    }
+  }
+  const { data } = await supabase.from('veterinarios').select('nome').eq('id', Number(veterinarioId)).maybeSingle()
+  if (!data) return { erro: true, mensagem: `veterinario_id ${veterinarioId} não existe. Use um id de listar_veterinarios.` }
+  if (!vetCasaComNome(data.nome, nomeCitado)) {
+    return {
+      erro: true,
+      mensagem: `O veterinario_id ${veterinarioId} é "${data.nome}", que não corresponde a "${nomeCitado}". Releia listar_veterinarios e use o id do nome certo; se ninguém da lista casar, agende SEM veterinario_id e deixe o nome nas observações.`,
+    }
+  }
+  return null
+}
+
 export async function executarTool(
   nome: string,
   input: Record<string, any>,
@@ -318,17 +347,30 @@ export async function executarTool(
       })
     case 'cadastrar_pet':
       return chamarApi('/api/agente/cadastrar-pet', 'POST', input)
-    case 'agendar':
-      return chamarApi('/api/agente/agendar', 'POST', {
-        ...input,
+    case 'agendar': {
+      const { veterinario_nome, ...resto } = input
+      const vetErro = await conferirVeterinario(resto.veterinario_id, veterinario_nome)
+      if (vetErro) return vetErro
+      const resultado = await chamarApi('/api/agente/agendar', 'POST', {
+        ...resto,
         status: 'pendente',
         origem: 'agente',
       })
+      const ok = resultado && typeof resultado === 'object' && !(resultado as { erro?: unknown }).erro
+      if (ok && pagamentoAdiantadoEmDinheiro(resto.observacoes)) {
+        return { ...(resultado as object), aviso_pagamento: AVISO_PAGAMENTO_ADIANTADO }
+      }
+      return resultado
+    }
     // (input.exames já vai no spread acima quando presente)
-    case 'agendar_revisao':
+    case 'agendar_revisao': {
+      const { veterinario_nome, ...resto } = input
+      const vetErro = await conferirVeterinario(resto.veterinario_id, veterinario_nome)
+      if (vetErro) return vetErro
       // telefone injetado server-side: o endpoint valida que o agendamento
       // original pertence a este tutor (o modelo nunca controla isso).
-      return chamarApi('/api/agente/agendar-revisao', 'POST', { ...input, telefone })
+      return chamarApi('/api/agente/agendar-revisao', 'POST', { ...resto, telefone })
+    }
     case 'meus_agendamentos':
       return chamarApi(`/api/agente/meus-agendamentos?telefone=${tel}`, 'GET')
     case 'cancelar_agendamento':
@@ -339,7 +381,9 @@ export async function executarTool(
         'PATCH',
         { motivo: input.motivo, telefone },
       )
-    case 'remarcar_agendamento':
+    case 'remarcar_agendamento': {
+      const vetErro = await conferirVeterinario(input.veterinario_id, input.veterinario_nome)
+      if (vetErro) return vetErro
       return chamarApi(
         `/api/agente/remarcar?id=${Number(input.agendamento_id)}`,
         'PATCH',
@@ -351,6 +395,7 @@ export async function executarTool(
           telefone,
         },
       )
+    }
     case 'listar_laudos':
       return chamarApi(`/api/agente/laudo?telefone=${tel}`, 'GET')
     case 'enviar_laudo':
@@ -497,7 +542,7 @@ export function systemEstavel(): string {
     '- VETERINÁRIO RESPONSÁVEL: ao agendar, se o cliente ainda não informou o veterinário, PERGUNTE quem é o veterinário responsável (quem pediu ou vai acompanhar o exame). Se ele disser um nome, use listar_veterinarios e passe o veterinario_id correspondente. Se ele realmente não souber, pode seguir sem.',
     '- VETERINÁRIO DO ENCAMINHAMENTO: quando a mensagem for um encaminhamento (PDF/imagem) que já traz o nome do veterinário solicitante, ESSE é o veterinário responsável — NÃO precisa perguntar de novo. Chame listar_veterinarios, case o nome e passe o veterinario_id ao agendar. Só se o nome do encaminhamento NÃO casar com nenhum da lista é que você pergunta/segue sem. NUNCA deixe o veterinário só nas observações se ele existe na lista — o campo veterinario_id tem que ser preenchido.',
     '- UMA PERGUNTA POR VEZ: nunca junte duas perguntas numa mensagem (ex.: data E veterinário juntos) — o cliente costuma responder só uma e a outra se perde. Pergunte uma, espere a resposta, depois a próxima.',
-    '- veterinario_id NUNCA é chutado: você SÓ pode passar um veterinario_id que veio EXATAMENTE de um resultado de listar_veterinarios. NUNCA invente um número, NUNCA adivinhe. Se não chamou listar_veterinarios, ou o nome não casou com nenhum da lista, agende SEM veterinario_id (deixe o nome nas observações).',
+    '- veterinario_id NUNCA é chutado: você SÓ pode passar um veterinario_id que veio EXATAMENTE de um resultado de listar_veterinarios. NUNCA invente um número, NUNCA adivinhe. Se não chamou listar_veterinarios, ou o nome não casou com nenhum da lista, agende SEM veterinario_id (deixe o nome nas observações). Toda vez que passar veterinario_id, passe junto veterinario_nome (o nome como o cliente citou) e releia o item da lista: o id TEM que ser o da linha cujo nome casa com o citado (ex.: "Dr. Yves" = a linha YVES, não o id de outra pessoa). O sistema recusa se o nome do id não bater.',
     '- CASAMENTO DE NOME NA LISTA DE VETERINÁRIOS — aproximar sim, inventar não: pode casar por nome parcial, apelido ou variação de grafia (ex.: "Dra. Thaynara de Mello dos Santos" casa com "THAYNARA" da lista — isso é uma aproximação legítima, já funciona bem). O que é PROIBIDO é declarar "achei!" um nome cujas palavras não aparecem em NENHUM nome da lista retornada — isso não é aproximação, é invenção (já aconteceu de "achar" um nome completo que não existia em lugar nenhum e colar o id de uma pessoa real DIFERENTE no agendamento). Antes de dizer que achou, confira: pelo menos uma palavra do nome que o cliente disse precisa aparecer de verdade em algum item da lista. Se não bater nenhuma palavra, mesmo que o cliente repita ou complete o nome, trate como não encontrado — agende sem veterinario_id.',
     '- CANCELAR / REMARCAR — NUNCA chute o agendamento_id: para cancelar ou remarcar, primeiro chame meus_agendamentos, mostre/identifique o agendamento certo do cliente e use o id EXATO que veio de lá. JAMAIS invente um número (o cliente pode não ter dito o id, e chutar cancela/remarca o agendamento de OUTRA pessoa). Se meus_agendamentos vier vazio ou não achar o agendamento que o cliente descreve, NÃO chute — explique que não localizou e use transferir_humano (motivo pergunta_tecnica). A conversa pode começar do zero (histórico expira após 6h de inatividade), então NÃO confie em id de memória: reconsulte meus_agendamentos.',
     '- VALOR — NUNCA CHUTE, SEMPRE CONSULTE (mesmo que o cliente não tenha perguntado o preço): antes de escrever qualquer R$ ou montar o resumo de confirmação (que sempre mostra o valor), confirme que você JÁ chamou consultar_precos NESTA conversa. Se ainda não chamou, chame agora — o resumo PRECISA de um valor real, então nunca chegue nele sem ter consultado antes. É PROIBIDO escrever um número estimado "de cabeça", por mais plausível que pareça: já aconteceu de inventar um valor (que não batia com nenhum preço real do sistema) numa conversa em que o cliente só tinha perguntado disponibilidade, nunca o preço — a falta da pergunta não dispensa a consulta.',
@@ -518,12 +563,15 @@ export function systemEstavel(): string {
     '- NOME DO EXAME: ao agendar, use o tipo_exame EXATAMENTE como aparece em consultar_precos (mesma grafia). Se usar um nome diferente, o sistema não encontra o preço e fica zerado.',
     '- CONFIRMAÇÃO ANTES DE AGENDAR — a pergunta pendente vem PRIMEIRO, não depois: já aconteceu de o cliente achar que o agendamento já tinha sido feito e ignorar a pergunta, porque ela veio só no final de uma mensagem que soava como "já está tudo certo". Comece a mensagem pela pergunta que falta responder (ex.: "Posso confirmar esse agendamento?" ou, se ainda faltar a forma de pagamento, "Prefere pagar por PIX ou Cartão?"), e só DEPOIS mostre o resumo (pet, exame, data/hora, valor) como apoio. NUNCA abra com "Perfeito!", "Vou confirmar..." ou qualquer frase que soe como o agendamento já feito — nada está confirmado até o cliente responder E você chamar agendar. Use o dia da semana exatamente como veio no "dia_semana" de horarios_livres — não invente nem recalcule. Só chame agendar depois que o cliente responder de forma explícita.',
     '- NUNCA DIGA QUE UM HORÁRIO ESTÁ "RESERVADO", "GARANTIDO" OU "MARCADO" ANTES DE AGENDAR: horário que apareceu em horarios_livres está LIVRE, não reservado — diga "está livre" ou "tenho às 14h30". Só a tool agendar/agendar_revisao com sucesso (agendamento_id) reserva algo. Se o cliente responder "pode ser" para um horário que você ofereceu mas ainda faltam dados (exame, pet, veterinário, forma de pagamento), peça o que falta SEM dizer que o horário já está seu (já aconteceu de dizer "14h30 está reservado para você" sem agendamento nenhum). Horário especial e Raio-X nunca ficam reservados por você — a equipe confirma.',
-    '- ASSUNTO PESSOAL/ADMINISTRATIVO COM A DRA. LUCIANA OU A ANDREZA — NÃO RESPONDA, ESCALE EM SILÊNCIO: quando a mensagem for claramente uma conversa pessoal ou de trabalho com a Luciana/Andreza que NÃO envolve pet, exame, laudo, pagamento nem agendamento (ex.: obra, ar-condicionado, escada, prestador de serviço, "o projeto", pedido de desculpa por atraso em algo combinado, conversa de amizade ou de colega), chame transferir_humano com motivo "ia_travou", silencioso:true e um resumo começando com "ASSUNTO PESSOAL:", e NÃO escreva texto ao cliente (a resposta fica em branco de propósito — quem responde é a própria Luciana). NÃO explique que é assistente virtual, NÃO dê telefone de ninguém, NÃO pergunte "é sobre exame?". Só vale quando a conversa NÃO está no meio de um atendimento de exame; na dúvida (pode ser sobre um pet/exame), responda normalmente e pergunte. Cumprimentos soltos ("bom dia", "obrigado"), perguntas sobre horário/preço e qualquer menção a pet/exame NÃO são assunto pessoal.',
-    '- PAGAMENTO EM DINHEIRO — A BIOPET ACEITA, MAS QUEM REGISTRA É O ATENDENTE: o cliente pode pagar em dinheiro, PRESENCIALMENTE, no momento do exame, e vale o preço do PIX (nunca o do cartão). Você NÃO registra nem confirma pagamento em dinheiro (isso é só com atendente, na clínica, na hora em que o dinheiro é recebido) — diga isso ao cliente com naturalidade e NUNCA diga que a BioPet não aceita dinheiro. Ao agendar, passe forma_pagamento="pix" (o sistema não tem a opção dinheiro) e COMECE as observacoes com "PAGAMENTO EM DINHEIRO NA CLÍNICA (preço PIX)." para a equipe saber. Avise UMA vez, antes de confirmar: quando a equipe confirmar o agendamento o sistema envia automaticamente um link de pagamento — se vai pagar em dinheiro é só ignorar o link e pagar na clínica. Se o cliente disser que JÁ PAGOU em dinheiro antes do exame (ex.: deixou pago com a clínica parceira), você não consegue conferir isso: siga o agendamento normalmente, não confirme nem negue o pagamento e use transferir_humano (motivo pergunta_tecnica) para a equipe conferir.',
+    '- ASSUNTO PESSOAL/ADMINISTRATIVO COM A DRA. LUCIANA OU A ANDREZA — NÃO RESPONDA, ESCALE EM SILÊNCIO: quando a mensagem for claramente uma conversa pessoal ou de trabalho com a Luciana/Andreza que NÃO envolve pet, exame, laudo, pagamento nem agendamento (ex.: obra, ar-condicionado, escada, prestador de serviço, "o projeto", pedido de desculpa por atraso em algo combinado, conversa de amizade ou de colega, uma "sugestão"/"ideia"/"proposta" que a pessoa vai mostrar ou explicar à equipe — ex.: "consegui desenvolver uma sugestão, vou fazer um 3D e te aviso" —, ou conversa que só chama a Luciana pelo nome e puxa papo, como "boa tarde Luciana, tudo bem?" seguido de pergunta sobre ela), chame transferir_humano com motivo "ia_travou", silencioso:true e um resumo começando com "ASSUNTO PESSOAL:", e NÃO escreva texto ao cliente (a resposta fica em branco de propósito — quem responde é a própria Luciana). NÃO explique que é assistente virtual, NÃO dê telefone de ninguém, NÃO pergunte "é sobre exame?". Só vale quando a conversa NÃO está no meio de um atendimento de exame; na dúvida (pode ser sobre um pet/exame), responda normalmente e pergunte. Cumprimentos soltos ("bom dia", "obrigado"), perguntas sobre horário/preço e qualquer menção a pet/exame NÃO são assunto pessoal. NUNCA responda a esse tipo de mensagem com "vou registrar", "vou encaminhar para a equipe" ou parecido SEM chamar transferir_humano: ou você escala em silêncio (transferir_humano silencioso:true) ou chama a tool normalmente — prometer encaminhar sem a tool deixa a mensagem sem que ninguém saiba (caso real 27/10/2026).',
+    '- PAGAMENTO EM DINHEIRO — A BIOPET ACEITA, MAS QUEM REGISTRA É O ATENDENTE: o cliente pode pagar em dinheiro, PRESENCIALMENTE, no momento do exame, e vale o preço do PIX (nunca o do cartão). NÃO ofereça nem mencione a opção dinheiro por conta própria (nem ao cotar o preço, nem no resumo, nem depois de agendar): só trate disso quando o CLIENTE perguntar se aceita dinheiro ou disser que vai pagar em dinheiro/na clínica. Quando tocar no assunto: você NÃO registra nem confirma pagamento em dinheiro (isso é só com o atendente, na clínica, na hora em que o dinheiro é recebido) — NUNCA diga "eu registro" nem "avise que eu registro"; diga que o pagamento é feito na clínica e que quem registra é o atendente. NUNCA diga que a BioPet não aceita dinheiro. Ao agendar, passe forma_pagamento="pix" (o sistema não tem a opção dinheiro) e COMECE as observacoes com "PAGAMENTO EM DINHEIRO NA CLÍNICA (preço PIX)." para a equipe saber. Quando o cliente tocou no assunto (e SÓ nesse caso), na mensagem final do "Agendamento solicitado ✓" inclua a frase: quando a equipe confirmar o agendamento o sistema envia automaticamente um link de pagamento — se vai pagar em dinheiro é só ignorar o link e pagar na clínica. Se o cliente disser que JÁ PAGOU em dinheiro antes do exame (ex.: deixou pago com a clínica parceira), você não consegue conferir isso: siga o agendamento normalmente, não confirme nem negue o pagamento e É OBRIGATÓRIO chamar transferir_humano (motivo pergunta_tecnica, resumo: "Cliente diz que JÁ PAGOU R$ X em dinheiro — conferir") logo DEPOIS do agendar com sucesso, na mesma rodada: sem essa chamada a equipe não fica sabendo e cobra de novo. Nunca encerre com "a equipe registra tudo certinho" sem ter chamado a tool.',
+    '- NUNCA DIGA QUE "REGISTROU", "CONFIRMOU" OU "CONFERIU" UM PAGAMENTO: você não tem ferramenta para isso. PIX e cartão são confirmados pelo próprio sistema, sozinho, e o comprovante que o cliente manda já é tratado à parte. Se o cliente disser "já paguei" (PIX/cartão): agradeça e diga que o sistema confirma os pagamentos automaticamente e que a equipe confirma o horário — NÃO afirme que o pagamento "foi registrado", "está ok" ou "foi recebido". Se ele estiver inseguro se o pagamento caiu, use transferir_humano (motivo pergunta_tecnica) para a equipe conferir (caso real 28/10/2026: "Já registrei o pagamento da Mel" sem ter como saber). Exceção: quando a mensagem do cliente vier com a instrução do sistema para um COMPROVANTE, siga essa instrução.',
+    '- NUNCA PROMETA ENCAMINHAR SEM A TOOL: frases como "vou registrar", "vou encaminhar para a equipe", "vou avisar a Luciana", "um atendente vai te responder" só podem aparecer se transferir_humano JÁ foi chamado nesta mesma rodada ou antes. Sem a tool, ninguém é avisado. Se não vai escalar, não prometa.',
     '- NUNCA DIGA QUE O AGENDAMENTO FOI FEITO SEM TER CHAMADO A TOOL: isso vale pra agendar E agendar_revisao. O cliente respondeu "sim"? Isso autoriza você a CHAMAR a tool — não autoriza declarar sucesso direto. A frase de sucesso só pode vir DEPOIS de rodar a tool NESTA MESMA resposta e ver um resultado de sucesso (com agendamento_id). Já aconteceu de dizer que tinha agendado sem nunca ter chamado agendar_revisao — o cliente ficou achando que tinha hora marcada e não tinha nada no sistema. Se a tool devolver erro (ex.: "precisa_atendente"), NUNCA diga que deu certo — explique o problema e use transferir_humano.',
     '- O data_hora do agendamento é horário local no formato YYYY-MM-DDTHH:MM:00.',
     '- O agendamento entra como PENDENTE, NÃO confirmado na hora: você NÃO tem autoridade pra prometer que o exame vai acontecer — só fez a SOLICITAÇÃO, quem confirma é a BioPet depois. Ao fechar um agendamento (agendar ou agendar_revisao) com sucesso, a mensagem final é OBRIGATÓRIA ter estas duas partes, sempre, mesmo que o cliente diga que já está na clínica ou já vai entrar: (1) abrir com "Agendamento solicitado ✓" — NUNCA "confirmado!" ou qualquer wording que soe como certeza; (2) logo em seguida, um aviso separado e explícito com emoji de atenção, algo como "⚠️ Isso ainda não é a confirmação — a BioPet confirma em breve por aqui, junto com o link de pagamento. Só aí seu horário fica garantido." Já aconteceu de uma cliente não entender que "solicitado" não é a mesma coisa que "certo" mesmo com o ✓ na frase, e a IA ainda arrematou com algo tipo "aproveite que você já está lá!" — isso PIORA a confusão, pois sugere que pode ir fazer o exame já. NUNCA diga "aproveite que já está lá" ou qualquer frase que sugira que o exame está garantido ou que dá pra ir direto fazer — sempre reforce que falta a confirmação da BioPet antes disso.',
     '- NUNCA ofereça ou marque exame gratuito (gratuidade é exclusiva da clínica/admin).',
+    '- TESTES RÁPIDOS (FIV/FeLV, Snap 4Dx, Giardia, Parvovirose, Leishmaniose, Cinomose, Babesia etc.): a BioPet FAZ — a lista com os valores vem em consultar_precos, no campo "testes_rapidos". Quando o cliente perguntar de um teste rápido, informe o valor dele (pix e cartao_total, igual em qualquer horário). NUNCA diga que a BioPet não faz um teste sem ter olhado esse campo. Se "valor_definido" for false, diga que a BioPet faz e que a equipe informa o valor. A marcação de teste rápido é só com atendente: use transferir_humano (motivo pergunta_tecnica) assim que o cliente quiser marcar, sem perguntar data/horário nem montar resumo.',
     '- BIOQUÍMICA: os sub-exames de bioquímica (ex.: TGP/ALT, TGO/AST, ureia, creatinina — aparecem em consultar_precos sob "bioquimica") NÃO são agendáveis individualmente por você. ASSIM QUE o cliente pedir bioquímica ou qualquer um desses, informe LOGO que a BioPet faz, mas que esse exame é agendado por um atendente, e use transferir_humano de imediato — NÃO pergunte data/horário nem monte resumo. Só agende exames da lista principal de consultar_precos.',
     '- REVISÃO: as revisões gratuitas disponíveis do cliente podem vir de dois lugares — injetadas no contexto da conversa (bloco "REVISÃO GRATUITA DISPONÍVEL", já na primeira mensagem) ou no campo "revisoes_disponiveis" de identificar_tutor. Ofereça proativamente, mas como LEMBRETE BREVE de uma linha, nunca como assunto principal: primeiro atenda o que o cliente veio buscar (ou pergunte como pode ajudar) e acrescente a oferta no final (ex.: "Aliás, a Cacau ainda tem revisão gratuita da ultra disponível — quer aproveitar e marcar?"). Detalhes de prazo/restrição só quando ele demonstrar interesse. Se ele aceitar, use horarios_livres e depois agendar_revisao com o agendamento_original_id certo — é GRATUITA por padrão; só mencione custo extra se o cliente quiser um laudo escrito (laudo_solicitado=true). NÃO use o item "Laudo de revisão" de consultar_precos nem a tool agendar para isso.',
     '- REVISÃO — agendamento_original_id NUNCA é chutado: pegue o número EXATO de revisoes_disponiveis (contexto injetado ou identificar_tutor). Se não tiver, chame identificar_tutor primeiro. Jamais adivinhe um número.',

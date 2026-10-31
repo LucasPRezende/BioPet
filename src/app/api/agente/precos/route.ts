@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { verifyAgentOrSystemSession } from '@/lib/agent-auth'
+import { montarTestesRapidos } from '@/lib/agente/testes-rapidos-preco'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,7 +12,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 })
   }
 
-  const [{ data, error }, { data: bioData }] = await Promise.all([
+  const [{ data, error }, { data: bioData }, { data: testesData }] = await Promise.all([
     supabase
       .from('comissoes_exame')
       .select('tipo_exame, preco_pix_comercial, preco_cartao_comercial, preco_pix_fora_horario, preco_cartao_fora_horario, varia_por_horario, duracao_minutos, observacao')
@@ -23,11 +24,19 @@ export async function GET(request: NextRequest) {
       .select('nome, codigo, preco_pix, preco_cartao')
       .eq('ativo', true)
       .order('ordem', { ascending: true }),
+    supabase
+      .from('testes_rapidos')
+      .select('nome, preco_pix, preco_cartao')
+      .eq('ativo', true)
+      .order('nome'),
   ])
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  const exames = (data ?? []).map(e => {
+  // "Teste Rápido" em comissoes_exame é só o agrupador (preço 0): o valor de
+  // verdade está em cada teste de testes_rapidos. Deixar o agrupador na lista
+  // fazia a IA dizer que a BioPet não faz FIV/FeLV (30/10/2026, venda perdida).
+  const exames = (data ?? []).filter(e => e.tipo_exame !== 'Teste Rápido').map(e => {
     if (e.varia_por_horario) {
       return {
         tipo:               e.tipo_exame,
@@ -59,6 +68,10 @@ export async function GET(request: NextRequest) {
     nota_horario_comercial: 'O limite de 16h30 é quando o exame precisa estar FINALIZADO, não é um horário seguro pra começar — um exame que começa às 16h30 pode terminar depois disso e já não ser comercial. NÃO calcule de cabeça: confie sempre no campo "especial" de cada horário de horarios_livres.',
     nota_cartao: 'cartao_total é o valor TOTAL no cartão (parcelável em até 3x sem juros) — NÃO multiplicar por 3.',
     exames,
+    testes_rapidos: {
+      descricao: 'Testes rápidos que a BioPet realiza (valor por teste, igual em qualquer horário). A marcação é feita por um atendente — você informa o valor e usa transferir_humano. Teste com "valor_definido": false: a equipe informa o valor.',
+      exames: montarTestesRapidos(testesData ?? []),
+    },
     bioquimica: {
       descricao: 'Valores por exame individual — preço fixo independente do horário',
       exames: (bioData ?? []).map(e => ({

@@ -609,7 +609,7 @@ run('comportamento do agente (IA real, tools fake)', () => {
     const c = novaConversa()
     await c.enviar('Quero marcar um ultrassom abdominal NOVO (não é revisão) pro Rex, quinta-feira às 9h. Vou pagar em dinheiro na clínica')
     for (let i = 0; i < 3 && !c.nomes().includes('agendar'); i++) {
-      await c.enviar('Sim, quinta às 9h mesmo, pagamento em dinheiro na clínica, pode confirmar')
+      await c.enviar('Sim, quinta às 9h mesmo, pagamento em dinheiro na clínica, pode confirmar. Meu nome é Carlos, o Rex é cachorro e não sei o nome do veterinário, pode seguir sem.')
     }
 
     const chamada = c.calls.find((x) => x.nome === 'agendar')
@@ -625,11 +625,62 @@ run('comportamento do agente (IA real, tools fake)', () => {
     const c = novaConversa()
     await c.enviar('Quero marcar um ultrassom abdominal NOVO (não é revisão) pro Rex, quinta-feira às 9h. Já deixei pago 180 em dinheiro com a clínica')
     for (let i = 0; i < 3 && !c.nomes().includes('transferir_humano'); i++) {
-      await c.enviar('Sim, quinta às 9h, o pagamento já foi feito em dinheiro, pode seguir')
+      await c.enviar('Sim, quinta às 9h, o pagamento já foi feito em dinheiro, pode confirmar. Não sei o nome do veterinário, pode seguir sem.')
     }
 
     expect(c.nomes()).toContain('transferir_humano')
     expect(c.textos()).not.toMatch(/n[ãa]o aceit[a-z]* (pagamento )?(em )?dinheiro/)
     expect(c.textos()).not.toMatch(/pagamento (j[áa] )?(foi )?(confirmado|recebido)/)
+  })
+
+  // ---- Pacote 30/10/2026 ----
+
+  // Caso real 30/10: a IA disse que a BioPet não faz o teste de FIV/FeLV (faz, R$160).
+  it('teste rápido FIV/FeLV: informa o valor da tabela e NÃO diz que a BioPet não faz', OPTS, async () => {
+    const c = novaConversa()
+    await c.enviar('Boa tarde, qual o valor do teste de FIV e FeLV?')
+
+    expect(c.textos()).toMatch(/160/)
+    expect(c.textos()).not.toMatch(/n[ãa]o (realiza|fazemos|faz)|n[ãa]o encontrei o teste/)
+    expect(c.nomes()).not.toContain('agendar')
+  })
+
+  // Caso real 29/10: cliente nem tocou em dinheiro e a IA ofereceu duas vezes.
+  it('dinheiro: não menciona por conta própria nem diz "eu registro"', OPTS, async () => {
+    const c = novaConversa()
+    await c.enviar('Quero marcar um ultrassom abdominal NOVO (não é revisão) pro Rex, quinta-feira às 9h, pago no PIX')
+    for (let i = 0; i < 3 && !c.nomes().includes('agendar'); i++) {
+      await c.enviar('Sim, quinta às 9h mesmo, PIX, pode confirmar. Não sei o nome do veterinário, pode seguir sem.')
+    }
+
+    expect(c.nomes()).toContain('agendar')
+    expect(c.textos()).not.toMatch(/dinheiro/)
+    expect(c.textos()).not.toMatch(/eu registro|avise que eu registro/)
+  })
+
+  // Caso real 28/10: "Já registrei o pagamento da Mel" — a IA não registra pagamento.
+  it('"já fiz o pagamento": não diz que registrou/confirmou o pagamento', OPTS, async () => {
+    const c = novaConversa()
+    await c.enviar('Já fiz o pagamento do PIX do Rex')
+
+    expect(c.textos()).not.toMatch(/registrei|j[áa] registr|pagamento (foi |est[áa] )?(registrado|confirmado|recebido)/)
+  })
+
+  // Caso real 27/10: sugestão/3D para a Luciana foi respondida com "vou registrar e encaminhar", sem a tool.
+  it('sugestão pessoal para a Luciana: escala em silêncio, sem prometer encaminhar', OPTS, async () => {
+    const c = novaConversa()
+    await c.enviar('Boa tarde, tudo bem? Acho que consegui desenvolver uma sugestão. Vou fazer um 3D, simples, para conseguir explicar minha ideia melhor, e te aviso')
+
+    expect(c.calls.some((x) => x.nome === 'transferir_humano' && x.input.silencioso === true)).toBe(true)
+    const bot = c.dialogo().filter((d) => d.de === 'bot')
+    expect(bot[bot.length - 1].texto).toBe('')
+  })
+
+  it('nunca promete "vou encaminhar/registrar" sem ter chamado transferir_humano', OPTS, async () => {
+    const c = novaConversa()
+    await c.enviar('Tenho uma sugestão de melhoria para a clínica, queria que a equipe visse')
+
+    const prometeu = /vou (registrar|encaminhar|avisar|repassar)|encaminhei|passei (para|pra) a equipe/i.test(c.textos())
+    if (prometeu) expect(c.nomes()).toContain('transferir_humano')
   })
 })

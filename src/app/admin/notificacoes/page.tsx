@@ -27,6 +27,7 @@ const MOTIVO_LABEL: Record<string, string> = {
   agendamento:         'Novo agendamento',
   agendamento_clinica: 'Agendamento (clínica)',
   remarcacao:          'Remarcação',
+  alteracao:           'Agendamento alterado',
   cancelamento:        'Cancelamento',
 }
 
@@ -40,6 +41,7 @@ const MOTIVO_COLOR: Record<string, string> = {
   agendamento:         'bg-green-100 text-green-700',
   agendamento_clinica: 'bg-teal-100 text-teal-700',
   remarcacao:          'bg-purple-100 text-purple-700',
+  alteracao:           'bg-indigo-100 text-indigo-700',
   cancelamento:        'bg-gray-100 text-gray-600',
 }
 
@@ -48,7 +50,7 @@ const TIPOS_REQUER_ATENCAO = new Set([
 ])
 
 const TIPOS_AGENDAMENTO = new Set([
-  'agendamento', 'remarcacao', 'cancelamento', 'agendamento_clinica',
+  'agendamento', 'remarcacao', 'alteracao', 'cancelamento', 'agendamento_clinica',
 ])
 
 function tipoEfetivo(n: Notificacao): string {
@@ -62,7 +64,7 @@ function isRequerAtencao(n: Notificacao): boolean {
 function iconeNotificacao(n: Notificacao): string {
   const tipo = tipoEfetivo(n)
   if (tipo === 'agendamento' || tipo === 'agendamento_clinica') return '📅'
-  if (tipo === 'remarcacao')   return '🔄'
+  if (tipo === 'remarcacao' || tipo === 'alteracao') return '🔄'
   if (tipo === 'cancelamento') return '❌'
   return '🔴'
 }
@@ -370,7 +372,7 @@ export default function NotificacoesPage() {
                           )}
                           {n.mensagem_ia && (
                             <div className="mt-2 bg-gray-50 rounded-lg px-3 py-2">
-                              <p className="text-xs font-semibold text-gray-400 mb-0.5">IA respondeu:</p>
+                              <p className="text-xs font-semibold text-gray-400 mb-0.5">{tipo === 'remarcacao' || tipo === 'alteracao' ? 'O que mudou:' : 'IA respondeu:'}</p>
                               <p className="text-sm text-gray-600">{n.mensagem_ia}</p>
                             </div>
                           )}

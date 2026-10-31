@@ -6,7 +6,7 @@ import { acionarHumanoPorClienteSumido } from '@/lib/agente/orquestrador'
 import { normalizeTelefone } from '@/lib/telefone'
 import {
   temProgressoReal,
-  terminaEmPergunta,
+  aguardaResposta,
   ehOfertaSecundaria,
   equipeRespondeuDepois,
 } from '@/lib/agente/lembrete-regras'
@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
     if (ultima?.role !== 'assistant' || temToolUse(ultima)) continue
 
     const texto = textoDoTurno(ultima)
-    if (!texto || !terminaEmPergunta(texto)) continue
+    if (!texto || !aguardaResposta(texto)) continue
     if (!temProgressoReal(historico)) continue
     if (ehOfertaSecundaria(texto)) continue
 

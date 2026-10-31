@@ -8,6 +8,7 @@
  */
 import { responder, type ToolExecutor } from '@/lib/agente/orquestrador'
 import { infoDiaEspecial } from '@/lib/feriados'
+import { pagamentoAdiantadoEmDinheiro, AVISO_PAGAMENTO_ADIANTADO } from '@/lib/agente/pagamento-adiantado'
 import { appendFileSync } from 'node:fs'
 
 const TELEFONE = '5524999999999'
@@ -49,6 +50,12 @@ const PRECOS = {
       duracao_minutos: 15,
     },
   ],
+  testes_rapidos: {
+    exames: [
+      { nome: 'Combo FIV / FeLV', valor_definido: true, pix: 160, cartao_total: 170 },
+      { nome: 'Leptospirose', valor_definido: false },
+    ],
+  },
   bioquimica: { exames: [] },
 }
 
@@ -243,7 +250,10 @@ function fakeResultado(
           mensagem: 'Horário especial (fim de semana, feriado ou fora do horário comercial) precisa ser confirmado por um atendente — a equipe nem sempre está disponível nesses horários. Use transferir_humano.',
         }
       }
-      return { agendamento_id: 123 }
+      return {
+        agendamento_id: 123,
+        ...(pagamentoAdiantadoEmDinheiro(input.observacoes) ? { aviso_pagamento: AVISO_PAGAMENTO_ADIANTADO } : {}),
+      }
     }
     case 'agendar_revisao': {
       // Espelha a checagem real de src/app/api/agente/agendar-revisao/route.ts:

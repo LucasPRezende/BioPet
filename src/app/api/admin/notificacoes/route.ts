@@ -7,7 +7,7 @@ const TIPOS_REQUER_ATENCAO = new Set([
 ])
 
 const TIPOS_AGENDAMENTO = new Set([
-  'agendamento', 'remarcacao', 'cancelamento', 'agendamento_clinica',
+  'agendamento', 'remarcacao', 'alteracao', 'cancelamento', 'agendamento_clinica',
 ])
 
 export async function GET(request: NextRequest) {

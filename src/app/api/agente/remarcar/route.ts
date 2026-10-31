@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { verifyAgentKey } from '@/lib/agent-auth'
 import { normalizeTelefone } from '@/lib/telefone'
+import { descreverAlteracao } from '@/lib/agente/alteracao-agendamento'
 import { precificarExames, recalcularTotal, reconciliarLinkPagamento, type ExameInput, type EstadoPagamento } from '@/lib/agendamento-helpers'
 
 const DIAS = [
@@ -217,12 +218,24 @@ export async function PATCH(request: NextRequest) {
   // Pega dados do tutor do agendamento
   const tutor = Array.isArray(atual.tutores) ? atual.tutores[0] : atual.tutores as { telefone: string; nome: string } | null
 
-  // Salva log de remarcação (sem WhatsApp)
+  // Log para a equipe (sem WhatsApp): só é "remarcação" se a data/hora mudou;
+  // trocar veterinário/pagamento/observação é "alteração" e diz o que mudou.
+  const alteracao = descreverAlteracao({
+    dataHoraAntes:        atual.data_hora,
+    dataHoraDepois:       dataHoraEfetiva,
+    formaPagamentoAntes:  atual.forma_pagamento,
+    formaPagamentoDepois: nova_forma_pagamento ?? atual.forma_pagamento,
+    valorAntes:           atual.valor,
+    valorDepois:          valorTotal,
+    veterinarioMudou:     !!veterinario_id,
+    observacaoAdicionada: !!observacao_adicional,
+  })
   await supabase.from('notificacoes').insert({
     telefone:       tutor?.telefone ?? 'desconhecido',
     nome_tutor:     tutor?.nome ?? null,
-    motivo:         'remarcacao',
-    tipo_evento:    'remarcacao',
+    motivo:         alteracao.tipoEvento,
+    tipo_evento:    alteracao.tipoEvento,
+    mensagem_ia:    alteracao.descricao,
     agendamento_id: id,
   })
 

@@ -43,6 +43,23 @@ export function terminaEmPergunta(texto: string): boolean {
 }
 
 /**
+ * A mensagem abre com a pergunta de confirmação/pagamento e só depois traz o
+ * resumo ("Posso confirmar o agendamento? Resumo: - Pet… - Valor…"). A regra de
+ * prompt manda a pergunta VIR PRIMEIRO, então o texto quase nunca termina em
+ * "?" — foi assim que o lembrete deixou de pegar a Emanuelle/Bolinha (27/10).
+ */
+export function temPerguntaDeConfirmacao(texto: string): boolean {
+  const confirmar = /\b(posso|pode|podemos|devo|vamos|quer que eu)\s+(confirmar|agendar|marcar|fechar)[^?\n]*\?/i
+  const pagamento = /\b(prefere|quer|vai)\b[^?\n]*\b(pix|cart[aã]o)\b[^?\n]*\?/i
+  return confirmar.test(texto) || pagamento.test(texto)
+}
+
+/** A IA deixou algo esperando resposta: termina em "?" ou abre com a pergunta de confirmação. */
+export function aguardaResposta(texto: string): boolean {
+  return terminaEmPergunta(texto) || temPerguntaDeConfirmacao(texto)
+}
+
+/**
  * "Aliás, ..." é o gancho padrão das ofertas SECUNDÁRIAS (ex.: revisão
  * gratuita) penduradas no fim de uma resposta já resolvida — convite opcional,
  * não decisão travando nada (Thaís/Domínik, 28/09/2026).

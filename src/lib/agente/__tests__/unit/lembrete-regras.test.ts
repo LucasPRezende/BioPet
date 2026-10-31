@@ -1,10 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import {
-  temProgressoReal,
-  terminaEmPergunta,
-  ehOfertaSecundaria,
-  equipeRespondeuDepois,
-} from '@/lib/agente/lembrete-regras'
+import { temProgressoReal,  terminaEmPergunta,  ehOfertaSecundaria,  equipeRespondeuDepois, temPerguntaDeConfirmacao, aguardaResposta } from '@/lib/agente/lembrete-regras'
 
 const uso = (...nomes: string[]) => ({
   role: 'assistant',
@@ -61,5 +56,31 @@ describe('equipeRespondeuDepois (item 34)', () => {
     expect(equipeRespondeuDepois('2026-10-06T17:00:00', ia)).toBe(false)
     expect(equipeRespondeuDepois(null, ia)).toBe(false)
     expect(equipeRespondeuDepois(undefined, ia)).toBe(false)
+  })
+})
+
+describe('aguardaResposta — pergunta de confirmação no meio do texto (Emanuelle/Bolinha, 27/10)', () => {
+  const resumo = [
+    'Posso confirmar o agendamento? Resumo:',
+    '',
+    '- Pet: Bolinha (canina)',
+    '- Exame: Ultrassom Abdominal Total',
+    '- Valor: R$ 200 no cartão (em até 3x sem juros)',
+    '',
+    'Depois da confirmação da BioPet você recebe o link de pagamento por aqui.',
+  ].join('\n')
+
+  it('abre com "Posso confirmar…?" e termina numa frase comum → conta como pergunta pendente', () => {
+    expect(terminaEmPergunta(resumo)).toBe(false)
+    expect(temPerguntaDeConfirmacao(resumo)).toBe(true)
+    expect(aguardaResposta(resumo)).toBe(true)
+  })
+
+  it('pergunta de PIX ou cartão no meio do texto também conta', () => {
+    expect(aguardaResposta('Tenho 9h livre amanhã. Prefere pagar por PIX (R$ 180) ou cartão (R$ 200)? Me avise.')).toBe(true)
+  })
+
+  it('texto sem pergunta nenhuma continua sem lembrete', () => {
+    expect(aguardaResposta('Agendamento solicitado ✓ A BioPet confirma em breve por aqui.')).toBe(false)
   })
 })

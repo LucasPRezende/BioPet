@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { verifyAgentKey } from '@/lib/agent-auth'
 import { normalizeTelefone } from '@/lib/telefone'
 import { agoraLocalISO } from '@/lib/agendamento-helpers'
-import { limiteInferiorMeusAgendamentos, jaComecou } from '@/lib/agente/janela-agendamentos'
+import { limiteInferiorMeusAgendamentos, jaComecou, STATUS_MEUS_AGENDAMENTOS } from '@/lib/agente/janela-agendamentos'
 
 const DIAS = [
   'domingo', 'segunda-feira', 'terça-feira', 'quarta-feira',
@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
       .from('agendamentos')
       .select('id, tipo_exame, data_hora, status, valor, forma_pagamento, pets(nome)')
       .eq('tutor_id', tutor.id)
-      .in('status', ['agendado', 'em atendimento'])
+      .in('status', STATUS_MEUS_AGENDAMENTOS)
       .gt('data_hora', limiteInferior)
       .order('data_hora'),
     // Faltou/cancelado recentes: sem isso, a IA só via "não achei nada" pra

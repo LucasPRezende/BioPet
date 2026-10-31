@@ -7,6 +7,14 @@
 export const FOLGA_APOS_INICIO_MS = 2 * 3_600_000
 
 /**
+ * Status que meus_agendamentos lista. 'concluído' entra porque a equipe costuma
+ * marcar o agendamento como concluído no painel assim que o pagamento cai, antes
+ * do horário do exame — sem ele o cliente "perdia" o próprio agendamento pago
+ * (Rihanna, 26/10/2026).
+ */
+export const STATUS_MEUS_AGENDAMENTOS = ['agendado', 'em atendimento', 'concluído']
+
+/**
  * data_hora é naive (horário de Brasília sem fuso) — o limite sai na mesma
  * representação. Parse com "Z" só para somar/subtrair sem depender do fuso do
  * servidor; o resultado volta a ser string naive.

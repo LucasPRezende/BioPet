@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
 
 const TIPOS_AGENDAMENTO = [
-  'agendamento', 'remarcacao', 'cancelamento', 'agendamento_clinica',
+  'agendamento', 'remarcacao', 'alteracao', 'cancelamento', 'agendamento_clinica',
 ]
 
 /**
