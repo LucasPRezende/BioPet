@@ -18,6 +18,7 @@ import { transcreverAudio, lerImagemEncaminhamento } from '@/lib/agente/midia'
 import { classificarFromMe, registrarHumano, contextoPendente } from '@/lib/agente/outbound'
 import { montarInfoClienteNovo } from '@/lib/agente/revisoes-disponiveis'
 import { verificarSegredoWebhook, logarRecusa } from '@/lib/agente/webhook-auth'
+import { registrarWebhookRecebido } from '@/lib/agente/vigia'
 
 /**
  * Webhook de recepção do WhatsApp (Evolution API) — agente com IA.
@@ -259,6 +260,11 @@ export async function POST(request: NextRequest) {
     logarRecusa(auth.motivo)
     return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 })
   }
+
+  // Vigia: qualquer POST autenticado da Evolution prova que a sessão do WhatsApp
+  // está entregando eventos. Se isso para em horário de atendimento, o Lucas é
+  // avisado por Telegram (ver @/lib/agente/vigia).
+  registrarWebhookRecebido()
 
   const body = await request.json().catch(() => null)
   const msg = parseEvolutionWebhook(body)
