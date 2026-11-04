@@ -7,12 +7,12 @@
 export const FOLGA_APOS_INICIO_MS = 2 * 3_600_000
 
 /**
- * Status que meus_agendamentos lista. 'concluído' entra porque a equipe costuma
+ * Status que meus_agendamentos lista. 'pendente' é o pedido que a própria IA acabou de criar, ainda sem confirmação da equipe: sem ele o cliente que pedia pra trocar a data logo depois de marcar "não tinha agendamento" (Flávia/Tata, 03/11/2026). 'concluído' entra porque a equipe costuma
  * marcar o agendamento como concluído no painel assim que o pagamento cai, antes
  * do horário do exame — sem ele o cliente "perdia" o próprio agendamento pago
  * (Rihanna, 26/10/2026).
  */
-export const STATUS_MEUS_AGENDAMENTOS = ['agendado', 'em atendimento', 'concluído']
+export const STATUS_MEUS_AGENDAMENTOS = ['pendente', 'agendado', 'em atendimento', 'concluído']
 
 /**
  * data_hora é naive (horário de Brasília sem fuso) — o limite sai na mesma

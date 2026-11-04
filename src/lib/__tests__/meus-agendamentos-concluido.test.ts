@@ -37,6 +37,7 @@ describe('GET /api/agente/meus-agendamentos', () => {
 
     const ativos = filtrosIn.find(f => f.tabela === 'agendamentos' && f.vals.includes('agendado'))!
     expect(ativos.vals).toContain('concluído')
+    expect(ativos.vals).toContain('pendente')
     expect(json.agendamentos).toHaveLength(1)
     expect(json.agendamentos[0]).toMatchObject({ id: 811, status: 'concluído', pet_nome: 'Rihanna', ja_comecou: false })
   })

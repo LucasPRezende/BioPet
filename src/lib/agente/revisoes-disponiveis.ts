@@ -9,6 +9,7 @@ import { normalizeTelefone } from '@/lib/telefone'
 import { calcularElegibilidadeRevisao, dentroJanelaComercial } from '@/lib/revisao-elegibilidade'
 import { gerarFeriadosPorAno } from '@/lib/feriados'
 import { agoraLocalISO } from '@/lib/agendamento-helpers'
+import { STATUS_MEUS_AGENDAMENTOS } from '@/lib/agente/janela-agendamentos'
 
 export interface RevisaoDisponivel {
   agendamento_original_id: number
@@ -165,7 +166,7 @@ export async function montarInfoClienteNovo(telefone: string): Promise<string | 
       .from('agendamentos')
       .select('tipo_exame, data_hora, pets(nome)')
       .eq('tutor_id', tutor.id)
-      .in('status', ['agendado', 'em atendimento'])
+      .in('status', STATUS_MEUS_AGENDAMENTOS)
       .gt('data_hora', agoraLocalISO())
       .order('data_hora')
       .limit(5),

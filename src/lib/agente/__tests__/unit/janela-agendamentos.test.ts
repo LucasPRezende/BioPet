@@ -30,6 +30,7 @@ describe('STATUS_MEUS_AGENDAMENTOS', () => {
   it("inclui 'concluído': a equipe marca como concluído ao cair o pagamento, antes do exame (Rihanna, 26/10)", () => {
     expect(STATUS_MEUS_AGENDAMENTOS).toContain('concluído')
     expect(STATUS_MEUS_AGENDAMENTOS).toContain('agendado')
+    expect(STATUS_MEUS_AGENDAMENTOS).toContain('pendente') // pedido que a IA acabou de criar (Flávia/Tata, 03/11)
     expect(STATUS_MEUS_AGENDAMENTOS).not.toContain('cancelado')
     expect(STATUS_MEUS_AGENDAMENTOS).not.toContain('faltou')
   })
