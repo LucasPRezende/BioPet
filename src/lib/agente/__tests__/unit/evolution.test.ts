@@ -70,6 +70,19 @@ describe('sendWhatsAppText', () => {
     )
   })
 
+  it('envia sempre com a prévia de link DESLIGADA (com prévia, mensagem com link chega como "Aguardando mensagem")', async () => {
+    ;(fetch as any).mockResolvedValue({ ok: true, json: async () => ({ key: { id: 'WAMID_LINK' } }) })
+
+    await sendWhatsAppText('24981367482', 'Pague aqui: https://biopetvet.com/pagamento/pix/abc', 'sistema')
+
+    const [url, init] = (fetch as any).mock.calls[0]
+    expect(url).toBe('https://evolution.biopetvet.com/message/sendText/Biopet')
+    const body = JSON.parse(init.body)
+    expect(body.linkPreview).toBe(false)
+    expect(body.number).toBe('5524981367482')
+    expect(body.text).toBe('Pague aqui: https://biopetvet.com/pagamento/pix/abc')
+  })
+
   it('falha no envio (Evolution fora do ar): NÃO registra e retorna false', async () => {
     ;(fetch as any).mockResolvedValue({ ok: false, status: 500, text: async () => 'erro' })
 

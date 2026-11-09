@@ -115,7 +115,10 @@ export async function sendWhatsAppText(
     const res = await fetch(`${apiUrl}/message/sendText/${instance}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', apikey: apiKey },
-      body: JSON.stringify({ number, text }),
+      // linkPreview: false — com a prévia ligada, mensagens com link (PIX, convites)
+      // chegavam ao WhatsApp como "Aguardando mensagem" e o cliente nunca via o link
+      // (testado em 09/11/2026: só o envio com a prévia desligada foi entregue).
+      body: JSON.stringify({ number, text, linkPreview: false }),
     })
     if (!res.ok) {
       console.error(`[Evolution API] Erro ${res.status}:`, await res.text())
@@ -179,7 +182,7 @@ export async function sendVetInvite(
     const res = await fetch(`${apiUrl}/message/sendText/${instance}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', apikey: apiKey },
-      body: JSON.stringify({ number, text: message }),
+      body: JSON.stringify({ number, text: message, linkPreview: false }), // ver sendWhatsAppText
     })
 
     if (!res.ok) {
