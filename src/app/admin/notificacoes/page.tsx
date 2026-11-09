@@ -15,6 +15,7 @@ interface Notificacao {
   criado_em:        string
   tipo_evento:      string | null
   agendamento_id:   number | null
+  auto_resolvido?:  boolean
 }
 
 const MOTIVO_LABEL: Record<string, string> = {
@@ -354,8 +355,11 @@ export default function NotificacoesPage() {
                                 <span className="text-xs text-gray-400">#{n.agendamento_id}</span>
                               )}
                               {n.visualizado && requerAtencao && (
-                                <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-green-100 text-green-700">
-                                  Resolvido
+                                <span
+                                  className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-green-100 text-green-700"
+                                  title={n.auto_resolvido ? 'Mais de 7 dias sem resolver: marcada como resolvida automaticamente' : undefined}
+                                >
+                                  {n.auto_resolvido ? 'Resolvido automaticamente' : 'Resolvido'}
                                 </span>
                               )}
                             </div>

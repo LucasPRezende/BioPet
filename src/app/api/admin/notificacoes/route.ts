@@ -1,14 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { parseSystemSession, SESSION_COOKIE_NAME } from '@/lib/system-auth'
-
-const TIPOS_REQUER_ATENCAO = new Set([
-  'ia_travou', 'pergunta_laudo', 'pergunta_tecnica', 'erro_tecnico', 'laudo_urgente', 'laudo_atrasado',
-])
-
-const TIPOS_AGENDAMENTO = new Set([
-  'agendamento', 'remarcacao', 'alteracao', 'cancelamento', 'agendamento_clinica',
-])
+import { aplicarAutoResolucao, contarPendentes } from '@/lib/notificacoes'
 
 export async function GET(request: NextRequest) {
   const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value
@@ -25,22 +18,11 @@ export async function GET(request: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Badge conta apenas "Requer atenção" não visualizadas
-  // (tipo_evento nulo = notificação antiga, também conta)
-  const naoVisualizadas = (data ?? []).filter(n =>
-    !n.visualizado &&
-    (n.tipo_evento === null || n.tipo_evento === undefined || TIPOS_REQUER_ATENCAO.has(n.tipo_evento))
-  ).length
+  // Notificação com mais de 7 dias vira "resolvida automaticamente" e sai dos
+  // contadores (badge "Requer atenção" + agendamentos novos).
+  const agora = Date.now()
+  const notificacoes = aplicarAutoResolucao(data ?? [], agora)
+  const { nao_visualizadas, agendamentos_novos } = contarPendentes(data ?? [], agora)
 
-  // Agendamentos novos (agente/clínica/remarcação/cancelamento) ainda não vistos —
-  // antes ficavam escondidos sem badge.
-  const agendamentosNovos = (data ?? []).filter(n =>
-    !n.visualizado && n.tipo_evento && TIPOS_AGENDAMENTO.has(n.tipo_evento)
-  ).length
-
-  return NextResponse.json({
-    notificacoes: data ?? [],
-    nao_visualizadas: naoVisualizadas,
-    agendamentos_novos: agendamentosNovos,
-  })
+  return NextResponse.json({ notificacoes, nao_visualizadas, agendamentos_novos })
 }
