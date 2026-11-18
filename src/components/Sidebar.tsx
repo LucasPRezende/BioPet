@@ -43,6 +43,7 @@ const NAV: NavGroup[] = [
     items: [
       { icon: '📅', label: 'Agenda',    href: '/admin/agenda'    },
       { icon: '🔄', label: 'Revisões',  href: '/admin/revisoes'  },
+      { icon: '🧾', label: 'Orçamento', href: '/admin/orcamento' },
       { icon: '🐾', label: 'Resp. Legais', href: '/admin/tutores' },
     ],
   },
