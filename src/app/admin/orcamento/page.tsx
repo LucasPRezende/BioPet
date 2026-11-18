@@ -2,51 +2,49 @@
 
 import { useEffect, useMemo, useState } from 'react'
 
-interface ExamePreco {
-  tipo: string
-  varia_por_horario: boolean
-  pix?: number | null
-  horario_comercial?: { pix: number | null }
-}
-interface Bio { nome: string; pix: number | null }
+interface Item { nome: string; pix: number }
+interface Catalogo { exames: Item[]; bioquimica: Item[]; testes_rapidos: Item[]; pcr: Item[] }
+type Grupo = keyof Catalogo
+
+const GRUPOS: { chave: Grupo; titulo: string | null }[] = [
+  { chave: 'exames', titulo: null },
+  { chave: 'bioquimica', titulo: 'Bioquímica' },
+  { chave: 'testes_rapidos', titulo: 'Testes rápidos' },
+  { chave: 'pcr', titulo: 'PCR' },
+]
+const VAZIO: Catalogo = { exames: [], bioquimica: [], testes_rapidos: [], pcr: [] }
 
 const brl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const INPUT = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8a6e36]'
 const LABEL = 'block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1'
 
 export default function OrcamentoPage() {
-  const [exames, setExames] = useState<ExamePreco[]>([])
-  const [bio, setBio] = useState<Bio[]>([])
+  const [catalogo, setCatalogo] = useState<Catalogo>(VAZIO)
   const [carregando, setCarregando] = useState(true)
   const [paciente, setPaciente] = useState('')
   const [dias, setDias] = useState('15')
-  const [selExames, setSelExames] = useState<string[]>([])
-  const [selBio, setSelBio] = useState<string[]>([])
+  const [sel, setSel] = useState<Record<Grupo, string[]>>({ exames: [], bioquimica: [], testes_rapidos: [], pcr: [] })
   const [busca, setBusca] = useState('')
   const [gerando, setGerando] = useState(false)
   const [erro, setErro] = useState('')
 
   useEffect(() => {
-    fetch('/api/agente/precos')
+    fetch('/api/orcamento')
       .then(r => r.ok ? r.json() : Promise.reject())
-      .then(d => {
-        setExames((d.exames ?? []) as ExamePreco[])
-        setBio((d.bioquimica?.exames ?? []) as Bio[])
-      })
+      .then(d => setCatalogo({ ...VAZIO, ...d }))
       .catch(() => setErro('Não consegui carregar a tabela de preços.'))
       .finally(() => setCarregando(false))
   }, [])
 
-  const toggle = (lista: string[], set: (v: string[]) => void, nome: string) =>
-    set(lista.includes(nome) ? lista.filter(n => n !== nome) : [...lista, nome])
+  const toggle = (g: Grupo, nome: string) =>
+    setSel(s => ({ ...s, [g]: s[g].includes(nome) ? s[g].filter(n => n !== nome) : [...s[g], nome] }))
 
   const q = busca.trim().toLowerCase()
-  const examesVisiveis = useMemo(
-    () => exames.filter(e => (e.varia_por_horario ? e.horario_comercial?.pix : e.pix) && e.tipo.toLowerCase().includes(q)),
-    [exames, q],
-  )
-  const bioVisiveis = useMemo(() => bio.filter(b => b.nome.toLowerCase().includes(q)), [bio, q])
-  const total = selExames.length + selBio.length
+  const visiveis = useMemo(() => {
+    const f = (l: Item[]) => l.filter(i => i.nome.toLowerCase().includes(q))
+    return { exames: f(catalogo.exames), bioquimica: f(catalogo.bioquimica), testes_rapidos: f(catalogo.testes_rapidos), pcr: f(catalogo.pcr) }
+  }, [catalogo, q])
+  const total = sel.exames.length + sel.bioquimica.length + sel.testes_rapidos.length + sel.pcr.length
 
   async function gerar() {
     setErro('')
@@ -57,7 +55,7 @@ export default function OrcamentoPage() {
       const res = await fetch('/api/orcamento', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paciente, exames: selExames, bioquimica: selBio, validade_dias: Number(dias) }),
+        body: JSON.stringify({ paciente, ...sel, validade_dias: Number(dias) }),
       })
       if (!res.ok) {
         const d = await res.json().catch(() => ({}))
@@ -110,23 +108,17 @@ export default function OrcamentoPage() {
         <p className="text-sm text-gray-400">Carregando…</p>
       ) : (
         <div className="space-y-4">
-          <div className="grid sm:grid-cols-2 gap-2">
-            {examesVisiveis.map(e => (
-              <Check key={e.tipo} nome={e.tipo} preco={e.varia_por_horario ? e.horario_comercial?.pix : e.pix}
-                marcado={selExames.includes(e.tipo)} onClick={() => toggle(selExames, setSelExames, e.tipo)} />
-            ))}
-          </div>
-          {bioVisiveis.length > 0 && (
-            <>
-              <div className={LABEL}>Bioquímica</div>
+          {GRUPOS.map(({ chave, titulo }) => visiveis[chave].length > 0 && (
+            <div key={chave}>
+              {titulo && <div className={LABEL}>{titulo}</div>}
               <div className="grid sm:grid-cols-2 gap-2">
-                {bioVisiveis.map(b => (
-                  <Check key={b.nome} nome={b.nome} preco={b.pix}
-                    marcado={selBio.includes(b.nome)} onClick={() => toggle(selBio, setSelBio, b.nome)} />
+                {visiveis[chave].map(i => (
+                  <Check key={i.nome} nome={i.nome} preco={i.pix}
+                    marcado={sel[chave].includes(i.nome)} onClick={() => toggle(chave, i.nome)} />
                 ))}
               </div>
-            </>
-          )}
+            </div>
+          ))}
         </div>
       )}
 
